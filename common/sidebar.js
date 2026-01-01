@@ -51,24 +51,16 @@ export default function Sidebar() {
   const menus = [
     { name: "Dashboard", icon: <Home size={20} />, path: "/dashboard" },
     { name: "User Roles", icon: <Shield size={20} />, path: "/user-roles" },
-    { name: "Profile", icon: <UserCog size={20} />, path: "/profile" },
-    { name: "Admin Controls", icon: <Settings size={20} />, path: "/admin-controls" },
-    { name: "Authentication", icon: <Key size={20} />, path: "/authentication" },
-    { name: "Employee Management", icon: <Users size={20} />, path: "/employees" },
-    { name: "Department", icon: <Building size={20} />, path: "/departments" },
-    { name: "Designation", icon: <Briefcase size={20} />, path: "/designations" },
+    { name: "Profile", icon: <UserCog size={20} />, path: "/profile" }, 
     { name: "Attendance", icon: <Clock size={20} />, path: "/attendance" },
     { name: "Leave Management", icon: <Calendar size={20} />, path: "/leave" },
     { name: "Payroll", icon: <Wallet size={20} />, path: "/payroll" },
-    { name: "Salary Structure", icon: <CreditCard size={20} />, path: "/salary" },
-    { name: "Reports", icon: <BarChart3 size={20} />, path: "/reports" },
-    { name: "Analytics", icon: <PieChart size={20} />, path: "/analytics" },
-    { name: "Performance", icon: <Activity size={20} />, path: "/performance" },
-    { name: "Recruitment", icon: <UserPlus size={20} />, path: "/recruitment" },
-    { name: "Holiday", icon: <Award size={20} />, path: "/holiday" },
-    { name: "Leave", icon: <Award size={20} />, path: "/leave" },
+    { name: "Salary Structure", icon: <CreditCard size={20} />, path: "/salaryRule" },
+    { name: "Holiday", icon: <Award size={20} />, path: "/holiday" }, 
+    { name: "Audit Logs", icon: <Activity size={20} />, path: "/audit" }, 
+    { name: "Session Logs", icon: <Activity size={20} />, path: "/session" }, 
     { name: "Notifications", icon: <Bell size={20} />, path: "/notification" },
-    { name: "Documents", icon: <FileText size={20} />, path: "/documents" },
+    { name: "Reports", icon: <BarChart3 size={20} />, path: "/reports" }, 
     { name: "Settings", icon: <Settings size={20} />, path: "/settings" },
     { name: "Help & Support", icon: <HelpCircle size={20} />, path: "/help" },
   ];
@@ -292,9 +284,9 @@ export default function Sidebar() {
 
       {/* Footer - Fixed */}
       <div className="flex-shrink-0 sticky bottom-0 z-20 bg-purple-900/90 backdrop-blur-sm border-t border-purple-700">
-        <div className="p-4">
+        <div className="p-2">
           {open ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {/* User Profile */}
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
@@ -310,7 +302,7 @@ export default function Sidebar() {
               {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600/20 to-red-700/20 text-red-300 hover:text-white hover:from-red-600/30 hover:to-red-700/30 rounded-xl border border-red-800/30 transition-all duration-200 group"
+                className="w-full flex items-center justify-center gap-2 px-4 py-1 bg-gradient-to-r from-red-600/20 to-red-700/20 text-red-300 hover:text-white hover:from-red-600/30 hover:to-red-700/30 rounded-xl border border-red-800/30 transition-all duration-200 group"
               >
                 <LogOut size={18} className="group-hover:rotate-180 transition-transform duration-300" />
                 <span className="font-medium">Logout</span>

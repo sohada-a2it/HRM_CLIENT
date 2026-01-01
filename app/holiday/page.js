@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import api from "@/app/lib/api";
+import { useRouter } from "next/navigation";
 import { 
   Calendar, 
   Plus, 
@@ -11,25 +11,20 @@ import {
   Download, 
   RefreshCw, 
   X,
-  CheckCircle,
   AlertCircle,
   Clock,
   Building,
   Globe,
   ChevronDown,
-  MoreVertical,
   CalendarDays,
   PartyPopper,
-  Shield,
-  Eye,
-  EyeOff,
-  Search,
-  SortAsc,
-  SortDesc
+  User,
+  Search
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
 export default function HolidaysPage() {
+  const router = useRouter();
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -45,9 +40,79 @@ export default function HolidaysPage() {
     date: "",
     type: "GOVT"
   });
+  
+  // User role state
+  const [userRole, setUserRole] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loadingRole, setLoadingRole] = useState(true);
+  const [userData, setUserData] = useState(null);
 
   // Years for filter
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i);
+
+  // Helper function to get user type from localStorage
+  const getUserType = () => {
+    if (typeof window !== "undefined") {
+      if (localStorage.getItem("adminToken")) return "admin";
+      if (localStorage.getItem("employeeToken")) return "employee";
+    }
+    return "employee";
+  };
+
+  // Get token based on user type
+  const getToken = () => {
+    const userType = getUserType();
+    return userType === "admin" 
+      ? localStorage.getItem("adminToken") 
+      : localStorage.getItem("employeeToken");
+  };
+
+  // Fetch user profile and role
+  const fetchUserProfile = async () => {
+    try {
+      const userType = getUserType();
+      const token = getToken();
+      
+      if (!token) {
+        router.push("/login");
+        return null;
+      }
+
+      const endpoint = userType === "admin" 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/getAdminProfile`
+        : `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
+
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.status === 401) {
+        if (userType === "admin") {
+          localStorage.removeItem("adminToken");
+        } else {
+          localStorage.removeItem("employeeToken");
+        }
+        router.push("/login");
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (data.user || (data && typeof data === 'object' && (data.email || data._id))) {
+        const userData = data.user || data;
+        return userData;
+      } else {
+        console.error("Invalid response data:", data);
+        return null;
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      return null;
+    }
+  };
 
   // Fetch holidays
   const fetchHolidays = async () => {
@@ -55,48 +120,103 @@ export default function HolidaysPage() {
     const loadingToast = toast.loading("Loading holidays...");
     
     try {
-      const res = await api.get("/getAllHoliday");
+      // Fetch user profile to get role
+      const userProfile = await fetchUserProfile();
+      if (userProfile) {
+        setUserData(userProfile);
+        const userType = getUserType();
+        setUserRole(userType);
+        setIsAdmin(userType === "admin");
+      }
       
-      if (res.data.status === "success") {
-        setHolidays(res.data.holidays || []);
+      const token = getToken();
+      
+      // Prepare headers
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      
+      // Add authorization header if token exists
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      // Fetch holidays
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/getAllHoliday`, {
+        headers: headers
+      });
+
+      const data = await response.json();
+      
+      if (data.status === "success") {
+        setHolidays(data.holidays || []);
         toast.dismiss(loadingToast);
-        toast.success(`Loaded ${res.data.holidays?.length || 0} holidays`, {
+        toast.success(`Loaded ${data.holidays?.length || 0} holidays`, {
           icon: '🎉',
           duration: 3000,
         });
       } else {
         toast.dismiss(loadingToast);
-        toast.error(res.data.message || "Failed to load holidays");
+        toast.error(data.message || "Failed to load holidays");
       }
     } catch (error) {
       toast.dismiss(loadingToast);
-      toast.error("Error loading holidays");
+      
+      if (error.response?.status === 403) {
+        toast.error("Access denied. Please contact administrator.");
+      } else {
+        toast.error("Error loading holidays");
+      }
+      
       console.error("Fetch holidays error:", error);
     } finally {
       setLoading(false);
+      setLoadingRole(false);
     }
   };
-
-  useEffect(() => {
-    fetchHolidays();
-  }, []);
 
   // Handle form change
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // Add new holiday
+  // Add new holiday - Admin only
   const handleAddHoliday = async (e) => {
     e.preventDefault();
-    setFormLoading(true);
     
+    if (!isAdmin) {
+      toast.error("Only admin can create holidays");
+      return;
+    }
+    
+    setFormLoading(true);
     const loadingToast = toast.loading("Adding holiday...");
     
     try {
-      const res = await api.post("/addHoliday", form);
+      const token = getToken();
       
-      if (res.data.status === "success") {
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/addHoliday`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(form)
+      });
+
+      const data = await response.json();
+      
+      if (response.status === 403) {
+        toast.error("Only admin can create holidays");
+        return;
+      }
+      
+      if (data.status === "success") {
         toast.dismiss(loadingToast);
         toast.success("Holiday added successfully!", {
           icon: '✅',
@@ -108,36 +228,54 @@ export default function HolidaysPage() {
         fetchHolidays();
       } else {
         toast.dismiss(loadingToast);
-        toast.error(res.data.message || "Failed to add holiday");
+        toast.error(data.message || "Failed to add holiday");
       }
     } catch (error) {
       toast.dismiss(loadingToast);
-      
-      if (error.response?.status === 403) {
-        toast.error("Only admin can create holidays");
-      } else if (error.response?.status === 400) {
-        toast.error(error.response?.data?.message || "Validation failed");
-      } else {
-        toast.error("Error adding holiday");
-      }
-      
+      toast.error("Error adding holiday");
       console.error("Add holiday error:", error);
     } finally {
       setFormLoading(false);
     }
   };
 
-  // Update holiday
+  // Update holiday - Admin only
   const handleUpdateHoliday = async (e) => {
     e.preventDefault();
-    setFormLoading(true);
     
+    if (!isAdmin) {
+      toast.error("Only admin can update holidays");
+      return;
+    }
+    
+    setFormLoading(true);
     const loadingToast = toast.loading("Updating holiday...");
     
     try {
-      const res = await api.put(`/editHoliday/${selectedHoliday._id}`, form);
+      const token = getToken();
       
-      if (res.data.status === "success") {
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/editHoliday/${selectedHoliday._id}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(form)
+      });
+
+      const data = await response.json();
+      
+      if (response.status === 403) {
+        toast.error("Only admin can update holidays");
+        return;
+      }
+      
+      if (data.status === "success") {
         toast.dismiss(loadingToast);
         toast.success("Holiday updated successfully!", {
           icon: '✅',
@@ -150,7 +288,7 @@ export default function HolidaysPage() {
         fetchHolidays();
       } else {
         toast.dismiss(loadingToast);
-        toast.error(res.data.message || "Failed to update holiday");
+        toast.error(data.message || "Failed to update holiday");
       }
     } catch (error) {
       toast.dismiss(loadingToast);
@@ -161,16 +299,40 @@ export default function HolidaysPage() {
     }
   };
 
-  // Delete holiday
+  // Delete holiday - Admin only
   const handleDeleteHoliday = async () => {
-    setFormLoading(true);
+    if (!isAdmin) {
+      toast.error("Only admin can delete holidays");
+      return;
+    }
     
+    setFormLoading(true);
     const loadingToast = toast.loading("Deleting holiday...");
     
     try {
-      const res = await api.delete(`/deleteHoliday/${selectedHoliday._id}`);
+      const token = getToken();
       
-      if (res.data.status === "success") {
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/deleteHoliday/${selectedHoliday._id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await response.json();
+      
+      if (response.status === 403) {
+        toast.error("Only admin can delete holidays");
+        return;
+      }
+      
+      if (data.status === "success") {
         toast.dismiss(loadingToast);
         toast.success("Holiday deleted successfully!", {
           icon: '🗑️',
@@ -182,7 +344,7 @@ export default function HolidaysPage() {
         fetchHolidays();
       } else {
         toast.dismiss(loadingToast);
-        toast.error(res.data.message || "Failed to delete holiday");
+        toast.error(data.message || "Failed to delete holiday");
       }
     } catch (error) {
       toast.dismiss(loadingToast);
@@ -195,6 +357,11 @@ export default function HolidaysPage() {
 
   // Edit holiday click
   const handleEditClick = (holiday) => {
+    if (!isAdmin) {
+      toast.error("Only admin can edit holidays");
+      return;
+    }
+    
     setSelectedHoliday(holiday);
     setForm({
       title: holiday.title,
@@ -206,6 +373,11 @@ export default function HolidaysPage() {
 
   // Delete holiday click
   const handleDeleteClick = (holiday) => {
+    if (!isAdmin) {
+      toast.error("Only admin can delete holidays");
+      return;
+    }
+    
     setSelectedHoliday(holiday);
     setShowDeleteModal(true);
   };
@@ -269,12 +441,16 @@ export default function HolidaysPage() {
     return `${diffDays} days`;
   };
 
+  useEffect(() => {
+    fetchHolidays();
+  }, []);
+
   return (
     <>
       <Toaster position="top-right" />
       
-      {/* Add Holiday Modal */}
-      {showAddModal && (
+      {/* Add Holiday Modal - Admin only */}
+      {showAddModal && isAdmin && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="p-6 border-b border-gray-100">
@@ -376,8 +552,8 @@ export default function HolidaysPage() {
         </div>
       )}
 
-      {/* Edit Holiday Modal */}
-      {showEditModal && selectedHoliday && (
+      {/* Edit Holiday Modal - Admin only */}
+      {showEditModal && selectedHoliday && isAdmin && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="p-6 border-b border-gray-100">
@@ -480,8 +656,8 @@ export default function HolidaysPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && selectedHoliday && (
+      {/* Delete Confirmation Modal - Admin only */}
+      {showDeleteModal && selectedHoliday && isAdmin && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="p-6 border-b border-gray-100">
@@ -557,7 +733,20 @@ export default function HolidaysPage() {
               <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                 Holiday Management
               </h1>
-              <p className="text-gray-600 mt-2">Manage and track all holidays for the organization</p>
+              <div className="flex items-center gap-2 mt-2">
+                <p className="text-gray-600">Manage and track all holidays for the organization</p>
+                {!loadingRole && userRole && (
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                    isAdmin 
+                      ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800' 
+                      : 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800'
+                  }`}>
+                    <User size={12} />
+                    {userRole.toUpperCase()}
+                    {!isAdmin && " (Read-only)"}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-3 mt-4 md:mt-0">
               <button
@@ -568,13 +757,17 @@ export default function HolidaysPage() {
                 <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
                 Refresh
               </button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-              >
-                <Plus size={18} />
-                Add Holiday
-              </button>
+              
+              {/* Admin only - Add Holiday button */}
+              {isAdmin && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+                >
+                  <Plus size={18} />
+                  Add Holiday
+                </button>
+              )}
             </div>
           </div>
 
@@ -644,6 +837,9 @@ export default function HolidaysPage() {
                     <h2 className="text-xl font-bold text-gray-900">Holiday Calendar</h2>
                     <p className="text-gray-500 text-sm">
                       {filteredHolidays.length} of {holidays.length} holidays
+                      {!isAdmin && (
+                        <span className="ml-2 text-blue-600 font-medium">(Read-only)</span>
+                      )}
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
@@ -701,14 +897,16 @@ export default function HolidaysPage() {
                     <p className="text-gray-500 max-w-md">
                       {searchTerm || selectedYear !== "all" || selectedType !== "all" 
                         ? 'Try adjusting your search or filters' 
-                        : 'Start by adding your first holiday'}
+                        : 'No holidays scheduled yet'}
                     </p>
-                    <button
-                      onClick={() => setShowAddModal(true)}
-                      className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition-opacity"
-                    >
-                      Add Holiday
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setShowAddModal(true)}
+                        className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition-opacity"
+                      >
+                        Add Holiday
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -788,22 +986,25 @@ export default function HolidaysPage() {
                                 </div>
                               </div>
                               
-                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <button
-                                  onClick={() => handleEditClick(holiday)}
-                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                                  title="Edit Holiday"
-                                >
-                                  <Edit size={18} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteClick(holiday)}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                                  title="Delete Holiday"
-                                >
-                                  <Trash2 size={18} />
-                                </button>
-                              </div>
+                              {/* Action buttons - Admin only */}
+                              {isAdmin && (
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                  <button
+                                    onClick={() => handleEditClick(holiday)}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                                    title="Edit Holiday"
+                                  >
+                                    <Edit size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteClick(holiday)}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                                    title="Delete Holiday"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -867,7 +1068,7 @@ export default function HolidaysPage() {
                       <PartyPopper className="text-gray-400" size={24} />
                     </div>
                     <p className="text-gray-600">No upcoming holidays</p>
-                    <p className="text-gray-400 text-sm mt-2">Add holidays to see them here</p>
+                    <p className="text-gray-400 text-sm mt-2">No holidays scheduled</p>
                   </div>
                 )}
 
@@ -902,18 +1103,23 @@ export default function HolidaysPage() {
                 <div className="pt-6 mt-6 border-t border-gray-100">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
                   <div className="space-y-2">
-                    <button
-                      onClick={() => setShowAddModal(true)}
-                      className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:border-purple-300 transition-all duration-300"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white rounded-lg shadow-sm">
-                          <Plus size={16} className="text-purple-600" />
+                    {/* Admin only - Add New Holiday */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => setShowAddModal(true)}
+                        className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:border-purple-300 transition-all duration-300"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <Plus size={16} className="text-purple-600" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Add New Holiday</span>
                         </div>
-                        <span className="text-sm font-medium text-gray-700">Add New Holiday</span>
-                      </div>
-                      <ChevronDown size={16} className="text-gray-400 rotate-270" />
-                    </button>
+                        <ChevronDown size={16} className="text-gray-400 rotate-270" />
+                      </button>
+                    )}
+                    
+                    {/* Export Calendar - Available for all */}
                     <button className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 hover:border-blue-300 transition-all duration-300">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-white rounded-lg shadow-sm">
@@ -923,6 +1129,8 @@ export default function HolidaysPage() {
                       </div>
                       <ChevronDown size={16} className="text-gray-400 rotate-270" />
                     </button>
+                    
+                    {/* View Full Calendar - Available for all */}
                     <button className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100 hover:border-green-300 transition-all duration-300">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-white rounded-lg shadow-sm">

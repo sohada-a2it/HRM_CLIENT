@@ -32,62 +32,12 @@ import {
   DollarSign,
   Hash,
   BadgeCheck,
-  ChevronRight
+  ChevronRight,
+  Key
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 export default function UserProfilePage() {
-  // Request password reset from admin
-const handleRequestPasswordReset = async () => {
-  if (!confirm("Send password reset request to admin?")) return;
-
-  try {
-    const token = localStorage.getItem("token") || localStorage.getItem("employeeToken");
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/request-password-reset`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        userId: user?._id,
-        reason: "Requested password reset by employee",
-        requestedAt: new Date().toISOString()
-      })
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      toast.success("Password reset request sent to admin!");
-    } else {
-      toast.error(data.message || "Failed to send request");
-    }
-  } catch (error) {
-    toast.error("Network error. Please try again.");
-  }
-};
-
-// View reset history
-const handleViewResetHistory = async () => {
-  try {
-    const token = localStorage.getItem("token") || localStorage.getItem("employeeToken");
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/password-reset-history`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      // You can open a modal or navigate to a history page here
-      console.log("Reset history:", data);
-      toast.success("Reset history loaded");
-    } else {
-      toast.error("Failed to load reset history");
-    }
-  } catch (error) {
-    toast.error("Network error. Please try again.");
-  }
-};
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -98,17 +48,29 @@ const handleViewResetHistory = async () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const router = useRouter();
 
+  // ইউজারের টাইপ চেক করার জন্য
+  const getUserType = () => {
+    if (localStorage.getItem("adminToken")) return "admin";
+    if (localStorage.getItem("employeeToken")) return "employee";
+    return null;
+  };
+
   const [profileForm, setProfileForm] = useState({
     firstName: "",
     lastName: "",
     phone: "",
-    location: "",
+    address: "",
     department: "",
     designation: "",
     employeeId: "",
     salaryType: "",
     rate: "",
-    joiningDate: ""
+    joiningDate: "",
+    // এডমিনের জন্য অতিরিক্ত ফিল্ড
+    companyName: "",
+    position: "",
+    adminLevel: "",
+    permissions: []
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -120,40 +82,72 @@ const handleViewResetHistory = async () => {
   // Fetch user profile
   const fetchUserProfile = async () => {
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("employeeToken");
+      const userType = getUserType();
+      const token = userType === "admin" 
+        ? localStorage.getItem("adminToken") 
+        : localStorage.getItem("employeeToken");
+      
       if (!token) {
         router.push("/login");
         return;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const endpoint = userType === "admin" 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/getAdminProfile`
+        : `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
+
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
       });
 
       if (response.status === 401) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("employeeToken");
+        if (userType === "admin") {
+          localStorage.removeItem("adminToken");
+        } else {
+          localStorage.removeItem("employeeToken");
+        }
         router.push("/login");
         return;
       }
 
       const data = await response.json();
-      if (data.user) {
-        setUser(data.user);
+      
+      if (data.user || (data && typeof data === 'object' && (data.email || data._id))) {
+        const userData = data.user || data;
+        
+        // নামের জন্য fallback তৈরি করুন
+        const nameParts = (userData.name || userData.email || "").split(' ');
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts.slice(1).join(' ') || "";
+        
+        setUser(userData);
+        
         setProfileForm({
-          firstName: data.user.firstName || "",
-          lastName: data.user.lastName || "",
-          phone: data.user.phone || "",
-          location: data.user.location || "Dhaka, Bangladesh",
-          department: data.user.department || "",
-          designation: data.user.designation || "",
-          employeeId: data.user.employeeId || "",
-          salaryType: data.user.salaryType || "",
-          rate: data.user.rate || "",
-          joiningDate: data.user.joiningDate || ""
+          firstName: userData.firstName || firstName || "",
+          lastName: userData.lastName || lastName || "",
+          phone: userData.phone || "",
+          address: userData.address || userData.address || "Dhaka, Bangladesh",
+          department: userData.department || "",
+          designation: userData.designation || "",
+          employeeId: userData.employeeId || "",
+          salaryType: userData.salaryType || "",
+          rate: userData.rate || "",
+          joiningDate: userData.joiningDate || "",
+          // এডমিনের জন্য অতিরিক্ত ডাটা
+          companyName: userType === "admin" ? (userData.companyName || "") : "",
+          position: userType === "admin" ? (userData.position || "") : "",
+          adminLevel: userType === "admin" ? (userData.adminLevel || "") : "",
+          permissions: userType === "admin" ? (userData.permissions || []) : []
         });
+      } else {
+        console.error("Invalid response data:", data);
+        toast.error("Failed to load user data");
       }
     } catch (error) {
+      console.error("Error fetching profile:", error);
       toast.error("Failed to load profile");
     } finally {
       setLoading(false);
@@ -163,7 +157,11 @@ const handleViewResetHistory = async () => {
   // Fetch user sessions
   const fetchUserSessions = async () => {
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("employeeToken");
+      const userType = getUserType();
+      const token = userType === "admin" 
+        ? localStorage.getItem("adminToken") 
+        : localStorage.getItem("employeeToken");
+      
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/my-sessions`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -185,25 +183,43 @@ const handleViewResetHistory = async () => {
   // Update profile
   const handleUpdateProfile = async () => {
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("employeeToken");
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/updateProfile`, {
-        method: "post",
+      const userType = getUserType();
+      const token = userType === "admin" 
+        ? localStorage.getItem("adminToken") 
+        : localStorage.getItem("employeeToken");
+      
+      const endpoint = userType === "admin" 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/updateAdminProfile`
+        : `${process.env.NEXT_PUBLIC_API_URL}/users/updateProfile`;
+
+      const updateData = {
+        firstName: profileForm.firstName,
+        lastName: profileForm.lastName,
+        phone: profileForm.phone,
+        address: profileForm.address,
+        department: profileForm.department,
+        designation: profileForm.designation,
+        employeeId: profileForm.employeeId,
+        salaryType: profileForm.salaryType,
+        rate: profileForm.rate,
+        joiningDate: profileForm.joiningDate
+      };
+
+      // শুধু এডমিনের জন্য অতিরিক্ত ফিল্ড যোগ করুন
+      if (userType === "admin") {
+        updateData.companyName = profileForm.companyName;
+        updateData.position = profileForm.position;
+        updateData.adminLevel = profileForm.adminLevel;
+        updateData.permissions = profileForm.permissions;
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          firstName: profileForm.firstName,
-          lastName: profileForm.lastName,
-          phone: profileForm.phone,
-          location: profileForm.location,
-          department: profileForm.department,
-          designation: profileForm.designation,
-          employeeId: profileForm.employeeId,
-          salaryType: profileForm.salaryType,
-          rate: profileForm.rate,
-          joiningDate: profileForm.joiningDate
-        })
+        body: JSON.stringify(updateData)
       });
 
       const data = await response.json();
@@ -233,8 +249,16 @@ const handleViewResetHistory = async () => {
     }
 
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("employeeToken");
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/change-password`, {
+      const userType = getUserType();
+      const token = userType === "admin" 
+        ? localStorage.getItem("adminToken") 
+        : localStorage.getItem("employeeToken");
+      
+      const endpoint = userType === "admin" 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/auth/admin/change-password`
+        : `${process.env.NEXT_PUBLIC_API_URL}/auth/change-password`;
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -263,12 +287,71 @@ const handleViewResetHistory = async () => {
     }
   };
 
+  // Request password reset from admin
+  const handleRequestPasswordReset = async () => {
+    if (!confirm("Send password reset request to admin?")) return;
+
+    try {
+      const token = localStorage.getItem("employeeToken");
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/request-password-reset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userId: user?._id,
+          reason: "Requested password reset by employee",
+          requestedAt: new Date().toISOString()
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("Password reset request sent to admin!");
+      } else {
+        toast.error(data.message || "Failed to send request");
+      }
+    } catch (error) {
+      toast.error("Network error. Please try again.");
+    }
+  };
+
+  // View reset history
+  const handleViewResetHistory = async () => {
+    try {
+      const userType = getUserType();
+      const token = userType === "admin" 
+        ? localStorage.getItem("adminToken") 
+        : localStorage.getItem("employeeToken");
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/password-reset-history`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Reset history:", data);
+        toast.success("Reset history loaded");
+      } else {
+        toast.error("Failed to load reset history");
+      }
+    } catch (error) {
+      toast.error("Network error. Please try again.");
+    }
+  };
+
   // Logout from all sessions
   const handleLogoutAllSessions = async () => {
     if (!confirm("Are you sure you want to logout from all devices?")) return;
 
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("employeeToken");
+      const userType = getUserType();
+      const token = userType === "admin" 
+        ? localStorage.getItem("adminToken") 
+        : localStorage.getItem("employeeToken");
+      
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/logout-all`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
@@ -286,7 +369,11 @@ const handleViewResetHistory = async () => {
     if (!confirm("Terminate this session?")) return;
 
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("employeeToken");
+      const userType = getUserType();
+      const token = userType === "admin" 
+        ? localStorage.getItem("adminToken") 
+        : localStorage.getItem("employeeToken");
+      
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/terminate-session/${sessionId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
@@ -360,17 +447,23 @@ const handleViewResetHistory = async () => {
                         alt={user.firstName}
                         className="w-full h-full rounded-full object-cover"
                       />
+                    ) : getUserType() === "admin" ? (
+                      <Shield className="text-purple-600" size={48} />
                     ) : (
                       <User className="text-purple-600" size={48} />
                     )}
                   </div>
                   <h2 className="text-xl font-bold text-white">
-                    {user?.firstName} {user?.lastName}
+                    {user?.firstName || user?.name?.split(' ')[0] || user?.email?.split('@')[0]} {user?.lastName || user?.name?.split(' ').slice(1).join(' ') || ''}
                   </h2>
                   <p className="text-purple-100 mt-1">{user?.email}</p>
                   <div className="mt-3">
-                    <span className="px-3 py-1 bg-white/20 text-white rounded-full text-sm font-medium">
-                      {user?.role?.toUpperCase() || "EMPLOYEE"}
+                    <span className={`px-3 py-1 text-white rounded-full text-sm font-medium ${
+                      getUserType() === "admin" 
+                        ? "bg-gradient-to-r from-indigo-500 to-purple-500" 
+                        : "bg-gradient-to-r from-blue-500 to-cyan-500"
+                    }`}>
+                      {getUserType() === "admin" ? "ADMINISTRATOR" : "EMPLOYEE"}
                     </span>
                   </div>
                 </div>
@@ -422,6 +515,22 @@ const handleViewResetHistory = async () => {
                       </div>
                     </div>
                   </div>
+
+                  {getUserType() === "admin" && user?.adminLevel && (
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                          <ShieldCheck className="text-indigo-600" size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Admin Level</p>
+                          <p className="text-sm font-semibold text-indigo-600 capitalize">
+                            {user?.adminLevel}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Quick Actions */}
@@ -447,6 +556,19 @@ const handleViewResetHistory = async () => {
                     </div>
                     <span className="text-sm text-purple-600">Update</span>
                   </button>
+
+                  {getUserType() === "admin" && (
+                    <button
+                      onClick={() => router.push("/admin/users")}
+                      className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Users className="text-gray-600" size={20} />
+                        <span className="font-medium text-gray-700">Manage Users</span>
+                      </div>
+                      <ChevronRight className="text-gray-400" size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -510,18 +632,8 @@ const handleViewResetHistory = async () => {
                         <button
                           onClick={() => {
                             setEditMode(false);
-                            setProfileForm({
-                              firstName: user?.firstName || "",
-                              lastName: user?.lastName || "",
-                              phone: user?.phone || "",
-                              location: user?.location || "",
-                              department: user?.department || "",
-                              designation: user?.designation || "",
-                              employeeId: user?.employeeId || "",
-                              salaryType: user?.salaryType || "",
-                              rate: user?.rate || "",
-                              joiningDate: user?.joiningDate || ""
-                            });
+                            // Reset form to original values
+                            fetchUserProfile();
                           }}
                           className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
                         >
@@ -558,7 +670,9 @@ const handleViewResetHistory = async () => {
                             <div>
                               <p className="text-sm text-gray-500 mb-1">Full Name</p>
                               <p className="text-lg font-semibold text-gray-900">
-                                {user?.firstName} {user?.lastName}
+                                {user?.firstName || user?.name?.split(' ')[0] || user?.email?.split('@')[0]} 
+                                {user?.lastName && ` ${user.lastName}`}
+                                {!user?.lastName && user?.name?.split(' ').slice(1).join(' ') && ` ${user.name.split(' ').slice(1).join(' ')}`}
                               </p>
                             </div>
                             
@@ -584,15 +698,84 @@ const handleViewResetHistory = async () => {
                             </div>
                             
                             <div>
-                              <p className="text-sm text-gray-500 mb-1">Location</p>
+                              <p className="text-sm text-gray-500 mb-1">address</p>
                               <div className="flex items-center gap-2">
                                 <MapPin className="text-gray-400" size={16} />
-                                <p className="text-lg font-semibold text-gray-900">{user?.location || "Not provided"}</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.address || user?.address || "Not provided"}</p>
                               </div>
                             </div>
                           </div>
                         </div>
                       </div>
+
+                      {/* Admin Information Card (শুধু এডমিন দেখতে পাবে) */}
+                      {getUserType() === "admin" && (
+                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">
+                          <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                              <Shield className="text-indigo-600" size={22} />
+                            </div>
+                            Administrator Information
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Company</p>
+                                <div className="flex items-center gap-2">
+                                  <Building className="text-gray-400" size={16} />
+                                  <p className="text-lg font-semibold text-gray-900">
+                                    {user?.companyName || "Not specified"}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Admin Position</p>
+                                <div className="flex items-center gap-2">
+                                  <BadgeCheck className="text-gray-400" size={16} />
+                                  <p className="text-lg font-semibold text-gray-900">
+                                    {user?.position || "Administrator"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Admin Level</p>
+                                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
+                                  user?.adminLevel === 'super' ? 'bg-purple-50 text-purple-800' :
+                                  user?.adminLevel === 'admin' ? 'bg-blue-50 text-blue-800' :
+                                  user?.adminLevel === 'manager' ? 'bg-green-50 text-green-800' :
+                                  'bg-gray-50 text-gray-800'
+                                }`}>
+                                  <ShieldCheck className={
+                                    user?.adminLevel === 'super' ? 'text-purple-600' :
+                                    user?.adminLevel === 'admin' ? 'text-blue-600' :
+                                    user?.adminLevel === 'manager' ? 'text-green-600' :
+                                    'text-gray-600'
+                                  } size={18} />
+                                  <p className="font-semibold capitalize">{user?.adminLevel || 'Admin'}</p>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Permissions</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {user?.permissions?.map((perm, index) => (
+                                    <span key={index} className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full font-medium">
+                                      {perm}
+                                    </span>
+                                  )) || (
+                                    <span className="text-gray-500">No specific permissions</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Professional Info Card */}
                       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
@@ -642,35 +825,37 @@ const handleViewResetHistory = async () => {
                         </div>
                       </div>
 
-                      {/* Salary Info Card */}
-                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
-                        <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                            <CreditCard className="text-green-600" size={22} />
-                          </div>
-                          Salary Information
-                        </h4>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <p className="text-sm text-gray-500 mb-1">Salary Type</p>
-                            <div className="flex items-center gap-2">
-                              <CreditCard className="text-gray-400" size={16} />
-                              <p className="text-lg font-semibold text-gray-900 capitalize">{user?.salaryType || "Not set"}</p>
+                      {/* Salary Info Card (এমপ্লয়ির জন্য শো করবে) */}
+                      {getUserType() === "employee" && (
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+                          <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                              <CreditCard className="text-green-600" size={22} />
                             </div>
-                          </div>
+                            Salary Information
+                          </h4>
                           
-                          <div>
-                            <p className="text-sm text-gray-500 mb-1">Rate</p>
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="text-gray-400" size={16} />
-                              <p className="text-lg font-semibold text-gray-900">
-                                ৳{formatCurrency(user?.rate)} {user?.salaryType ? `/${user.salaryType}` : ''}
-                              </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <p className="text-sm text-gray-500 mb-1">Salary Type</p>
+                              <div className="flex items-center gap-2">
+                                <CreditCard className="text-gray-400" size={16} />
+                                <p className="text-lg font-semibold text-gray-900 capitalize">{user?.salaryType || "Not set"}</p>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <p className="text-sm text-gray-500 mb-1">Rate</p>
+                              <div className="flex items-center gap-2">
+                                <DollarSign className="text-gray-400" size={16} />
+                                <p className="text-lg font-semibold text-gray-900">
+                                  ৳{formatCurrency(user?.rate)} {user?.salaryType ? `/${user.salaryType}` : ''}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Account Status Card */}
                       <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-2xl p-6 border border-gray-200">
@@ -794,18 +979,85 @@ const handleViewResetHistory = async () => {
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Location
+                              address
                             </label>
                             <input
                               type="text"
-                              value={profileForm.location}
-                              onChange={(e) => setProfileForm({...profileForm, location: e.target.value})}
+                              value={profileForm.address}
+                              onChange={(e) => setProfileForm({...profileForm, address: e.target.value})}
                               placeholder="City, Country"
                               className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
                             />
                           </div>
                         </div>
                       </div>
+
+                      {/* Admin Information Section (শুধু এডমিনের জন্য) */}
+                      {getUserType() === "admin" && (
+                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100">
+                          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
+                            <Shield size={18} />
+                            Administrator Information
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Company Name
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.companyName}
+                                onChange={(e) => setProfileForm({...profileForm, companyName: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Admin Position
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.position}
+                                onChange={(e) => setProfileForm({...profileForm, position: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Admin Level
+                              </label>
+                              <select
+                                value={profileForm.adminLevel}
+                                onChange={(e) => setProfileForm({...profileForm, adminLevel: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                              >
+                                <option value="">Select Level</option>
+                                <option value="super">Super Admin</option>
+                                <option value="admin">Admin</option>
+                                <option value="manager">Manager</option>
+                                <option value="moderator">Moderator</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Permissions
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.permissions.join(', ')}
+                                onChange={(e) => setProfileForm({...profileForm, permissions: e.target.value.split(',').map(p => p.trim())})}
+                                placeholder="user:read, user:write, etc."
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Comma separated values</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Professional Info Section */}
                       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
@@ -865,44 +1117,46 @@ const handleViewResetHistory = async () => {
                         </div>
                       </div>
 
-                      {/* Salary Info Section */}
-                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
-                        <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
-                          <CreditCard size={18} />
-                          Salary Information
-                        </h4>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Salary Type
-                            </label>
-                            <select
-                              value={profileForm.salaryType}
-                              onChange={(e) => setProfileForm({...profileForm, salaryType: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                            >
-                              <option value="">Select Type</option>
-                              <option value="monthly">Monthly</option>
-                              <option value="hourly">Hourly</option>
-                              <option value="weekly">Weekly</option>
-                              <option value="yearly">Yearly</option>
-                            </select>
-                          </div>
+                      {/* Salary Info Section (এমপ্লয়ির জন্য) */}
+                      {getUserType() === "employee" && (
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
+                            <CreditCard size={18} />
+                            Salary Information
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Salary Type
+                              </label>
+                              <select
+                                value={profileForm.salaryType}
+                                onChange={(e) => setProfileForm({...profileForm, salaryType: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                              >
+                                <option value="">Select Type</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="hourly">Hourly</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="yearly">Yearly</option>
+                              </select>
+                            </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Rate (৳)
-                            </label>
-                            <input
-                              type="number"
-                              value={profileForm.rate}
-                              onChange={(e) => setProfileForm({...profileForm, rate: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                            />
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Rate (৳)
+                              </label>
+                              <input
+                                type="number"
+                                value={profileForm.rate}
+                                onChange={(e) => setProfileForm({...profileForm, rate: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -918,89 +1172,177 @@ const handleViewResetHistory = async () => {
 
                   <div className="space-y-6">
                     {/* Change Password */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <Lock className="text-purple-600" size={20} />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-gray-900">Password Management</h4>
-                    <p className="text-sm text-gray-600">Change your password or request a reset</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-6"> 
-
-                {/* Request Password Reset from Admin */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                  <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Shield size={16} />
-                    Request Password Reset
-                  </h5>
-                  <p className="text-sm text-gray-600 mb-4">
-                    If you've forgotten your password, you can request an admin to reset it for you.
-                  </p>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">Reset Request Status</p>
-                        <p className="text-xs text-gray-500">No active password reset requests</p>
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <Lock className="text-purple-600" size={20} />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900">Change Password</h4>
+                            <p className="text-sm text-gray-600">Update your current password</p>
+                          </div>
+                        </div>
                       </div>
-                      <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
-                        No Request
-                      </span>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Current Password
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showCurrentPassword ? "text" : "password"}
+                              value={passwordForm.currentPassword}
+                              onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                            >
+                              {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            New Password
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showNewPassword ? "text" : "password"}
+                              value={passwordForm.newPassword}
+                              onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                            >
+                              {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Confirm New Password
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showConfirmPassword ? "text" : "password"}
+                              value={passwordForm.confirmPassword}
+                              onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                            >
+                              {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={handleChangePassword}
+                          className="w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors"
+                        >
+                          Update Password
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <button
-                        onClick={handleRequestPasswordReset}
-                        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Shield size={18} />
-                        Request Password Reset
-                      </button>
-                      
-                      <button
-                        onClick={handleViewResetHistory}
-                        className="w-full border-2 border-blue-200 text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <History size={18} />
-                        View History
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                    {/* Password Reset Request (এমপ্লয়ির জন্য) */}
+                    {getUserType() === "employee" && (
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <Key className="text-blue-600" size={20} />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-gray-900">Password Reset Request</h4>
+                              <p className="text-sm text-gray-600">Request admin to reset your password</p>
+                            </div>
+                          </div>
+                        </div>
 
-                {/* Password Reset Guidelines */}
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
-                  <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <CheckCircle size={16} />
-                    Password Guidelines
-                  </h5>
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle className="text-green-600 mt-0.5" size={14} />
-                      <p className="text-sm text-gray-600">Minimum 6 characters in length</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle className="text-green-600 mt-0.5" size={14} />
-                      <p className="text-sm text-gray-600">Include numbers and special characters for better security</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle className="text-green-600 mt-0.5" size={14} />
-                      <p className="text-sm text-gray-600">Avoid using personal information in passwords</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle className="text-green-600 mt-0.5" size={14} />
-                      <p className="text-sm text-gray-600">Change your password every 90 days for optimal security</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div> 
+                        <div className="space-y-4">
+                          <div className="bg-white rounded-lg p-4 border border-gray-200">
+                            <p className="text-sm text-gray-600">
+                              If you've forgotten your password, you can request an administrator to reset it for you. An email notification will be sent to the admin.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <button
+                              onClick={handleRequestPasswordReset}
+                              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <Shield size={18} />
+                              Request Password Reset
+                            </button>
+                            
+                            <button
+                              onClick={handleViewResetHistory}
+                              className="w-full border-2 border-blue-200 text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <History size={18} />
+                              View History
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Admin Security Settings (এডমিনের জন্য) */}
+                    {getUserType() === "admin" && (
+                      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-100">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                              <ShieldCheck className="text-indigo-600" size={20} />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-gray-900">Admin Security Settings</h4>
+                              <p className="text-sm text-gray-600">Administrator specific security options</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button
+                              onClick={() => router.push("/admin/users")}
+                              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <Users size={18} />
+                              Manage Users
+                            </button>
+                            
+                            <button
+                              onClick={() => router.push("/admin/audit-logs")}
+                              className="w-full border-2 border-indigo-200 text-indigo-600 py-3 rounded-lg font-medium hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <History size={18} />
+                              View Audit Logs
+                            </button>
+                          </div>
+                          
+                          <div className="bg-white rounded-lg p-4 border border-gray-200">
+                            <p className="text-sm text-gray-600">
+                              <span className="font-semibold text-indigo-600">Note:</span> As an administrator, you have additional privileges to manage system users and security settings. Use these features responsibly.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Session Management */}
                     <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-100">
@@ -1036,6 +1378,32 @@ const handleViewResetHistory = async () => {
                         >
                           Logout From All Devices
                         </button>
+                      </div>
+                    </div>
+
+                    {/* Password Guidelines */}
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+                      <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <CheckCircle size={16} />
+                        Password Guidelines
+                      </h5>
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="text-green-600 mt-0.5" size={14} />
+                          <p className="text-sm text-gray-600">Minimum 6 characters in length</p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="text-green-600 mt-0.5" size={14} />
+                          <p className="text-sm text-gray-600">Include numbers and special characters for better security</p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="text-green-600 mt-0.5" size={14} />
+                          <p className="text-sm text-gray-600">Avoid using personal information in passwords</p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="text-green-600 mt-0.5" size={14} />
+                          <p className="text-sm text-gray-600">Change your password every 90 days for optimal security</p>
+                        </div>
                       </div>
                     </div>
                   </div>
