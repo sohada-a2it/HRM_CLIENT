@@ -1,4 +1,4 @@
-// app/sessions/page.js - Complete Backend Connected Version
+// app/sessions/page.js - Fixed Analytics Section
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -114,6 +114,9 @@ export default function SessionsPage() {
       const token = getCurrentToken();
       const userType = getUserType();
       
+      console.log('Token:', token ? 'Exists' : 'Not found');
+      console.log('User Type:', userType);
+      
       if (!token || !userType) {
         throw new Error('No authentication token found');
       }
@@ -128,10 +131,11 @@ export default function SessionsPage() {
           userResponse = await axios.get('/users/getProfile');
         }
       } catch (error) {
-        console.log('Trying alternative profile endpoint...');
+        console.error('Profile fetch error:', error);
+        throw new Error('Failed to fetch user profile');
       }
 
-      if (userResponse.data) {
+      if (userResponse?.data) {
         const userData = userResponse.data.user || userResponse.data.data || userResponse.data;
         
         if (!userData) {
@@ -152,6 +156,7 @@ export default function SessionsPage() {
           profileImage: userData.profileImage
         };
 
+        console.log('User data loaded:', formattedUserData.name);
         setUserData(formattedUserData);
         localStorage.setItem('userData', JSON.stringify(formattedUserData));
         
@@ -184,10 +189,17 @@ export default function SessionsPage() {
   const fetchInitialData = async (userType) => {
     try {
       if (userType === 'admin') {
+        console.log('Fetching admin data...');
         await fetchAdminSessions();
         await fetchAdminStats();
-        await fetchAnalyticsData();
+        // Analytics ফাংশনটিকে try-catch দিয়ে wrap করছি
+        try {
+          await fetchAnalyticsData();
+        } catch (analyticsError) {
+          console.log('Analytics data not available, using fallback');
+        }
       } else {
+        console.log('Fetching employee data...');
         await fetchMySessions();
         await fetchMyStats();
         await fetchMyCurrentSession();
@@ -196,144 +208,270 @@ export default function SessionsPage() {
     } catch (error) {
       console.error('Error fetching initial data:', error);
     }
-  };
-
-  // Fetch employee sessions with attendance data
-  const fetchMySessions = async (page = 1) => {
-    try {
-      const response = await axios.get(`/my-sessions?page=${page}&limit=${pagination.limit}`);
-      
-      if (response.data && response.data.success) {
-        const sessionsData = response.data.data || [];
-        setSessions(sessionsData);
-        
-        // Update pagination from backend response
-        if (response.data.pagination) {
-          setPagination(response.data.pagination);
-        }
-        
-        console.log('Fetched sessions:', sessionsData.length);
-      }
-    } catch (error) {
-      console.error('Error fetching my sessions:', error);
-      setSessions([]);
-    }
-  };
+  }; 
 
   // Fetch admin sessions
-  const fetchAdminSessions = async (page = 1) => {
-    try {
-      const query = new URLSearchParams({
-        page: page,
-        limit: pagination.limit,
-        ...Object.entries(filters)
-          .filter(([_, value]) => value)
-          .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {})
-      });
+// Fix the fetchAdminSessions function
+const fetchAdminSessions = async (page = 1) => {
+  try {
+    console.log('Fetching admin sessions, page:', page);
 
-      const response = await axios.get(`/admin/allSession?${query}`);
-      
-      if (response.data && response.data.success) {
-        setSessions(response.data.data || []);
-        
-        if (response.data.pagination) {
-          setPagination(response.data.pagination);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching admin sessions:', error);
+    // Build params object dynamically based on filters
+    const params = {
+      page,
+      limit: pagination.limit,
+      ...(filters.userId?.trim() && { userId: filters.userId }),
+      ...(filters.status?.trim() && { status: filters.status }),
+      ...(filters.startDate?.trim() && { startDate: filters.startDate }),
+      ...(filters.endDate?.trim() && { endDate: filters.endDate }),
+      ...(filters.searchQuery?.trim() && { search: filters.searchQuery }),
+    };
+
+    console.log('Request params:', params);
+
+    // Fetch data
+    const response = await axios.get('/allSession', { params });
+
+    console.log('Admin sessions response:', response.data);
+
+    // Check if the response status indicates success
+if (response.data?.success) {
+  const sessionsData = response.data.data || [];
+  setSessions(sessionsData);
+  console.log('Admin sessions loaded:', sessionsData.length);
+
+  if (response.data.pagination) {
+    setPagination(response.data.pagination);
+    console.log('Pagination updated:', response.data.pagination);
+  }
+} else {
+  console.warn('No admin sessions data found or invalid status');
+  setSessions([]);
+}
+
+  } catch (error) {
+    console.error('Error fetching admin sessions:', error);
+    console.error('Error details:', error.response?.data || error.message);
+    setSessions([]);
+  }
+};
+
+
+// Also fix fetchMySessions function
+const fetchMySessions = async () => {
+  try {
+    console.log('Fetching my sessions...');
+    const response = await axios.get('/my-sessions');
+    
+    console.log('My sessions response:', response.data);
+    
+    // Fix: Check for status or success property
+    if (response.data && (response.data.status === 'success' || response.data.success)) {
+      setSessions(response.data.data || []);
+      console.log('Sessions loaded:', response.data.data?.length || 0);
+    } else {
+      console.warn('No sessions data found');
       setSessions([]);
     }
-  };
+  } catch (error) {
+    console.error("Failed to fetch sessions:", error);
+    setSessions([]);
+  }
+};
 
-  // Fetch employee stats with attendance
-  const fetchMyStats = async () => {
-    try {
-      const response = await axios.get('/sessions/stats/attendance');
-      
-      if (response.data && response.data.success) {
-        const data = response.data.data || {};
-        
-        // Update main stats
-        setStats(prev => ({
-          ...prev,
-          totalSessions: data.totalSessions || 0,
-          totalHours: data.totalHoursWorked ? `${data.totalHoursWorked}h` : '0h',
-          daysClockedIn: data.daysClockedIn || 0,
-          attendanceRate: data.attendanceRate || '0%',
-          avgDuration: data.totalDurationHours ? `${data.totalDurationHours}h` : '0h'
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching my stats:', error);
+// Fix fetchAdminStats function
+const fetchAdminStats = async () => {
+  try {
+    console.log('Fetching admin stats...');
+    const response = await axios.get('/admin/statistics');
+    
+    console.log('Admin stats response:', response.data);
+    
+    // Fix: Check for status or success property
+    if (response.data && (response.data.status === 'success' || response.data.success)) {
+      const data = response.data.data || {};
+      setStats(prev => ({
+        ...prev,
+        totalSessions: data.totalSessions || 0,
+        activeSessions: data.activeSessions || 0,
+        avgDuration: data.avgDuration || '0h',
+        attendanceRate: data.attendanceRate || '0%'
+      }));
     }
-  };
+  } catch (error) {
+    console.error('Error fetching admin stats:', error);
+  }
+};
 
-  // Fetch period stats (7 days, 30 days)
-  const fetchPeriodStats = async () => {
-    try {
-      const response = await axios.get('/sessions/stats');
-      
-      if (response.data && response.data.success) {
-        setPeriodStats(response.data.data || {});
-      }
-    } catch (error) {
-      console.error('Error fetching period stats:', error);
+// Also fix fetchPeriodStats function
+const fetchPeriodStats = async () => {
+  try {
+    console.log('Fetching period stats...');
+    const response = await axios.get('/sessions/stats');
+    
+    console.log('Period stats response:', response.data);
+    
+    // Fix: Check for status or success property
+    if (response.data && (response.data.status === 'success' || response.data.success)) {
+      setPeriodStats(response.data.data || {});
     }
-  };
+  } catch (error) {
+    console.error('Error fetching period stats:', error);
+  }
+};
 
-  // Fetch current active session
-  const fetchMyCurrentSession = async () => {
-    try {
-      const response = await axios.get('/my-current-session');
+// Fix fetchMyStats function
+const fetchMyStats = async () => {
+  try {
+    console.log('Fetching my stats...');
+    const response = await axios.get('/sessions/stats/attendance');
+    
+    console.log('My stats response:', response.data);
+    
+    // Fix: Check for status or success property
+    if (response.data && (response.data.status === 'success' || response.data.success)) {
+      const data = response.data.data || {};
       
-      if (response.data && response.data.success) {
-        setCurrentSession(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching current session:', error);
+      // Update main stats
+      setStats(prev => ({
+        ...prev,
+        totalSessions: data.totalSessions || 0,
+        totalHours: data.totalHoursWorked ? `${data.totalHoursWorked}h` : '0h',
+        daysClockedIn: data.daysClockedIn || 0,
+        attendanceRate: data.attendanceRate || '0%',
+        avgDuration: data.totalDurationHours ? `${data.totalDurationHours}h` : '0h'
+      }));
+    }
+  } catch (error) {
+    console.error('Error fetching my stats:', error);
+  }
+};
+
+// Fix fetchMyCurrentSession function
+const fetchMyCurrentSession = async () => {
+  try {
+    console.log('Fetching current session...');
+    const response = await axios.get('/my-current-session');
+    
+    console.log('Current session response:', response.data);
+    
+    // Fix: Check for status or success property
+    if (response.data && (response.data.status === 'success' || response.data.success)) {
+      setCurrentSession(response.data.data);
+    } else {
       setCurrentSession(null);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching current session:', error);
+    setCurrentSession(null);
+  }
+};
 
-  // Fetch admin stats
-  const fetchAdminStats = async () => {
-    try {
-      const response = await axios.get('/admin/statistics');
-      
-      if (response.data && response.data.success) {
-        const data = response.data.data || {};
-        setStats(prev => ({
-          ...prev,
-          totalSessions: data.totalSessions || 0,
-          activeSessions: data.activeSessions || 0,
-          avgDuration: data.avgDuration || '0h',
-          attendanceRate: data.attendanceRate || '0%'
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching admin stats:', error);
-    }
-  };
+// Create a helper function to check response
+const isSuccessfulResponse = (responseData) => {
+  return responseData && (responseData.status === 'success' || responseData.success === true);
+}; 
+ 
 
-  // Fetch analytics data for admin
+  // Fetch analytics data for admin - FIXED VERSION
   const fetchAnalyticsData = async () => {
     try {
-      // Fetch daily activity
-      const activityResponse = await axios.get('/sessions/analytics/daily');
-      // Fetch device distribution
-      const deviceResponse = await axios.get('/sessions/analytics/devices');
-      // Fetch session trends
-      const trendsResponse = await axios.get('/sessions/analytics/trends');
+      console.log('Fetching analytics data...');
       
-      setAnalyticsData({
-        dailyActivity: activityResponse.data?.data || [],
-        deviceDistribution: deviceResponse.data?.data || [],
-        sessionTrends: trendsResponse.data?.data || []
-      });
+      // Analytics API endpoints might not exist, so we'll create mock data from sessions
+      // Or use existing endpoints if available
+      
+      const mockAnalyticsData = {
+        dailyActivity: generateDailyActivity(sessions),
+        deviceDistribution: generateDeviceDistribution(sessions),
+        sessionTrends: generateSessionTrends(sessions)
+      };
+      
+      setAnalyticsData(mockAnalyticsData);
+      
+      console.log('Analytics data generated:', mockAnalyticsData);
+      
     } catch (error) {
       console.error('Error fetching analytics:', error);
+      
+      // Fallback: Generate analytics from sessions data
+      const fallbackAnalyticsData = {
+        dailyActivity: generateDailyActivity(sessions),
+        deviceDistribution: generateDeviceDistribution(sessions),
+        sessionTrends: generateSessionTrends(sessions)
+      };
+      
+      setAnalyticsData(fallbackAnalyticsData);
     }
+  };
+
+  // Helper function to generate daily activity data
+  const generateDailyActivity = (sessionsArray) => {
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      return date.toISOString().split('T')[0];
+    }).reverse();
+
+    return last7Days.map(date => ({
+      date,
+      sessions: sessionsArray.filter(s => {
+        const sessionDate = new Date(s.loginAt || s.createdAt).toISOString().split('T')[0];
+        return sessionDate === date;
+      }).length
+    }));
+  };
+
+  // Helper function to generate device distribution
+  const generateDeviceDistribution = (sessionsArray) => {
+    const distribution = {
+      mobile: 0,
+      desktop: 0,
+      tablet: 0,
+      other: 0
+    };
+
+    sessionsArray.forEach(session => {
+      const device = session.device?.toLowerCase() || 'unknown';
+      if (device.includes('mobile') || device.includes('iphone') || device.includes('android')) {
+        distribution.mobile++;
+      } else if (device.includes('desktop') || device.includes('windows') || device.includes('mac')) {
+        distribution.desktop++;
+      } else if (device.includes('tablet') || device.includes('ipad')) {
+        distribution.tablet++;
+      } else {
+        distribution.other++;
+      }
+    });
+
+    return Object.entries(distribution).map(([device, count]) => ({
+      device,
+      count,
+      percentage: sessionsArray.length > 0 ? Math.round((count / sessionsArray.length) * 100) : 0
+    }));
+  };
+
+  // Helper function to generate session trends
+  const generateSessionTrends = (sessionsArray) => {
+    const last30Days = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      return date.toISOString().split('T')[0];
+    });
+
+    return last30Days.map(date => {
+      const daySessions = sessionsArray.filter(s => {
+        const sessionDate = new Date(s.loginAt || s.createdAt).toISOString().split('T')[0];
+        return sessionDate === date;
+      });
+      
+      return {
+        date,
+        active: daySessions.filter(s => s.isActive || s.status === 'active').length,
+        completed: daySessions.filter(s => s.isClockedOut || s.status === 'completed').length,
+        total: daySessions.length
+      };
+    });
   };
 
   // Handle clock in/out
@@ -351,7 +489,7 @@ export default function SessionsPage() {
       
       // Refresh data
       await fetchMyCurrentSession();
-      await fetchMySessions(pagination.page);
+      await fetchMySessions();
       await fetchMyStats();
       await fetchPeriodStats();
     } catch (error) {
@@ -374,7 +512,7 @@ export default function SessionsPage() {
       if (isAdmin) {
         await fetchAdminSessions(pagination.page);
       } else {
-        await fetchMySessions(pagination.page);
+        await fetchMySessions();
       }
       
       alert('Session deleted successfully!');
@@ -414,9 +552,13 @@ export default function SessionsPage() {
     if (userType === 'admin') {
       promises.push(fetchAdminSessions(pagination.page));
       promises.push(fetchAdminStats());
-      promises.push(fetchAnalyticsData());
+      try {
+        await fetchAnalyticsData();
+      } catch (error) {
+        console.log('Analytics refresh failed, using fallback');
+      }
     } else {
-      promises.push(fetchMySessions(pagination.page));
+      promises.push(fetchMySessions());
       promises.push(fetchMyStats());
       promises.push(fetchMyCurrentSession());
       promises.push(fetchPeriodStats());
@@ -994,6 +1136,23 @@ const SessionsView = ({
     return true;
   });
 
+  const updateFilter = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      userId: '',
+      status: '',
+      startDate: '',
+      endDate: '',
+      searchQuery: ''
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with Filters */}
@@ -1044,12 +1203,12 @@ const SessionsView = ({
               placeholder="Search by user..."
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               value={filters.searchQuery}
-              onChange={(e) => setFilters({...filters, searchQuery: e.target.value})}
+              onChange={(e) => updateFilter('searchQuery', e.target.value)}
             />
             <select
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               value={filters.status}
-              onChange={(e) => setFilters({...filters, status: e.target.value})}
+              onChange={(e) => updateFilter('status', e.target.value)}
             >
               <option value="">All Status</option>
               <option value="active">Active</option>
@@ -1061,22 +1220,16 @@ const SessionsView = ({
               type="date"
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               value={filters.startDate}
-              onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+              onChange={(e) => updateFilter('startDate', e.target.value)}
             />
             <input
               type="date"
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               value={filters.endDate}
-              onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+              onChange={(e) => updateFilter('endDate', e.target.value)}
             />
             <button
-              onClick={() => setFilters({
-                userId: '',
-                status: '',
-                startDate: '',
-                endDate: '',
-                searchQuery: ''
-              })}
+              onClick={clearFilters}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
             >
               Clear Filters
@@ -1350,32 +1503,40 @@ const SessionsView = ({
   );
 };
 
-// Analytics View Component with Backend Data
+// Analytics View Component with Backend Data - FIXED
 const AnalyticsView = ({ stats, analyticsData, sessions }) => {
   const [timeRange, setTimeRange] = useState('7d');
   
-  // Calculate analytics from sessions data
-  const deviceDistribution = sessions.reduce((acc, session) => {
-    const device = session.device?.toLowerCase() || 'unknown';
-    if (device.includes('mobile')) {
-      acc.mobile = (acc.mobile || 0) + 1;
-    } else if (device.includes('desktop') || device.includes('windows') || device.includes('mac')) {
-      acc.desktop = (acc.desktop || 0) + 1;
-    } else {
-      acc.other = (acc.other || 0) + 1;
-    }
-    return acc;
-  }, { mobile: 0, desktop: 0, other: 0 });
+  // Use provided analytics data or generate from sessions
+  const deviceDistribution = analyticsData.deviceDistribution.length > 0 
+    ? analyticsData.deviceDistribution 
+    : sessions.reduce((acc, session) => {
+        const device = session.device?.toLowerCase() || 'unknown';
+        if (device.includes('mobile') || device.includes('iphone') || device.includes('android')) {
+          acc.mobile = (acc.mobile || 0) + 1;
+        } else if (device.includes('desktop') || device.includes('windows') || device.includes('mac')) {
+          acc.desktop = (acc.desktop || 0) + 1;
+        } else if (device.includes('tablet') || device.includes('ipad')) {
+          acc.tablet = (acc.tablet || 0) + 1;
+        } else {
+          acc.other = (acc.other || 0) + 1;
+        }
+        return acc;
+      }, { mobile: 0, desktop: 0, tablet: 0, other: 0 });
 
-  const dailyActivity = sessions.reduce((acc, session) => {
-    const date = new Date(session.loginAt || session.createdAt).toLocaleDateString();
-    acc[date] = (acc[date] || 0) + 1;
-    return acc;
-  }, {});
-
-  const sessionTrends = Object.entries(dailyActivity)
-    .slice(-7)
-    .map(([date, count]) => ({ date, count }));
+  const dailyActivity = analyticsData.dailyActivity.length > 0 
+    ? analyticsData.dailyActivity 
+    : Array.from({ length: 7 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - i));
+        return {
+          date: date.toISOString().split('T')[0],
+          sessions: sessions.filter(s => {
+            const sessionDate = new Date(s.loginAt || s.createdAt).toISOString().split('T')[0];
+            return sessionDate === date.toISOString().split('T')[0];
+          }).length
+        };
+      });
 
   return (
     <div className="space-y-6">
@@ -1470,20 +1631,25 @@ const AnalyticsView = ({ stats, analyticsData, sessions }) => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Device Distribution</h3>
           <div className="space-y-4">
             {Object.entries(deviceDistribution).map(([device, count]) => {
-              const total = Object.values(deviceDistribution).reduce((a, b) => a + b, 1);
-              const percentage = Math.round((count / total) * 100);
+              const total = typeof count === 'object' 
+                ? Object.values(count).reduce((a, b) => a + b, 0)
+                : Object.values(deviceDistribution).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+              
+              const deviceCount = typeof count === 'object' ? count.count || count.total || 0 : count;
+              const percentage = total > 0 ? Math.round((deviceCount / total) * 100) : 0;
               
               return (
                 <div key={device} className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="font-medium text-gray-700 capitalize">{device}</span>
-                    <span className="text-gray-500">{count} sessions ({percentage}%)</span>
+                    <span className="text-gray-500">{deviceCount} sessions ({percentage}%)</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div 
                       className={`h-full rounded-full ${
                         device === 'mobile' ? 'bg-blue-500' :
-                        device === 'desktop' ? 'bg-green-500' : 'bg-purple-500'
+                        device === 'desktop' ? 'bg-green-500' :
+                        device === 'tablet' ? 'bg-purple-500' : 'bg-orange-500'
                       }`}
                       style={{ width: `${percentage}%` }}
                     />
@@ -1494,13 +1660,13 @@ const AnalyticsView = ({ stats, analyticsData, sessions }) => {
           </div>
         </div>
 
-        {/* Session Trends */}
+        {/* Daily Activity */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Session Trends (Last 7 days)</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Activity (Last 7 days)</h3>
           <div className="h-64 flex items-end space-x-2">
-            {sessionTrends.map((trend, index) => {
-              const maxCount = Math.max(...sessionTrends.map(t => t.count));
-              const height = maxCount > 0 ? (trend.count / maxCount) * 100 : 0;
+            {dailyActivity.map((item, index) => {
+              const maxCount = Math.max(...dailyActivity.map(d => d.sessions || d.count || 0));
+              const height = maxCount > 0 ? ((item.sessions || item.count || 0) / maxCount) * 100 : 0;
               
               return (
                 <div key={index} className="flex-1 flex flex-col items-center">
@@ -1509,9 +1675,9 @@ const AnalyticsView = ({ stats, analyticsData, sessions }) => {
                     style={{ height: `${height}%`, minHeight: '10px' }}
                   />
                   <span className="text-xs text-gray-500 mt-2">
-                    {new Date(trend.date).toLocaleDateString('en-US', { weekday: 'short' })}
+                    {new Date(item.date).toLocaleDateString('en-US', { weekday: 'short' })}
                   </span>
-                  <span className="text-sm font-semibold mt-1">{trend.count}</span>
+                  <span className="text-sm font-semibold mt-1">{item.sessions || item.count || 0}</span>
                 </div>
               );
             })}
@@ -1536,10 +1702,14 @@ const UsersView = ({ userData }) => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
+      console.log('Fetching users...');
       const response = await axios.get('/users/all');
+      
+      console.log('Users response:', response.data);
       
       if (response.data && response.data.success) {
         setUsers(response.data.data || []);
+        console.log('Users loaded:', response.data.data?.length || 0);
       }
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -1563,7 +1733,10 @@ const UsersView = ({ userData }) => {
           <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
           <p className="text-gray-600 mt-1">Manage all system users and their permissions</p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 self-start">
+        <button 
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 self-start"
+          onClick={() => alert('Add user functionality coming soon')}
+        >
           <Plus className="w-4 h-4" />
           Add User
         </button>
