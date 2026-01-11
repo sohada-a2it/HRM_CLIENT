@@ -604,7 +604,7 @@ export const getShiftStatistics = async () => {
     const token = getToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.get('/shift/admin/shift-statistics');
+    const response = await api.get('/admin/shift-statistics');
     return response.data;
   } catch (error) {
     console.error('Get shift statistics error:', error);
@@ -656,7 +656,7 @@ export const sendWelcomeEmail = async (emailData) => {
     
     // ✅ 10 second timeout (30s খুব বেশি)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     
     const response = await fetch(endpoint, {
       method: 'POST',

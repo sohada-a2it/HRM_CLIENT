@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
+
 // Temporary API function
 const getUserById = async (userId) => {
   try {
@@ -847,14 +848,14 @@ export default function UserDetailPage() {
             </div>
             
             <div className="flex gap-3">
-              <button
+              {/* <button
                 onClick={() => router.push(`/profile?edit=${user._id}`)}
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition-all flex items-center gap-2"
               >
                 <Edit size={16} />
                 Edit Profile
-              </button>
-              <button
+              </button> */}
+              {/* <button
                 onClick={() => {
                   // Reset password function
                   toast.success("Reset password feature coming soon");
@@ -863,7 +864,7 @@ export default function UserDetailPage() {
               >
                 <Lock size={16} />
                 Reset Password
-              </button>
+              </button> */}
             </div>
           </div>
 
@@ -1059,7 +1060,7 @@ export default function UserDetailPage() {
 
                 {/* Quick Actions */}
                 <div className="mt-6 space-y-3">
-                  <button
+                  {/* <button
                     onClick={() => router.push(`/admin/users?edit=${user._id}`)}
                     className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                   >
@@ -1068,9 +1069,9 @@ export default function UserDetailPage() {
                       <span className="font-medium text-gray-700">Edit Profile</span>
                     </div>
                     <ChevronRight className="text-gray-400" size={16} />
-                  </button>
+                  </button> */}
 
-                  <button
+                  {/* <button
                     onClick={() => {
                       // Reset password
                       toast.success("Reset password feature coming soon");
@@ -1082,7 +1083,7 @@ export default function UserDetailPage() {
                       <span className="font-medium text-gray-700">Reset Password</span>
                     </div>
                     <ChevronRight className="text-gray-400" size={16} />
-                  </button>
+                  </button> */}
                 </div>
               </div>
             </div>

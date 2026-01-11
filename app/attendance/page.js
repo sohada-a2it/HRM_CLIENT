@@ -1,4 +1,6 @@
 "use client"; 
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
@@ -13,69 +15,32 @@ import {
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
-const PDFLibraries = {
-  async load() {
-    if (typeof window === 'undefined') return null;
-    
-    try {
-      const jsPDF = (await import('jspdf')).default;
-      const autoTable = (await import('jspdf-autotable')).default;
-      return { jsPDF, autoTable };
-    } catch (error) {
-      console.error("Failed to load PDF libraries:", error);
-      return null;
-    }
-  }
-};
-
-// Format currency for BDT
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-BD', {
-    style: 'currency',
-    currency: 'BDT',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount || 0);
-};
-
-// Convert number to words in BDT
-const convertToWords = (num) => {
-  if (num === 0) return 'Zero Taka Only';
-  
-  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  
-  const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-  if (!n) return '';
-  
-  let str = '';
-  str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
-  str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
-  str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
-  str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
-  str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
-  
-  return str.trim() + ' Taka Only';
-};
-
-// Month names array for payroll
-const monthNames = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
-
-// PDF Export Functions
+// ===================== PDF UTILITY FUNCTIONS =====================
 const pdfUtils = {
   // Generate Individual Attendance PDF
   generateAttendancePDF: async (attendance, userData, summary) => {
     try {
-      const libraries = await PDFLibraries.load();
-      if (!libraries) {
-        toast.error("PDF library failed to load");
+      // ব্রাউজার চেক
+      if (typeof window === 'undefined') {
+        toast.error("PDF generation requires browser environment");
         return;
       }
       
-      const { jsPDF, autoTable } = libraries;
+      // Dynamic import ব্যবহার করে jspdf লোড করুন
+      const { jsPDF } = await import('jspdf');
+      // jspdf-autotable সঠিকভাবে ইম্পোর্ট করুন
+      const autoTableModule = await import('jspdf-autotable');
+      
+      // autoTable ফাংশনটি ডিফল্ট এক্সপোর্ট থেকে নিন
+      let autoTable;
+      if (typeof autoTableModule === 'function') {
+        autoTable = autoTableModule;
+      } else if (autoTableModule.default) {
+        autoTable = autoTableModule.default;
+      } else {
+        throw new Error('Could not load autoTable');
+      }
+      
       const doc = new jsPDF('portrait', 'mm', 'a4');
       
       // Company Header
@@ -227,24 +192,32 @@ const pdfUtils = {
       doc.text('Powered by A2IT HRMS', 105, finalY + 5, { align: 'center' });
       
       // Save the PDF
-      doc.save(`Attendance_Report_${userData?.employeeId || 'Employee'}_${new Date().toISOString().split('T')[0]}.pdf`);
+      const fileName = `Attendance_Report_${userData?.employeeId || 'Employee'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      toast.success(`PDF downloaded: ${fileName}`);
       
     } catch (error) {
       console.error("PDF generation error:", error);
       toast.error(`PDF generation failed: ${error.message}`);
+      // Fallback to HTML method
+      generateHTMLPDF(attendance, userData, summary);
     }
   },
 
   // Generate Bulk Attendance PDF (Admin)
   generateBulkAttendancePDF: async (employeesData, startDate, endDate) => {
     try {
-      const libraries = await PDFLibraries.load();
-      if (!libraries) {
-        toast.error("PDF library failed to load");
+      // ব্রাউজার চেক
+      if (typeof window === 'undefined') {
+        toast.error("PDF generation requires browser environment");
         return;
       }
       
-      const { jsPDF, autoTable } = libraries;
+      // Dynamic import
+      const { jsPDF } = await import('jspdf');
+      const autoTableModule = await import('jspdf-autotable');
+      const autoTable = autoTableModule.default || autoTableModule;
+      
       const doc = new jsPDF('landscape', 'mm', 'a4');
       
       // Company Header
@@ -361,485 +334,260 @@ const pdfUtils = {
       doc.text('Confidential - For Internal Use Only', 148.5, footerY, { align: 'center' });
       
       // Save the PDF
-      doc.save(`Bulk_Attendance_Report_${startDate}_to_${endDate}.pdf`);
+      const fileName = `Bulk_Attendance_Report_${startDate}_to_${endDate}.pdf`;
+      doc.save(fileName);
+      toast.success(`PDF downloaded: ${fileName}`);
       
     } catch (error) {
       console.error("Bulk PDF generation error:", error);
       toast.error(`Bulk PDF generation failed: ${error.message}`);
     }
-  },
+  }
+};
 
-  // Generate Monthly Attendance Summary PDF
-  generateMonthlySummaryPDF: async (attendanceData, userData, month, year) => {
-    try {
-      const libraries = await PDFLibraries.load();
-      if (!libraries) {
-        toast.error("PDF library failed to load");
-        return;
-      }
-      
-      const { jsPDF, autoTable } = libraries;
-      const doc = new jsPDF();
-      
-      // Header with gradient effect
-      doc.setFillColor(41, 128, 185);
-      doc.rect(0, 0, 210, 40, 'F');
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      doc.text('MONTHLY ATTENDANCE', 105, 20, { align: 'center' });
-      
-      doc.setFontSize(12);
-      doc.text(`${new Date(year, month - 1).toLocaleString('default', { month: 'long' })} ${year}`, 105, 30, { align: 'center' });
-      
-      // Employee Details
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Employee Details', 14, 50);
-      
-      const employeeDetails = [
-        ['Name:', userData?.firstName + ' ' + userData?.lastName],
-        ['Employee ID:', userData?.employeeId || 'N/A'],
-        ['Department:', userData?.department || 'N/A'],
-        ['Designation:', userData?.position || 'N/A'],
-        ['Month:', `${month}/${year}`]
-      ];
-      
-      autoTable(doc, {
-        startY: 55,
-        head: [],
-        body: employeeDetails,
-        theme: 'plain',
-        styles: { fontSize: 10 },
-        columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 40 },
-          1: { cellWidth: 140 }
-        }
-      });
-      
-      // Statistics Cards
-      const statsY = doc.lastAutoTable.finalY + 10;
-      
-      // Present Days
-      doc.setFillColor(46, 204, 113);
-      doc.roundedRect(14, statsY, 45, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text(attendanceData.filter(a => a.status === 'Present').length, 36.5, statsY + 17, { align: 'center' });
-      doc.setFontSize(8);
-      doc.text('Present', 36.5, statsY + 22, { align: 'center' });
-      
-      // Absent Days
-      doc.setFillColor(231, 76, 60);
-      doc.roundedRect(64, statsY, 45, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text(attendanceData.filter(a => a.status === 'Absent').length, 86.5, statsY + 17, { align: 'center' });
-      doc.setFontSize(8);
-      doc.text('Absent', 86.5, statsY + 22, { align: 'center' });
-      
-      // Leave Days
-      doc.setFillColor(52, 152, 219);
-      doc.roundedRect(114, statsY, 45, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text(attendanceData.filter(a => a.status === 'Leave').length, 136.5, statsY + 17, { align: 'center' });
-      doc.setFontSize(8);
-      doc.text('Leave', 136.5, statsY + 22, { align: 'center' });
-      
-      // Total Hours
-      doc.setFillColor(155, 89, 182);
-      doc.roundedRect(164, statsY, 45, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      const totalHours = attendanceData.reduce((sum, a) => sum + (a.totalHours || 0), 0);
-      doc.text(totalHours.toFixed(0), 186.5, statsY + 17, { align: 'center' });
-      doc.setFontSize(8);
-      doc.text('Total Hours', 186.5, statsY + 22, { align: 'center' });
-      
-      // Reset text color
-      doc.setTextColor(0, 0, 0);
-      
-      // Attendance Calendar View
-      const calendarY = statsY + 35;
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Monthly Attendance Calendar', 14, calendarY);
-      
-      // Create calendar grid
-      const daysInMonth = new Date(year, month, 0).getDate();
-      const firstDay = new Date(year, month - 1, 1).getDay();
-      
-      const cellSize = 8;
-      const startX = 14;
-      const startY = calendarY + 10;
-      
-      // Day headers
-      const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      dayHeaders.forEach((day, i) => {
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'bold');
-        doc.text(day, startX + (i * cellSize) + 3, startY - 2);
-      });
-      
-      // Draw calendar grid
-      let day = 1;
-      for (let week = 0; week < 6; week++) {
-        for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
-          if (day > daysInMonth) break;
+// Fallback HTML-based PDF generation (jspdf কাজ না করলে)
+const generateHTMLPDF = (attendance, userData, summary) => {
+  try {
+    // Create HTML content
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Attendance Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .header { background-color: #643da4; color: white; padding: 20px; text-align: center; }
+            .section { margin: 20px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #643da4; color: white; }
+            .footer { margin-top: 40px; text-align: center; font-style: italic; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>ATTENDANCE REPORT</h1>
+            <p>A2IT Solutions Ltd.</p>
+            <p>Human Resource Management System</p>
+          </div>
           
-          if (week === 0 && dayOfWeek < firstDay) {
-            continue;
-          }
+          <div class="section">
+            <h2>Employee Information</h2>
+            <p><strong>Name:</strong> ${userData?.firstName} ${userData?.lastName}</p>
+            <p><strong>Employee ID:</strong> ${userData?.employeeId || 'N/A'}</p>
+            <p><strong>Department:</strong> ${userData?.department || 'N/A'}</p>
+            <p><strong>Designation:</strong> ${userData?.position || 'N/A'}</p>
+            <p><strong>Generated On:</strong> ${new Date().toLocaleString()}</p>
+          </div>
           
-          const x = startX + (dayOfWeek * cellSize);
-          const y = startY + (week * cellSize);
+          <div class="section">
+            <h2>Summary Statistics</h2>
+            <table>
+              <tr>
+                <th>Metric</th>
+                <th>Value</th>
+              </tr>
+              <tr><td>Total Days</td><td>${summary?.totalDays || 0}</td></tr>
+              <tr><td>Present Days</td><td>${summary?.daysPresent || 0}</td></tr>
+              <tr><td>Absent Days</td><td>${summary?.daysAbsent || 0}</td></tr>
+              <tr><td>Leave Days</td><td>${summary?.daysLeave || 0}</td></tr>
+              <tr><td>Total Hours</td><td>${summary?.totalHours?.toFixed(2) || '0.00'}</td></tr>
+              <tr><td>Attendance Rate</td><td>${summary?.attendanceRate?.toFixed(1) || '0.0'}%</td></tr>
+            </table>
+          </div>
           
-          // Check attendance for this day
-          const currentDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-          const attendanceForDay = attendanceData.find(a => 
-            a.date && a.date.startsWith(currentDate)
-          );
+          <div class="section">
+            <h2>Attendance Details</h2>
+            <table>
+              <tr>
+                <th>Date</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th>Hours</th>
+                <th>Status</th>
+              </tr>
+              ${attendance.map(record => `
+                <tr>
+                  <td>${new Date(record.date).toLocaleDateString()}</td>
+                  <td>${record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '-'}</td>
+                  <td>${record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : '-'}</td>
+                  <td>${record.totalHours?.toFixed(2) || '-'}</td>
+                  <td>${record.status}</td>
+                </tr>
+              `).join('')}
+            </table>
+          </div>
           
-          // Set color based on status
-          if (attendanceForDay) {
-            switch(attendanceForDay.status) {
-              case 'Present':
-                doc.setFillColor(46, 204, 113); // Green
-                break;
-              case 'Absent':
-                doc.setFillColor(231, 76, 60); // Red
-                break;
-              case 'Leave':
-                doc.setFillColor(52, 152, 219); // Blue
-                break;
-              case 'Late':
-                doc.setFillColor(241, 196, 15); // Yellow
-                break;
-              case 'Govt Holiday':
-                doc.setFillColor(155, 89, 182); // Purple
-                break;
-              default:
-                doc.setFillColor(236, 240, 241); // Gray
-            }
-          } else {
-            doc.setFillColor(236, 240, 241); // Gray for no data
-          }
-          
-          doc.roundedRect(x, y, cellSize - 1, cellSize - 1, 1, 1, 'F');
-          
-          // Day number
-          doc.setFontSize(6);
-          doc.setTextColor(0, 0, 0);
-          doc.text(day.toString(), x + 3, y + 5);
-          
-          day++;
-        }
-      }
-      
-      // Legend
-      const legendY = startY + (6 * cellSize) + 10;
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Legend:', 14, legendY);
-      
-      const legends = [
-        { color: [46, 204, 113], text: 'Present' },
-        { color: [231, 76, 60], text: 'Absent' },
-        { color: [52, 152, 219], text: 'Leave' },
-        { color: [241, 196, 15], text: 'Late' },
-        { color: [155, 89, 182], text: 'Holiday' },
-        { color: [236, 240, 241], text: 'No Data' }
-      ];
-      
-      legends.forEach((legend, i) => {
-        const x = 14 + (i * 30);
-        const y = legendY + 8;
-        
-        doc.setFillColor(...legend.color);
-        doc.rect(x, y, 6, 6, 'F');
-        
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'normal');
-        doc.text(legend.text, x + 8, y + 4);
-      });
-      
-      // Detailed Attendance Table
-      const tableY = legendY + 20;
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Detailed Attendance Records', 14, tableY);
-      
-      const tableData = attendanceData.map(record => [
-        record.date ? new Date(record.date).toLocaleDateString('en-US', { 
-          day: '2-digit', 
-          month: 'short' 
-        }) : '-',
-        record.clockIn ? new Date(record.clockIn).toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }) : '-',
-        record.clockOut ? new Date(record.clockOut).toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }) : '-',
-        record.totalHours?.toFixed(2) || '-',
-        record.status
-      ]);
-      
-      autoTable(doc, {
-        startY: tableY + 5,
-        head: [['Date', 'In Time', 'Out Time', 'Hours', 'Status']],
-        body: tableData,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 3 },
-        headStyles: { 
-          fillColor: [52, 73, 94], 
-          textColor: [255, 255, 255], 
-          fontStyle: 'bold' 
-        },
-        columnStyles: {
-          0: { cellWidth: 25 },
-          1: { cellWidth: 25 },
-          2: { cellWidth: 25 },
-          3: { cellWidth: 25 },
-          4: { cellWidth: 30 }
-        }
-      });
-      
-      // Footer
-      const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'italic');
-      doc.text('Generated by A2IT HRMS', 105, finalY, { align: 'center' });
-      doc.text(new Date().toLocaleString(), 105, finalY + 5, { align: 'center' });
-      
-      // Save PDF
-      doc.save(`Monthly_Attendance_${userData?.employeeId || 'Employee'}_${month}_${year}.pdf`);
-      
-    } catch (error) {
-      console.error("Monthly PDF generation error:", error);
-      toast.error(`Monthly PDF generation failed: ${error.message}`);
-    }
-  },
-
-  // Generate Payroll Attendance PDF
-  generatePayrollAttendancePDF: async (payrollData, employeeData) => {
-    try {
-      const libraries = await PDFLibraries.load();
-      if (!libraries) {
-        toast.error("PDF library failed to load");
-        return;
-      }
-      
-      const { jsPDF, autoTable } = libraries;
-      const doc = new jsPDF();
-      
-      // Header with company logo area
-      doc.setFillColor(100, 65, 164);
-      doc.rect(0, 0, 210, 40, 'F');
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      doc.text('PAYROLL ATTENDANCE', 105, 20, { align: 'center' });
-      
-      doc.setFontSize(10);
-      doc.text('Attendance Based Salary Calculation', 105, 30, { align: 'center' });
-      
-      // Employee and Payroll Information
-      doc.setTextColor(0, 0, 0);
-      const infoY = 50;
-      
-      // Left Column - Employee Info
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Employee Information:', 14, infoY);
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      
-      const empInfo = [
-        ['Name:', employeeData.name || 'N/A'],
-        ['Employee ID:', employeeData.employeeId || 'N/A'],
-        ['Department:', employeeData.department || 'N/A'],
-        ['Designation:', employeeData.designation || 'N/A'],
-        ['Monthly Salary:', formatCurrency(employeeData.monthlySalary || 0)],
-        ['Daily Rate:', formatCurrency((employeeData.monthlySalary || 0) / 23)]
-      ];
-      
-      autoTable(doc, {
-        startY: infoY + 5,
-        head: [],
-        body: empInfo,
-        theme: 'plain',
-        styles: { fontSize: 9 },
-        columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 40 },
-          1: { cellWidth: 60 }
-        }
-      });
-      
-      // Right Column - Payroll Info
-      const payrollInfoY = infoY;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Payroll Period:', 120, payrollInfoY);
-      
-      doc.setFont('helvetica', 'normal');
-      
-      const payrollInfo = [
-        ['Period:', `${payrollData.periodStart ? new Date(payrollData.periodStart).toLocaleDateString() : 'N/A'} - ${payrollData.periodEnd ? new Date(payrollData.periodEnd).toLocaleDateString() : 'N/A'}`],
-        ['Month:', payrollData.month ? monthNames[payrollData.month - 1] : 'N/A'],
-        ['Year:', payrollData.year || 'N/A'],
-        ['Working Days:', '23'],
-        ['Present Days:', payrollData.attendance?.presentDays || 0],
-        ['Attendance Rate:', (payrollData.attendance?.attendancePercentage || 0).toFixed(1) + '%']
-      ];
-      
-      autoTable(doc, {
-        startY: payrollInfoY + 5,
-        head: [],
-        body: payrollInfo,
-        theme: 'plain',
-        styles: { fontSize: 9 },
-        columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 40 },
-          1: { cellWidth: 60 }
-        },
-        margin: { left: 120 }
-      });
-      
-      // Salary Calculation Breakdown
-      const calcY = Math.max(
-        doc.lastAutoTable.finalY,
-        doc.lastAutoTable.finalY
-      ) + 10;
-      
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('Salary Calculation Breakdown (23 Working Days)', 14, calcY);
-      
-      const salaryData = [
-        ['Description', 'Calculation', 'Amount (BDT)'],
-        ['Monthly Salary', 'Basic Salary', formatCurrency(employeeData.monthlySalary || 0)],
-        ['Daily Rate', 'Monthly Salary ÷ 23', formatCurrency((employeeData.monthlySalary || 0) / 23)],
-        ['Basic Pay', 'Daily Rate × Present Days', formatCurrency(payrollData.earnings?.basicPay || 0)],
-        ['Overtime', 'Additional Hours', formatCurrency(payrollData.earnings?.overtime || 0)],
-        ['Bonus', 'Performance Bonus', formatCurrency(payrollData.earnings?.bonus || 0)],
-        ['Allowance', 'Other Allowances', formatCurrency(payrollData.earnings?.allowance || 0)],
-        ['', '', ''],
-        ['Late Deduction', `${payrollData.deductions?.lateDeduction / ((employeeData.monthlySalary || 0) / 23)} days × Daily Rate`, `-${formatCurrency(payrollData.deductions?.lateDeduction || 0)}`],
-        ['Absent Deduction', `${payrollData.deductions?.absentDeduction / ((employeeData.monthlySalary || 0) / 23)} days × Daily Rate`, `-${formatCurrency(payrollData.deductions?.absentDeduction || 0)}`],
-        ['Leave Deduction', `${payrollData.deductions?.leaveDeduction / ((employeeData.monthlySalary || 0) / 23)} days × Daily Rate`, `-${formatCurrency(payrollData.deductions?.leaveDeduction || 0)}`],
-        ['', '', ''],
-        ['Gross Earnings', 'Total Additions', formatCurrency(payrollData.summary?.grossEarnings || 0)],
-        ['Total Deductions', 'Total Subtractions', `-${formatCurrency(payrollData.deductions?.total || 0)}`],
-        ['NET PAYABLE', 'Gross - Deductions', formatCurrency(payrollData.summary?.netPayable || 0)]
-      ];
-      
-      autoTable(doc, {
-        startY: calcY + 5,
-        head: [['Description', 'Calculation', 'Amount (BDT)']],
-        body: salaryData,
-        theme: 'grid',
-        styles: { fontSize: 9, cellPadding: 3 },
-        headStyles: { 
-          fillColor: [100, 65, 164], 
-          textColor: [255, 255, 255], 
-          fontStyle: 'bold' 
-        },
-        columnStyles: {
-          0: { cellWidth: 60, fontStyle: 'bold' },
-          1: { cellWidth: 70 },
-          2: { cellWidth: 40, halign: 'right' }
-        },
-        didDrawCell: function(data) {
-          // Highlight Net Payable row
-          if (data.row.index === salaryData.length - 1 && data.column.index === 0) {
-            doc.setFillColor(100, 65, 164);
-            doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.text(data.cell.text, data.cell.x + 3, data.cell.y + 10);
-          }
-        }
-      });
-      
-      // Net Payable in Words
-      const wordsY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Net Payable in Words:', 14, wordsY);
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.text(convertToWords(payrollData.summary?.netPayable || 0), 14, wordsY + 5);
-      
-      // Attendance Details
-      const attendanceY = wordsY + 15;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text('Attendance Details for Payroll Calculation:', 14, attendanceY);
-      
-      const attendanceDetails = [
-        ['Total Working Days', '23'],
-        ['Present Days', payrollData.attendance?.presentDays || 0],
-        ['Absent Days', payrollData.attendance?.absentDays || 0],
-        ['Late Days', payrollData.attendance?.lateDays || 0],
-        ['Leave Days', payrollData.attendance?.leaves || 0],
-        ['Late Policy', '3 late days = 1 day salary deduction'],
-        ['Calculation Method', 'Monthly Salary ÷ 23 = Daily Rate']
-      ];
-      
-      autoTable(doc, {
-        startY: attendanceY + 5,
-        head: [],
-        body: attendanceDetails,
-        theme: 'grid',
-        styles: { fontSize: 9, cellPadding: 3 },
-        columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 70 },
-          1: { cellWidth: 100 }
-        }
-      });
-      
-      // Footer with authorization
-      const footerY = doc.lastAutoTable.finalY + 15;
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'italic');
-      doc.text('This payroll has been calculated based on 23 working days per month.', 105, footerY, { align: 'center' });
-      doc.text('All deductions are calculated as: (Deduction Days) × Daily Rate', 105, footerY + 5, { align: 'center' });
-      
-      // Signature area
-      const signatureY = footerY + 15;
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text('________________________', 40, signatureY);
-      doc.text('HR Manager Signature', 40, signatureY + 5);
-      
-      doc.text('________________________', 140, signatureY);
-      doc.text('Employee Signature', 140, signatureY + 5);
-      
-      // Final note
-      doc.setFontSize(8);
-      doc.text('Generated on: ' + new Date().toLocaleString(), 105, signatureY + 15, { align: 'center' });
-      
-      // Save PDF
-      doc.save(`Payroll_${employeeData.employeeId}_${payrollData.periodStart ? new Date(payrollData.periodStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}.pdf`);
-      
-    } catch (error) {
-      console.error("Payroll PDF generation error:", error);
-      toast.error(`Payroll PDF generation failed: ${error.message}`);
-    }
+          <div class="footer">
+            <p>This is a computer generated report.</p>
+            <p>Powered by A2IT HRMS</p>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    // Create blob and download
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Attendance_Report_${userData?.employeeId || 'Employee'}_${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    toast.success('HTML Report downloaded as fallback');
+    
+  } catch (error) {
+    console.error("HTML PDF generation error:", error);
+    toast.error("Failed to generate PDF. Please try again.");
   }
 };
 
 export default function Page({ userId }) {
+  // Test PDF Function - Simple Test
+  const testPDF = async () => {
+    try {
+      // Dynamic import ব্যবহার করুন
+      const { jsPDF } = await import('jspdf');
+      
+      const doc = new jsPDF();
+      
+      // Add some text
+      doc.text("Test PDF from A2IT HRMS", 10, 10);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 10, 20);
+      doc.text("This is a test PDF document.", 10, 30);
+      
+      // Add a simple table
+      doc.text("Sample Data:", 10, 50);
+      doc.text("1. Attendance Records", 10, 60);
+      doc.text("2. Employee Information", 10, 70);
+      doc.text("3. Summary Statistics", 10, 80);
+      
+      // Save the PDF
+      doc.save("test-document.pdf");
+      toast.success("Test PDF downloaded successfully!");
+      
+    } catch (error) {
+      console.error("Test PDF Error:", error);
+      toast.error(`Test PDF failed: ${error.message}`);
+      
+      // Fallback: Create HTML and download
+      const htmlContent = `
+        <html>
+          <head><title>Test Document</title></head>
+          <body>
+            <h1>Test Document</h1>
+            <p>Generated: ${new Date().toLocaleString()}</p>
+            <p>This is a fallback HTML document.</p>
+          </body>
+        </html>
+      `;
+      
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'test-document.html';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success("Fallback HTML document downloaded");
+    }
+  };
+
+// PDF Download Functions
+const handleDownloadEmployeePDF = async () => {
+  if (isAdmin) {
+    // Admin এর ক্ষেত্রে selectedEmployee না থাকলে employeeFilter থেকে নিন
+    let employeeToDownload = selectedEmployee;
+    
+    if (!employeeToDownload && employeeFilter.employeeId) {
+      // ফিল্টার থেকে এমপ্লয়ী খুঁজে নিন
+      employeeToDownload = employees.find(emp => emp._id === employeeFilter.employeeId);
+    }
+    
+    if (employeeToDownload) {
+      const employeeAttendance = attendance.filter(a => 
+        a.employee?._id === employeeToDownload._id || 
+        a.employee === employeeToDownload._id
+      );
+      
+      const employeeSummary = {
+        totalDays: employeeAttendance.length,
+        daysPresent: employeeAttendance.filter(a => a.status === 'Present').length,
+        daysAbsent: employeeAttendance.filter(a => a.status === 'Absent').length,
+        daysLeave: employeeAttendance.filter(a => a.status === 'Leave').length,
+        totalHours: employeeAttendance.reduce((sum, a) => sum + (a.totalHours || 0), 0),
+        attendanceRate: employeeAttendance.length > 0 
+          ? (employeeAttendance.filter(a => a.status === 'Present').length / employeeAttendance.length) * 100
+          : 0
+      };
+      
+      await pdfUtils.generateAttendancePDF(employeeAttendance, employeeToDownload, employeeSummary);
+      toast.success(`PDF downloaded for ${employeeToDownload.firstName} ${employeeToDownload.lastName}`);
+    } else {
+      // যদি কোন এমপ্লয়ী সিলেক্ট না থাকে, সব এমপ্লয়ীর জন্য ডাউনলোড করুন
+      const confirmDownload = window.confirm(
+        "No specific employee selected. Do you want to download PDF for ALL employees?"
+      );
+      
+      if (confirmDownload) {
+        // Create combined PDF for all employees
+        for (const emp of employees) {
+          const empAttendance = attendance.filter(a => 
+            a.employee?._id === emp._id || 
+            a.employee === emp._id
+          );
+          
+          if (empAttendance.length > 0) {
+            const empSummary = {
+              totalDays: empAttendance.length,
+              daysPresent: empAttendance.filter(a => a.status === 'Present').length,
+              daysAbsent: empAttendance.filter(a => a.status === 'Absent').length,
+              daysLeave: empAttendance.filter(a => a.status === 'Leave').length,
+              totalHours: empAttendance.reduce((sum, a) => sum + (a.totalHours || 0), 0),
+              attendanceRate: empAttendance.length > 0 
+                ? (empAttendance.filter(a => a.status === 'Present').length / empAttendance.length) * 100
+                : 0
+            };
+            
+            await pdfUtils.generateAttendancePDF(empAttendance, emp, empSummary);
+            // Wait a bit between downloads to avoid browser blocking
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        toast.success("PDFs downloaded for all employees");
+      }
+    }
+  } else {
+    // For employee view - their own attendance
+    await pdfUtils.generateAttendancePDF(attendance, userData, summary);
+  }
+};
+
+  const handleDownloadBulkPDF = async () => {
+    if (!isAdmin) {
+      toast.error("Only admin can download bulk reports");
+      return;
+    }
+    
+    // Create sample bulk data for testing
+    const bulkData = employees.map(emp => ({
+      employeeId: emp.employeeId,
+      name: `${emp.firstName} ${emp.lastName}`,
+      department: emp.department,
+      daysPresent: Math.floor(Math.random() * 20) + 10,
+      daysAbsent: Math.floor(Math.random() * 5),
+      daysLeave: Math.floor(Math.random() * 3),
+      totalHours: (Math.random() * 160) + 120,
+      attendanceRate: (Math.random() * 30) + 70
+    }));
+    
+    await pdfUtils.generateBulkAttendancePDF(bulkData, dateRange.startDate, dateRange.endDate);
+  };
   // Time validation helper functions
   const validateTimeFormat = (time) => {
     if (!time) return true;
@@ -873,12 +621,84 @@ export default function Page({ userId }) {
     return `${wholeHours} hr ${minutes} min`;
   };
 
-  // Holiday and weekend detection functions
-  const isWeekend = (dateString) => {
-    const date = new Date(dateString);
-    const day = date.getDay();
-    return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+// Holiday and weekend detection functions
+const isWeekend = (dateString) => {
+  const date = new Date(dateString);
+  const day = date.getDay();
+  return day === 5 || day === 6; // 5 = Friday, 6 = Saturday
+};
+
+// আরও স্পষ্টভাবে দিনের নামসহ ফাংশন
+const getDayStatus = (dateString) => {
+  const date = new Date(dateString);
+  const day = date.getDay();
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+  
+  if (isHolidayDate(dateString)) {
+    return {
+      status: 'Govt Holiday',
+      dayName: dayName,
+      isWeekend: true,
+      description: 'Government Holiday'
+    };
+  }
+  
+  if (day === 5) { // Friday
+    return {
+      status: 'Weekly Off',
+      dayName: 'Friday',
+      isWeekend: true,
+      description: 'Friday - Weekly Off'
+    };
+  }
+  
+  if (day === 6) { // Saturday
+    return {
+      status: 'Weekly Off',
+      dayName: 'Saturday',
+      isWeekend: true,
+      description: 'Saturday - Weekly Off'
+    };
+  }
+  
+  if (day === 0) { // Sunday
+    return {
+      status: 'Working Day',
+      dayName: 'Sunday',
+      isWeekend: false,
+      description: 'Sunday - Working Day'
+    };
+  }
+  
+  // Monday-Thursday (1-4)
+  return {
+    status: 'Working Day',
+    dayName: dayName,
+    isWeekend: false,
+    description: `${dayName} - Working Day`
   };
+};
+
+// getAutoStatus ফাংশন আপডেট করুন
+// const getAutoStatus = (dateString) => {
+//   const dayStatus = getDayStatus(dateString);
+//   return dayStatus.status;
+// };
+
+// UI-তে সঠিক বার্তা দেখানোর জন্য
+const formatDayMessage = (dateString) => {
+  const dayStatus = getDayStatus(dateString);
+  
+  if (dayStatus.status === 'Govt Holiday') {
+    return `🎉 ${dayStatus.dayName} - Government Holiday`;
+  }
+  
+  if (dayStatus.status === 'Weekly Off') {
+    return `🏖️ ${dayStatus.dayName} - Weekly Off`;
+  }
+  
+  return `🏢 ${dayStatus.dayName} - Working Day`;
+};
 
   const isHolidayDate = (dateString) => {
     // This function should check if a date is a holiday
@@ -1114,6 +934,85 @@ export default function Page({ userId }) {
   }, [showAdminActionsMenu, showEmployeeSelector]);
 
   // ===================== HELPER FUNCTIONS =====================
+  // ===================== HELPER FUNCTIONS =====================
+
+// Late arrival detection function
+const isLateArrival = (clockInTime, shiftStartTime = "09:00") => {
+  if (!clockInTime || !shiftStartTime) return false;
+  
+  try {
+    const clockIn = new Date(`2000-01-01T${clockInTime}:00`);
+    const shiftStart = new Date(`2000-01-01T${shiftStartTime}:00`);
+    
+    // If clock in is after shift start (with 5 minutes grace period)
+    const gracePeriod = 5 * 60 * 1000; // 5 minutes in milliseconds
+    return (clockIn - shiftStart) > gracePeriod;
+  } catch (error) {
+    console.error("Error checking late arrival:", error);
+    return false;
+  }
+};
+
+// Early arrival detection function
+const isEarlyArrival = (clockInTime, shiftStartTime = "09:00") => {
+  if (!clockInTime || !shiftStartTime) return false;
+  
+  try {
+    const clockIn = new Date(`2000-01-01T${clockInTime}:00`);
+    const shiftStart = new Date(`2000-01-01T${shiftStartTime}:00`);
+    
+    // If clock in is before shift start
+    return clockIn < shiftStart;
+  } catch (error) {
+    console.error("Error checking early arrival:", error);
+    return false;
+  }
+};
+
+// Get arrival status text and color
+const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
+  if (!clockInTime) {
+    return { text: "No Clock In", color: "text-gray-500", bgColor: "bg-gray-100", borderColor: "border-gray-200" };
+  }
+  
+  const isLate = isLateArrival(clockInTime, shiftStartTime);
+  const isEarly = isEarlyArrival(clockInTime, shiftStartTime);
+  
+  if (isLate) {
+    // Calculate how many minutes late
+    const clockIn = new Date(`2000-01-01T${clockInTime}:00`);
+    const shiftStart = new Date(`2000-01-01T${shiftStartTime}:00`);
+    const minutesLate = Math.round((clockIn - shiftStart) / (1000 * 60));
+    
+    return { 
+      text: `Late (${minutesLate}m)`, 
+      color: "text-red-600", 
+      bgColor: "bg-red-50", 
+      borderColor: "border-red-200",
+      minutesLate: minutesLate
+    };
+  } else if (isEarly) {
+    // Calculate how many minutes early
+    const clockIn = new Date(`2000-01-01T${clockInTime}:00`);
+    const shiftStart = new Date(`2000-01-01T${shiftStartTime}:00`);
+    const minutesEarly = Math.round((shiftStart - clockIn) / (1000 * 60));
+    
+    return { 
+      text: `Early (${minutesEarly}m)`, 
+      color: "text-green-600", 
+      bgColor: "bg-green-50", 
+      borderColor: "border-green-200",
+      minutesEarly: minutesEarly
+    };
+  } else {
+    return { 
+      text: "On Time", 
+      color: "text-green-600", 
+      bgColor: "bg-green-50", 
+      borderColor: "border-green-200"
+    };
+  }
+};
   const getUserType = () => {
     if (typeof window !== "undefined") {
       const adminToken = localStorage.getItem("adminToken");
@@ -2852,7 +2751,55 @@ export default function Page({ userId }) {
                   </button>
                 )}
               </div>
-              
+              {/* ম্যানুয়াল অ্যাটেন্ডেন্স মোডালে বার্তা আপডেট করুন */}
+{manualAttendanceData.date && (
+  <div className="mb-4">
+    <div className={`p-3 rounded-xl ${(() => {
+      const dayStatus = getDayStatus(manualAttendanceData.date);
+      if (dayStatus.status === 'Govt Holiday') return 'bg-purple-50 border border-purple-200';
+      if (dayStatus.status === 'Weekly Off') return 'bg-indigo-50 border border-indigo-200';
+      return 'bg-blue-50 border border-blue-200';
+    })()}`}>
+      <div className="flex items-center gap-2">
+        <Calendar className={(() => {
+          const dayStatus = getDayStatus(manualAttendanceData.date);
+          if (dayStatus.status === 'Govt Holiday') return 'text-purple-600';
+          if (dayStatus.status === 'Weekly Off') return 'text-indigo-600';
+          return 'text-blue-600';
+        })()} size={16} />
+        <span className="text-sm font-medium">
+          {formatDayMessage(manualAttendanceData.date)}
+        </span>
+      </div>
+      
+      {(() => {
+        const dayStatus = getDayStatus(manualAttendanceData.date);
+        
+        if (dayStatus.status === 'Weekly Off') {
+          return (
+            <div className="text-xs text-indigo-600 mt-1">
+              ⓘ {dayStatus.dayName} is a weekly off day. No clock in/out required.
+            </div>
+          );
+        }
+        
+        if (dayStatus.status === 'Govt Holiday') {
+          return (
+            <div className="text-xs text-purple-600 mt-1">
+              ⓘ This is a holiday. No clock in/out required.
+            </div>
+          );
+        }
+        
+        return (
+          <div className="text-xs text-blue-600 mt-1">
+            ⓘ This is a working day. Clock in/out is required.
+          </div>
+        );
+      })()}
+    </div>
+  </div>
+)}
               {/* Search Results Dropdown */}
               {employeeSearch && !selectedEmployee && (
                 <div className="relative z-10">
@@ -3207,6 +3154,15 @@ export default function Page({ userId }) {
                       
                       {manualAttendanceData.clockIn && manualAttendanceData.shiftStart && (
                         <div className="text-xs text-gray-500">
+                            <div className={`text-xs px-2 py-1 rounded font-medium mt-1 ${
+    getArrivalStatus(manualAttendanceData.clockIn, manualAttendanceData.shiftStart).bgColor
+  } ${
+    getArrivalStatus(manualAttendanceData.clockIn, manualAttendanceData.shiftStart).color
+  }`}>
+    Arrival Status: {
+      getArrivalStatus(manualAttendanceData.clockIn, manualAttendanceData.shiftStart).text
+    }
+  </div>
                           Clock In vs Shift Start: {
                             (() => {
                               const clockIn = new Date(`2000-01-01T${manualAttendanceData.clockIn}:00`);
@@ -3606,6 +3562,21 @@ export default function Page({ userId }) {
                         })()}
                       </span>
                     </div>
+                        {/* Add arrival status explanation */}
+    <div className="text-xs text-blue-700 mt-2 space-y-1">
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+        <span>Early: Clock in before {bulkAttendanceData.defaultShiftStart}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+        <span>On Time: Clock in at {bulkAttendanceData.defaultShiftStart} (±5 minutes)</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+        <span>Late: Clock in after {bulkAttendanceData.defaultShiftStart} (+5 minutes)</span>
+      </div>
+    </div> 
                     {(() => {
                       const start = new Date(`2000-01-01T${bulkAttendanceData.defaultShiftStart}:00`);
                       const end = new Date(`2000-01-01T${bulkAttendanceData.defaultShiftEnd}:00`);
@@ -4017,18 +3988,7 @@ export default function Page({ userId }) {
               >
                 <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
                 Refresh
-              </button>
-              
-              {/* Export button for employees */}
-              {!isAdmin && (
-                <button
-                  onClick={() => handleExportData('csv')}
-                  className="px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center gap-2 shadow-sm hover:shadow"
-                >
-                  <Download size={18} />
-                  Export CSV
-                </button>
-              )}
+              </button> 
               
               {isAdmin && (
                 <div className="relative admin-actions-menu">
@@ -4042,6 +4002,26 @@ export default function Page({ userId }) {
                   {showAdminActionsMenu && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
                       <div className="p-2 space-y-1">
+                                    {/* PDF Download Options */}
+            <div className="border-t border-gray-200 my-1"></div>
+            
+            <button
+              onClick={handleDownloadEmployeePDF}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-green-50 hover:text-green-700 rounded-lg transition-colors"
+            >
+              <Download size={18} />
+              <span>Download Employee PDF</span>
+            </button>
+            
+            <button
+              onClick={handleDownloadBulkPDF}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors"
+            >
+              <Download size={18} />
+              <span>Download Bulk PDF</span>
+            </button>
+            
+            <div className="border-t border-gray-200 my-1"></div>
                         <button
                           onClick={() => {
                             openManualAttendanceModal();
@@ -4148,15 +4128,7 @@ export default function Page({ userId }) {
                   <Clock4 size={18} />
                   Shift Timing
                 </button>
-              )}
-              
-              <button 
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center gap-2 shadow-sm hover:shadow"
-              >
-                <Printer size={18} />
-                Print
-              </button>
+              )} 
             </div>
           </div>
 
@@ -4475,26 +4447,37 @@ export default function Page({ userId }) {
               </div>
                
               {/* Admin Action Buttons */}
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  onClick={openManualAttendanceModal}
-                  className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                >
-                  <Plus size={18} />
-                  Manual Attendance
-                </button>
-                <button
-                  onClick={openBulkAttendanceModal}
-                  className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                >
-                  <FileSpreadsheet size={18} />
-                  Bulk Attendance
-                </button>
-              </div>
+{/* Admin Info Card-এ এই কোড যোগ করুন: */}
+<div className="mt-6 flex flex-wrap gap-3">
+  <button
+    onClick={openManualAttendanceModal}
+    className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+  >
+    <Plus size={18} />
+    Manual Attendance
+  </button>
+  <button
+    onClick={openBulkAttendanceModal}
+    className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+  >
+    <FileSpreadsheet size={18} />
+    Bulk Attendance
+  </button>
+  {/* PDF Download Button for Admin */}
+  <button
+    onClick={handleDownloadBulkPDF}
+    className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+  >
+    <Download size={18} />
+    Download PDF Report
+  </button>
+</div>
+              
             </div>
           )}
 
           {/* Employee Filter Section - For Admin */}
+          
           {isAdmin && (
             <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-xl border border-gray-100 mb-8">
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
@@ -4506,34 +4489,53 @@ export default function Page({ userId }) {
                   <p className="text-gray-500 text-sm mt-1">
                     Filter attendance records for specific employees and months
                   </p>
-                </div>
-                <div className="flex gap-2 mt-4 md:mt-0">
-                  <button
-                    onClick={resetEmployeeFilter}
-                    className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300 flex items-center gap-2"
-                  >
-                    <X size={18} />
-                    Reset
-                  </button>
-                  <button
-                    onClick={applyEmployeeFilter}
-                    disabled={loading}
-                    className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                  >
-                    <Filter size={18} />
-                    Apply Filter
-                  </button>
-                </div>
+                </div> 
+<div className="flex gap-2 mt-4 md:mt-0">
+  <button
+    onClick={resetEmployeeFilter}
+    className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300 flex items-center gap-2"
+  >
+    <X size={18} />
+    Reset
+  </button>
+  <button
+    onClick={applyEmployeeFilter}
+    disabled={loading}
+    className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+  >
+    <Filter size={18} />
+    Apply Filter
+  </button>
+  {/* PDF Download Button for Selected Employee */}
+  <button
+    onClick={handleDownloadEmployeePDF}
+    className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+  >
+    <Download size={18} />
+    Download PDF
+  </button>
+</div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Employee</label>
-                  <select
-                    value={employeeFilter.employeeId}
-                    onChange={(e) => setEmployeeFilter({...employeeFilter, employeeId: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                  >
+<select
+  value={employeeFilter.employeeId}
+  onChange={(e) => {
+    const selectedId = e.target.value;
+    setEmployeeFilter({...employeeFilter, employeeId: selectedId});
+    
+    // Set selected employee when user selects from filter
+    if (selectedId) {
+      const selectedEmp = employees.find(emp => emp._id === selectedId);
+      setSelectedEmployee(selectedEmp || null);
+    } else {
+      setSelectedEmployee(null);
+    }
+  }}
+  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+>
                     <option value="">All Employees</option>
                     {employees.map((employee) => (
                       <option key={employee._id} value={employee._id}>
@@ -4592,6 +4594,46 @@ export default function Page({ userId }) {
               </div>
             </div>
           )}
+          {/* Employee Filter Section (For Admin)-এর শেষে এই কোডটি যোগ করুন: */}
+
+{/* Selected Employee Info - নতুন এই সেকশনটি যোগ করুন */}
+{employeeFilter.employeeId && (
+  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        {(() => {
+          const selectedEmp = employees.find(emp => emp._id === employeeFilter.employeeId);
+          return selectedEmp ? (
+            <>
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-full flex items-center justify-center text-white font-bold">
+                {selectedEmp.firstName?.[0]}{selectedEmp.lastName?.[0]}
+              </div>
+              <div>
+                <div className="font-semibold text-gray-900">
+                  {selectedEmp.firstName} {selectedEmp.lastName}
+                </div>
+                <div className="text-sm text-gray-600">
+                  ID: {selectedEmp.employeeId} • {selectedEmp.department || 'No Department'}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-gray-500">
+              Loading employee information...
+            </div>
+          );
+        })()}
+      </div>
+      <button
+        onClick={handleDownloadEmployeePDF}
+        className="px-4 py-2  bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2"
+      >
+        <Download size={18} />
+        Download PDF
+      </button>
+    </div>
+  </div>
+)}
 
           {/* Recent Clock Details */}
           {(clockDetails && showRecentDetails) && (
@@ -4817,321 +4859,539 @@ export default function Page({ userId }) {
           </div>
 
           {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-3">
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 h-full">
-                <div className="p-6 border-b border-gray-100">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900">Attendance Records</h2>
-                      <p className="text-gray-500 text-sm">
-                        Showing {currentItems.length} of {attendance.length} records
-                        {isAdmin && employeeFilter.employeeId && ` (Filtered)`}
-                      </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="flex gap-2">
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                          <input
-                            type="date"
-                            value={dateRange.startDate}
-                            onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-                            className="pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none w-full transition-all duration-300"
-                          />
-                        </div>
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                          <input
-                            type="date"
-                            value={dateRange.endDate}
-                            onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-                            className="pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none w-full transition-all duration-300"
-                          />
-                        </div>
-                        <button
-                          onClick={() => {
-                            setCurrentPage(1);
-                            handleRefresh();
-                          }}
-                          disabled={loading}
-                          className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
-                        >
-                          <Filter size={18} />
-                          Apply Date
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+<div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+  {/* Attendance Records Card */}
+  <div className="lg:col-span-3">
+    <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 h-full">
+      <div className="p-6 border-b border-gray-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Attendance Records</h2>
+            <p className="text-gray-500 text-sm">
+              Showing {currentItems.length} of {attendance.length} records
+              {isAdmin && employeeFilter.employeeId && ` (Filtered)`}
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex gap-2">
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                  className="pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none w-full transition-all duration-300"
+                />
+              </div>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                  className="pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none w-full transition-all duration-300"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setCurrentPage(1);
+                  handleRefresh();
+                }}
+                disabled={loading}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
+              >
+                <Filter size={18} />
+                Apply Date
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-                <div className="h-[calc(100%-80px)] overflow-auto">
-                  {loading ? (
-                    <div className="p-12 text-center">
-                      <div className="inline-flex flex-col items-center">
-                        <Loader2 size={48} className="animate-spin text-purple-600 mb-4" />
-                        <p className="text-gray-600 font-medium">Loading attendance records...</p>
-                      </div>
-                    </div>
-                  ) : attendance.length === 0 ? (
-                    <div className="p-12 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <div className="w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
-                          <Calendar className="text-gray-400" size={32} />
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-700 mb-2">No attendance records</h3>
-                        <p className="text-gray-500 max-w-md">
-                          No records found for the selected {employeeFilter.employeeId ? 'employee and ' : ''}date range
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="overflow-x-auto max-h-[500px]">
-                        <table className="w-full">
-                          <thead className="sticky top-0 bg-gradient-to-r from-gray-50 to-gray-100 z-10">
-                            <tr>
-                              <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700 uppercase tracking-wider">Date</th>
-                              {isAdmin && <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700 uppercase tracking-wider">Employee</th>}
-                              <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700 uppercase tracking-wider">Clock In</th>
-                              <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700 uppercase tracking-wider">Clock Out</th>
-                              <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700 uppercase tracking-wider">Total Hours</th>
-                              <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                              <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {currentItems.map((a) => (
-                              <tr key={a._id} className="hover:bg-gray-50 transition-colors duration-200">
-                                <td className="py-4 px-6">
-                                  <div className="font-medium text-gray-900">
-                                    {new Date(a.date).toLocaleDateString('en-US', { 
-                                      weekday: 'short',
-                                      month: 'short',
-                                      day: 'numeric'
-                                    })}
+      {/* Responsive Table Container */}
+      <div className="p-6">
+        {loading ? (
+          <div className="py-12 text-center">
+            <div className="inline-flex flex-col items-center">
+              <Loader2 size={48} className="animate-spin text-purple-600 mb-4" />
+              <p className="text-gray-600 font-medium">Loading attendance records...</p>
+            </div>
+          </div>
+        ) : attendance.length === 0 ? (
+          <div className="py-12 text-center">
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
+                <Calendar className="text-gray-400" size={32} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No attendance records</h3>
+              <p className="text-gray-500 max-w-md">
+                No records found for the selected {employeeFilter.employeeId ? 'employee and ' : ''}date range
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Desktop View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <div className="min-w-full inline-block align-middle">
+                <div className="overflow-hidden rounded-xl border border-gray-200">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Date
+                        </th>
+                        {isAdmin && (
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                            Employee
+                          </th>
+                        )}
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Clock In
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Clock Out
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Total Hours
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {currentItems.map((a) => {
+                        const clockInTime = a.clockIn ? new Date(a.clockIn).toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          hour12: false 
+                        }) : null;
+                        
+                        const arrivalStatus = getArrivalStatus(clockInTime, a.shiftStart || "09:00");
+                        
+                        return (
+                          <tr key={a._id} className="hover:bg-gray-50 transition-colors duration-200">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {new Date(a.date).toLocaleDateString('en-US', { 
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {new Date(a.date).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })}
+                              </div>
+                            </td>
+                            {isAdmin && (
+                              <td className="px-6 py-4">
+                                <div className="flex items-center">
+                                  <div className="flex-shrink-0 h-8 w-8 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    {a.employee?.firstName?.[0]}{a.employee?.lastName?.[0] || 'U'}
                                   </div>
-                                </td>
-                                {isAdmin && (
-                                  <td className="py-4 px-6">
-                                    <div className="font-medium text-gray-900">
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">
                                       {a.employee?.firstName ? `${a.employee.firstName} ${a.employee.lastName}` : `Employee ${a.employee?._id?.slice(-6) || 'N/A'}`}
                                     </div>
                                     <div className="text-xs text-gray-500">
                                       {a.employee?.email || ''}
                                     </div>
-                                  </td>
+                                  </div>
+                                </div>
+                              </td>
+                            )}
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col space-y-1">
+                                <div className="flex items-center">
+                                  <Sun className="w-4 h-4 mr-2 text-yellow-500 flex-shrink-0" />
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {formatTimeFromISO(a.clockIn) || "-"}
+                                  </span>
+                                </div>
+                                {clockInTime && (
+                                  <div className={`text-xs px-2 py-0.5 rounded-full font-medium inline-flex items-center ${arrivalStatus.bgColor} ${arrivalStatus.color} border ${arrivalStatus.borderColor}`}>
+                                    {arrivalStatus.text}
+                                  </div>
                                 )}
-                                <td className="py-4 px-6">
-                                  <div className="flex items-center">
-                                    <Sun className="w-4 h-4 mr-2 text-yellow-500" />
-                                    <span className="font-medium">{formatTimeFromISO(a.clockIn)}</span>
-                                  </div>
-                                </td>
-                                <td className="py-4 px-6">
-                                  <div className="flex items-center">
-                                    <Moon className="w-4 h-4 mr-2 text-indigo-500" />
-                                    <span className="font-medium">{formatTimeFromISO(a.clockOut)}</span>
-                                  </div>
-                                </td>
-                                <td className="py-4 px-6">
-                                  <div className="flex items-center">
-                                    <Clock className="w-4 h-4 mr-2 text-blue-500" />
-                                    <span className={`font-bold ${a.totalHours >= 8 ? 'text-green-600' : 'text-yellow-600'}`}>
-                                      {a.totalHours?.toFixed(2) || "-"}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="py-4 px-6">
-                                  <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusColor(a.status)}`}>
-                                    {a.status || "Pending"}
-                                  </div>
-                                </td>
-                                <td className="py-4 px-6">
-                                  <div className="flex items-center space-x-2">
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <Moon className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" />
+                                <span className="text-sm font-medium text-gray-900">
+                                  {formatTimeFromISO(a.clockOut) || "-"}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <Clock className="w-4 h-4 mr-2 text-blue-500 flex-shrink-0" />
+                                <span className={`text-sm font-bold ${a.totalHours >= 8 ? 'text-green-600' : 'text-yellow-600'}`}>
+                                  {a.totalHours?.toFixed(2) || "-"}
+                                </span>
+                              </div>
+                              {a.totalHours && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {formatDuration(a.totalHours)}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(a.status)}`}>
+                                {a.status || "Pending"}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={() => handleViewDetails(a._id)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                                  title="View Details"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                                {isAdmin && (
+                                  <>
                                     <button
-                                      onClick={() => handleViewDetails(a._id)}
-                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                                      title="View Details"
+                                      onClick={() => handleCorrectAttendance(a._id, a)}
+                                      className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200"
+                                      title="Edit Attendance"
                                     >
-                                      <Eye size={18} />
+                                      <Edit size={18} />
                                     </button>
-                                    {isAdmin && (
-                                      <>
-                                        <button
-                                          onClick={() => handleCorrectAttendance(a._id, a)}
-                                          className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200"
-                                          title="Edit Attendance"
-                                        >
-                                          <Edit size={18} />
-                                        </button>
-                                        <button
-                                          onClick={() => handleUpdateShiftTiming(a.employee?._id)}
-                                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors duration-200"
-                                          title="Update Shift Timing"
-                                        >
-                                          <Settings size={18} />
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                    <button
+                                      onClick={() => handleUpdateShiftTiming(a.employee?._id)}
+                                      className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors duration-200"
+                                      title="Update Shift Timing"
+                                    >
+                                      <Settings size={18} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile/Tablet View */}
+            <div className="lg:hidden space-y-4">
+              {currentItems.map((a) => {
+                const clockInTime = a.clockIn ? new Date(a.clockIn).toLocaleTimeString('en-US', { 
+                  hour: '2-digit', 
+                  minute: '2-digit',
+                  hour12: false 
+                }) : null;
+                
+                const arrivalStatus = getArrivalStatus(clockInTime, a.shiftStart || "09:00");
+                
+                return (
+                  <div key={a._id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Row 1: Date and Status */}
+                      <div className="col-span-2 flex justify-between items-start mb-3">
+                        <div>
+                          <div className="text-lg font-semibold text-gray-900">
+                            {new Date(a.date).toLocaleDateString('en-US', { 
+                              weekday: 'long',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(a.date).toLocaleDateString('en-US', {
+                              year: 'numeric'
+                            })}
+                          </div>
+                        </div>
+                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(a.status)}`}>
+                          {a.status || "Pending"}
+                        </div>
                       </div>
-                      
-                      {/* Pagination */}
-                      {totalPages > 1 && (
-                        <div className="sticky bottom-0 bg-white border-t border-gray-100 p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm text-gray-500">
-                              Page {currentPage} of {totalPages}
+
+                      {/* Row 2: Employee Info (Admin only) */}
+                      {isAdmin && (
+                        <div className="col-span-2 mb-3">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
+                              {a.employee?.firstName?.[0]}{a.employee?.lastName?.[0] || 'U'}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={prevPage}
-                                disabled={currentPage === 1}
-                                className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              >
-                                <ChevronLeft size={18} />
-                              </button>
-                              
-                              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                let pageNum;
-                                if (totalPages <= 5) {
-                                  pageNum = i + 1;
-                                } else if (currentPage <= 3) {
-                                  pageNum = i + 1;
-                                } else if (currentPage >= totalPages - 2) {
-                                  pageNum = totalPages - 4 + i;
-                                } else {
-                                  pageNum = currentPage - 2 + i;
-                                }
-                                
-                                return (
-                                  <button
-                                    key={pageNum}
-                                    onClick={() => paginate(pageNum)}
-                                    className={`w-10 h-10 rounded-lg transition-all ${
-                                      currentPage === pageNum
-                                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                                    }`}
-                                  >
-                                    {pageNum}
-                                  </button>
-                                );
-                              })}
-                              
-                              <button
-                                onClick={nextPage}
-                                disabled={currentPage === totalPages}
-                                className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              >
-                                <ChevronRightIcon size={18} />
-                              </button>
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {itemsPerPage} per page
+                            <div className="ml-3">
+                              <div className="text-sm font-medium text-gray-900">
+                                {a.employee?.firstName ? `${a.employee.firstName} ${a.employee.lastName}` : `Employee ${a.employee?._id?.slice(-6) || 'N/A'}`}
+                              </div>
+                              <div className="text-xs text-gray-500 truncate max-w-[200px]">
+                                {a.employee?.email || ''}
+                              </div>
                             </div>
                           </div>
                         </div>
                       )}
-                    </>
-                  )}
+
+                      {/* Row 3: Clock Times */}
+                      <div className="col-span-1">
+                        <div className="mb-2">
+                          <div className="text-xs text-gray-500 font-medium mb-1 flex items-center">
+                            <Sun className="w-3 h-3 mr-1 text-yellow-500" />
+                            Clock In
+                          </div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {formatTimeFromISO(a.clockIn) || "-"}
+                          </div>
+                          {clockInTime && (
+                            <div className={`text-xs px-2 py-0.5 rounded-full font-medium inline-flex items-center mt-1 ${arrivalStatus.bgColor} ${arrivalStatus.color} border ${arrivalStatus.borderColor}`}>
+                              {arrivalStatus.text}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="col-span-1">
+                        <div className="mb-2">
+                          <div className="text-xs text-gray-500 font-medium mb-1 flex items-center">
+                            <Moon className="w-3 h-3 mr-1 text-indigo-500" />
+                            Clock Out
+                          </div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {formatTimeFromISO(a.clockOut) || "-"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Row 4: Total Hours */}
+                      <div className="col-span-2">
+                        <div className="mb-2">
+                          <div className="text-xs text-gray-500 font-medium mb-1 flex items-center">
+                            <Clock className="w-3 h-3 mr-1 text-blue-500" />
+                            Total Hours
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className={`text-lg font-bold ${a.totalHours >= 8 ? 'text-green-600' : 'text-yellow-600'}`}>
+                                {a.totalHours?.toFixed(2) || "-"}
+                              </span>
+                              {a.totalHours && (
+                                <div className="text-xs text-gray-500">
+                                  {formatDuration(a.totalHours)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => handleViewDetails(a._id)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye size={16} />
+                              </button>
+                              {isAdmin && (
+                                <>
+                                  <button
+                                    onClick={() => handleCorrectAttendance(a._id, a)}
+                                    className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                                    title="Edit Attendance"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateShiftTiming(a.employee?._id)}
+                                    className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                    title="Update Shift Timing"
+                                  >
+                                    <Settings size={16} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-6">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-sm text-gray-500">
+                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, attendance.length)} of {attendance.length} records
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={prevPage}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    >
+                      <ChevronLeft size={16} />
+                      <span className="hidden sm:inline">Previous</span>
+                    </button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => paginate(pageNum)}
+                            className={`w-9 h-9 rounded-lg transition-all flex items-center justify-center ${
+                              currentPage === pageNum
+                                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    <button
+                      onClick={nextPage}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    >
+                      <span className="hidden sm:inline">Next</span>
+                      <ChevronRightIcon size={16} />
+                    </button>
+                  </div>
                 </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+
+  {/* Summary Sidebar */}
+  <div className="lg:col-span-1">
+    <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 h-full sticky top-6">
+      <div className="p-6 border-b border-gray-100">
+        <h2 className="text-xl font-bold text-gray-900">Attendance Summary</h2>
+        <p className="text-gray-500 text-sm mt-1">Selected period overview</p>
+      </div>
+
+      <div className="p-6">
+        {summary ? (
+          <div className="space-y-6">
+            {/* Summary Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border border-gray-100">
+                <div className="text-xs text-gray-500 font-medium mb-1">Present Days</div>
+                <div className="text-2xl font-bold text-green-600">{summary.daysPresent || 0}</div>
+                <div className="text-xs text-gray-400 mt-1">Working days</div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border border-gray-100">
+                <div className="text-xs text-gray-500 font-medium mb-1">Absent Days</div>
+                <div className="text-2xl font-bold text-red-600">{summary.daysAbsent || 0}</div>
+                <div className="text-xs text-gray-400 mt-1">Missed days</div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border border-gray-100">
+                <div className="text-xs text-gray-500 font-medium mb-1">Leave Days</div>
+                <div className="text-2xl font-bold text-blue-600">{summary.daysLeave || 0}</div>
+                <div className="text-xs text-gray-400 mt-1">Approved leave</div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border border-gray-100">
+                <div className="text-xs text-gray-500 font-medium mb-1">Late Arrivals</div>
+                <div className="text-2xl font-bold text-yellow-600">{summary.lateArrivals || 0}</div>
+                <div className="text-xs text-gray-400 mt-1">Late entries</div>
               </div>
             </div>
 
-            {/* Summary Sidebar */}
-            <div className="lg:col-span-1">
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 h-full">
-                <div className="p-6 border-b border-gray-100">
-                  <h2 className="text-xl font-bold text-gray-900">Attendance Summary</h2>
-                  <p className="text-gray-500 text-sm mt-1">Selected period overview</p>
-                </div>
+            {/* Total Hours */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
+              <div className="flex justify-between items-center mb-2">
+                <div className="text-sm font-medium text-purple-800">Total Hours</div>
+                <Clock className="text-purple-500" size={18} />
+              </div>
+              <div className="text-3xl font-bold text-purple-700">{summary.totalHours?.toFixed(2) || "0.00"}</div>
+              <div className="text-xs text-purple-600 mt-1">
+                Average {summary.averageHours?.toFixed(2) || "0.00"} hrs/day
+              </div>
+            </div>
 
-                <div className="p-6 space-y-6 overflow-y-auto max-h-[500px]">
-                  {summary ? (
-                    <>
-                      <div className="space-y-4">
-                        {isAdmin && (
-                          <>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Total Employees</span>
-                              <span className="font-semibold text-gray-900">{summary.totalEmployees || employees.length || 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Present Today</span>
-                              <span className="font-semibold text-green-600">{summary.presentToday || 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Absent Today</span>
-                              <span className="font-semibold text-red-600">{summary.absentToday || 0}</span>
-                            </div>
-                          </>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Working Days</span>
-                          <span className="font-semibold text-gray-900">{summary.workingDays || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Days Present</span>
-                          <span className="font-semibold text-green-600">{summary.daysPresent || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Days Absent</span>
-                          <span className="font-semibold text-red-600">{summary.daysAbsent || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Days Leave</span>
-                          <span className="font-semibold text-blue-600">{summary.daysLeave || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Late Arrivals</span>
-                          <span className="font-semibold text-yellow-600">{summary.lateArrivals || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Holidays/Off</span>
-                          <span className="font-semibold text-purple-600">{summary.daysHoliday || 0}</span>
-                        </div>
-                        <div className="border-t border-gray-200 pt-4">
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600 font-medium">Total Hours</span>
-                            <span className="font-bold text-lg text-purple-700">{summary.totalHours?.toFixed(2) || "0.00"}</span>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Average Hours/Day</span>
-                          <span className="font-semibold text-gray-900">{summary.averageHours?.toFixed(2) || "0.00"}</span>
-                        </div>
-                      </div>
+            {/* Attendance Rate */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <div className="text-sm font-medium text-gray-700">Attendance Rate</div>
+                <div className="text-lg font-bold text-purple-700">{summary.attendanceRate?.toFixed(1) || "0.0"}%</div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div 
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all duration-500" 
+                  style={{ width: `${Math.min(summary.attendanceRate || 0, 100)}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>0%</span>
+                <span>50%</span>
+                <span>100%</span>
+              </div>
+            </div>
 
-                      <div className="pt-4 border-t border-gray-100">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-gray-600 font-medium">Attendance Rate</span>
-                          <span className="font-bold text-lg text-purple-700">{summary.attendanceRate?.toFixed(1) || "0.0"}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div 
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-2.5 rounded-full transition-all duration-500" 
-                            style={{ width: `${Math.min(summary.attendanceRate || 0, 100)}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-8">
-                      <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600">No summary data available</p>
-                    </div>
-                  )}
-                </div>
+            {/* Additional Stats */}
+            <div className="space-y-3 pt-4 border-t border-gray-100">
+              {isAdmin && (
+                <>
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-gray-600">Total Employees</div>
+                    <div className="font-medium text-gray-900">{summary.totalEmployees || employees.length || 0}</div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-gray-600">Present Today</div>
+                    <div className="font-medium text-green-600">{summary.presentToday || 0}</div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-gray-600">Absent Today</div>
+                    <div className="font-medium text-red-600">{summary.absentToday || 0}</div>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">Holidays/Off</div>
+                <div className="font-medium text-purple-600">{summary.daysHoliday || 0}</div>
               </div>
             </div>
           </div>
+        ) : (
+          <div className="text-center py-8">
+            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">No summary data available</p>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</div>
         </div>
       </div>
 
@@ -5159,6 +5419,31 @@ export default function Page({ userId }) {
         .h-[calc(100%-80px)] {
           height: calc(100% - 80px);
         }
+           @keyframes pulse-red {
+    0%, 100% { 
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); 
+    }
+    70% { 
+      box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); 
+    }
+  }
+  
+  .animate-pulse-red {
+    animation: pulse-red 2s infinite;
+  }
+  
+  @keyframes pulse-green {
+    0%, 100% { 
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); 
+    }
+    70% { 
+      box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); 
+    }
+  }
+  
+  .animate-pulse-green {
+    animation: pulse-green 2s infinite;
+  }
       `}</style>
     </>
   );

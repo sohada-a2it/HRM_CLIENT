@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import { 
   EyeOff, Key, Eye, Plus, Edit, Trash2, Search, Filter, Check,
   UserPlus, Shield, UserCog, Download, RefreshCw, Mail, Phone,
@@ -8,7 +9,7 @@ import {
   UserCheck, UserX, TrendingUp, Users, X, CheckCircle, AlertCircle,
   Image, Camera, Upload, Loader2, Lock, ChevronLeft, ChevronRight,
   ArrowLeft, ArrowRight, Send, Clock, CalendarDays, History,
-  Layers, Target, UsersRound, FileClock, BarChart3
+  Layers, Target, UsersRound, FileClock, BarChart3, Info
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -49,7 +50,8 @@ export default function UserRolesPage() {
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [adminEmail, setAdminEmail] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
-  
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [profilePreview, setProfilePreview] = useState(null);
   // Shift Management States
   const [showShiftManagement, setShowShiftManagement] = useState(false);
   const [selectedEmployeeForShift, setSelectedEmployeeForShift] = useState(null);
@@ -101,7 +103,8 @@ export default function UserRolesPage() {
     adminEmail: '',
     otp: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    userEmail: ''
   });
   const [otpLoading, setOtpLoading] = useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
@@ -170,6 +173,15 @@ export default function UserRolesPage() {
     // Load default shift time
     fetchDefaultShiftTime();
   }, []);
+
+  // API Configuration setup
+  const setupAxios = () => {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('userToken');
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+    axios.defaults.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  };
 
   // Fetch users from backend
   const fetchUsers = async () => {
@@ -259,87 +271,128 @@ export default function UserRolesPage() {
     // Handle file upload logic...
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!form.firstName || !form.lastName || !form.email) {
-      toast.error('Please fill in all required fields');
-      return;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (!form.firstName || !form.lastName || !form.email) {
+    toast.error('Please fill in all required fields');
+    return;
+  }
+  
+  if (!isEditMode && (!form.password || form.password.length < 6)) {
+    toast.error('Password must be at least 6 characters');
+    return;
+  }
+
+  setFormLoading(true);
+  
+  const loadingToast = toast.loading(
+    isEditMode ? "Updating user..." : "Creating user...",
+    { position: 'top-center' }
+  );
+
+  try {
+    const payload = {
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      role: form.role,
+      status: form.status,
+      department: form.department,
+      phone: form.phone,
+      joiningDate: form.joiningDate || new Date().toISOString().split('T')[0],
+    };
+
+    // Only include password for new users
+    if (!isEditMode) {
+      payload.password = form.password;
     }
-    
-    if (!isEditMode && (!form.password || form.password.length < 6)) {
-      toast.error('Password must be at least 6 characters');
-      return;
+
+    // Include salary/rate if provided
+    if (form.salary) {
+      payload.salaryType = "monthly";
+      payload.rate = Number(form.salary);
     }
 
-    setFormLoading(true);
-
-    try {
-      const payload = {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        password: form.password,
-        role: form.role,
-        salaryType: "monthly",
-        rate: Number(form.salary),
-        status: form.status,
-        department: form.department,
-        phone: form.phone,
-        joiningDate: form.joiningDate || new Date().toISOString().split('T')[0],
-        shiftTiming: {
-          defaultShift: {
-            start: defaultShiftTime.start,
-            end: defaultShiftTime.end
-          }
-        }
-      };
-
-      console.log('📝 Creating user:', payload.email);
-
-      const res = await createUserAPI(payload);
-      
-      if (res.message === "User created successfully" || res.success) {
-        console.log('✅ User created response:', res);
-        
-        toast.success(`✅ User "${form.firstName} ${form.lastName}" created!`, {
-          duration: 4000,
-          position: 'top-center'
-        });
-
-        if (res.user?._id) {
-          setCurrentUserId(res.user._id);
-          setIsEditMode(true);
-
-          setTimeout(async () => {
-            try {
-              await sendWelcomeEmailToUser({
-                ...form,
-                _id: res.user._id
-              }, form.password);
-            } catch (e) {
-              console.log('Email optional - user created anyway');
-            }
-          }, 500);
-        }
-
-        fetchUsers();
-        resetForm();
-        
-      } else {
-        throw new Error(res.message || "Failed to create user");
+    // Include shift timing
+    payload.shiftTiming = {
+      defaultShift: {
+        start: defaultShiftTime.start,
+        end: defaultShiftTime.end
       }
+    };
 
-    } catch (error) {
-      console.error('❌ Error:', error);
-      toast.error(`❌ ${error.message}`, {
-        duration: 5000,
+    console.log('📝 User payload:', payload);
+
+    let res;
+    if (isEditMode) {
+      res = await updateUserAPI(currentUserId, payload);
+    } else {
+      res = await createUserAPI(payload);
+    }
+
+    console.log('✅ API Response:', res);
+    
+    if (res.message?.includes("successfully") || res.success || res._id) {
+      toast.dismiss(loadingToast);
+      
+      const successMessage = isEditMode 
+        ? `✅ User "${form.firstName} ${form.lastName}" updated!`
+        : `✅ User "${form.firstName} ${form.lastName}" created!`;
+      
+      toast.success(successMessage, {
+        duration: 4000,
         position: 'top-center'
       });
-    } finally {
-      setFormLoading(false);
+
+      // For new users, send welcome email
+      if (!isEditMode && res.user?._id) {
+        setCurrentUserId(res.user._id);
+        setIsEditMode(true);
+
+        setTimeout(async () => {
+          try {
+            await sendWelcomeEmailToUser({
+              ...form,
+              _id: res.user._id
+            }, form.password);
+          } catch (e) {
+            console.log('Email optional - user created anyway');
+          }
+        }, 500);
+      }
+
+      // Refresh user list
+      fetchUsers();
+      
+      // Reset form only for new user creation
+      if (!isEditMode) {
+        resetForm();
+      }
+
+    } else {
+      throw new Error(res.message || res.error || "Failed to process user");
     }
-  };
+
+  } catch (error) {
+    toast.dismiss(loadingToast);
+    console.error('❌ Error:', error);
+    
+    let errorMessage = error.message;
+    if (errorMessage.includes('409') || errorMessage.includes('already exists')) {
+      errorMessage = 'User with this email already exists';
+    } else if (errorMessage.includes('400') || errorMessage.includes('validation')) {
+      errorMessage = 'Invalid data provided';
+    }
+    
+    toast.error(`❌ ${errorMessage}`, {
+      duration: 5000,
+      position: 'top-center'
+    });
+  } finally {
+    setFormLoading(false);
+  }
+};
 
   const resetForm = () => {
     setForm({
@@ -370,7 +423,7 @@ export default function UserRolesPage() {
       firstName: user.firstName || "",
       lastName: user.lastName || "",
       email: user.email || "",
-      password: "",
+      password: "", // Don't show existing password (it's hashed anyway)
       role: user.role || "employee",
       salary: user.rate || "",
       status: user.status || "active",
@@ -379,6 +432,8 @@ export default function UserRolesPage() {
       joiningDate: user.joiningDate || new Date().toISOString().split('T')[0],
       profilePicture: user.profilePicture || user.picture || null
     });
+    setSelectedFile(null);
+    setProfilePreview(null);
     
     toast("Edit mode activated. Scroll to form.", {
       icon: '✏️',
@@ -470,6 +525,289 @@ export default function UserRolesPage() {
     }
   };
 
+  // ================= RESET PASSWORD FUNCTIONS =================
+
+  // Handle Reset Password Page
+  const handleOpenResetPasswordPage = (user) => {
+    setSelectedUserForReset(user);
+    
+    setResetData({
+      adminEmail: adminEmail,
+      userEmail: user.email,
+      otp: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    
+    setResetStep(1);
+    setShowResetPasswordPage(true);
+    
+    console.log('Opening reset for:', {
+      adminEmail: adminEmail,
+      userEmail: user.email
+    });
+  };
+
+  // Admin Request OTP
+  const handleAdminRequestOtp = async () => {
+    if (!selectedUserForReset?.email) {
+      toast.error('Please select a user first');
+      return;
+    }
+
+    setOtpLoading(true);
+    
+    const loadingToast = toast.custom(
+      (t) => (
+        <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-4 rounded-xl shadow-xl max-w-md mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <div>
+              <p className="font-bold">Generating OTP...</p>
+              <p className="text-sm opacity-90">For: {selectedUserForReset.email}</p>
+            </div>
+          </div>
+        </div>
+      ),
+      { duration: Infinity, position: 'top-center' }
+    );
+
+    try {
+      setupAxios();
+      
+      const response = await axios.post('/admin/request-otp', {
+        userEmail: selectedUserForReset.email
+      });
+
+      console.log('OTP Response:', response.data);
+      toast.dismiss(loadingToast);
+
+      if (response.data?.status === "success") {
+        toast.custom(
+          (t) => (
+            <div className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-md w-full">
+              <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold">✅ OTP Sent!</h3>
+                    <p className="text-sm opacity-90">{selectedUserForReset.email}</p>
+                  </div>
+                  <button
+                    onClick={() => toast.dismiss(t.id)}
+                    className="text-white hover:text-gray-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="text-center mb-6">
+                  <div className="text-sm text-gray-600 mb-2">OTP Information</div>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl">
+                      <Mail className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                      <p className="text-xs text-gray-600">Sent to:</p>
+                      <p className="text-sm font-semibold text-gray-900">{adminEmail}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      setResetStep(2);
+                      toast.dismiss(t.id);
+                      toast.success('Proceed to OTP verification', { duration: 2000 });
+                    }}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all"
+                  >
+                    Verify OTP
+                  </button>
+                  
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
+                      <div className="text-sm text-yellow-800">
+                        <p className="font-semibold">Important:</p>
+                        <p>Check {adminEmail} for the OTP code. Check spam folder if not found.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>OTP valid for 10 minutes</span>
+                  <span>Step 1 of 3</span>
+                </div>
+              </div>
+            </div>
+          ),
+          {
+            duration: 15000,
+            position: 'top-center'
+          }
+        );
+        
+        setTimeout(() => {
+          if (resetStep === 1) {
+            setResetStep(2);
+            toast.success('Proceeding to OTP verification...', { duration: 2000 });
+          }
+        }, 3000);
+        
+      } else {
+        toast.error(response.data?.message || 'Failed to send OTP');
+      }
+      
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      console.error('OTP Error:', error);
+      
+      let errorMessage = 'Failed to generate OTP';
+      if (error.response?.status === 404) {
+        errorMessage = 'User not found in system';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied. Admin permission required.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Network error. Please check connection.';
+      } else if (error.message.includes('request failed')) {
+        errorMessage = 'Server error. Please try again.';
+      }
+      
+      toast.error(`❌ ${errorMessage}`);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Admin Verify OTP and Reset Password
+  const handleAdminVerifyOtpAndReset = async () => {
+    if (!resetData.otp || resetData.otp.length !== 6) {
+      toast.error('Please enter a valid 6-digit OTP');
+      return;
+    }
+
+    if (resetData.newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    if (resetData.newPassword !== resetData.confirmPassword) {
+      toast.error("Passwords don't match!");
+      return;
+    }
+
+    setResetPasswordLoading(true);
+    
+    const loadingToast = toast.custom(
+      (t) => (
+        <div className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-4 rounded-xl shadow-xl max-w-md mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <div>
+              <p className="font-bold">Resetting Password...</p>
+              <p className="text-sm opacity-90">For: {selectedUserForReset?.email}</p>
+            </div>
+          </div>
+        </div>
+      ),
+      { duration: Infinity, position: 'top-center' }
+    );
+
+    try {
+      setupAxios();
+      
+      console.log('🔐 Resetting password for user:', {
+        userEmail: selectedUserForReset?.email,
+        otp: resetData.otp,
+        passwordLength: resetData.newPassword.length
+      });
+
+      const response = await axios.post('/admin/reset-password', {
+        userEmail: selectedUserForReset?.email,
+        otp: parseInt(resetData.otp),
+        newPassword: resetData.newPassword
+      });
+
+      console.log('🔑 Reset Password Response:', response.data);
+      toast.dismiss(loadingToast);
+
+      if (response.data?.status === "success") {
+        toast.success(
+          <div className="text-center">
+            <div className="font-bold text-lg">✅ Password Reset Successful!</div>
+            <div className="text-sm text-gray-600 mt-1">
+              Password updated for {selectedUserForReset?.email}
+            </div>
+          </div>,
+          {
+            duration: 5000,
+            icon: '🔑',
+            style: {
+              borderRadius: '12px',
+              background: '#10B981',
+              color: '#fff',
+            }
+          }
+        );
+        
+        handleCloseResetPasswordPage();
+        fetchUsers();
+        
+      } else {
+        throw new Error(response.data?.message || 'Failed to reset password');
+      }
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      console.error('Reset Password Error:', error);
+      
+      let errorMessage = 'Failed to reset password';
+      if (error.response?.status === 400) {
+        if (error.response.data?.message?.includes('Invalid OTP')) {
+          errorMessage = '❌ Invalid OTP. Please check and try again.';
+        } else if (error.response.data?.message?.includes('expired')) {
+          errorMessage = '❌ OTP expired. Please request a new one.';
+        } else {
+          errorMessage = error.response.data?.message || 'Invalid request';
+        }
+      } else if (error.response?.status === 404) {
+        errorMessage = '❌ User not found';
+      } else if (error.response?.status === 403) {
+        errorMessage = '❌ Admin permission required';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message.includes('network')) {
+        errorMessage = '❌ Network error. Check your connection.';
+      }
+
+      toast.error(errorMessage, {
+        duration: 5000,
+        icon: '🔴'
+      });
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
+
+  // Handle Close Reset Password Page
+  const handleCloseResetPasswordPage = () => {
+    setShowResetPasswordPage(false);
+    setSelectedUserForReset(null);
+    setResetStep(1);
+    setResetData({
+      adminEmail: '',
+      otp: '',
+      newPassword: '',
+      confirmPassword: '',
+      userEmail: ''
+    });
+  };
+
   // ================= SHIFT MANAGEMENT FUNCTIONS =================
 
   // Open shift management modal
@@ -477,7 +815,6 @@ export default function UserRolesPage() {
     if (employee) {
       setSelectedEmployeeForShift(employee);
       
-      // Set current shift if exists
       if (employee.shiftTiming?.currentShift?.isActive) {
         setShiftForm({
           startTime: employee.shiftTiming.currentShift.start || '09:00',
@@ -522,7 +859,6 @@ export default function UserRolesPage() {
       return;
     }
 
-    // Validate time format
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(shiftForm.startTime) || !timeRegex.test(shiftForm.endTime)) {
       toast.error('Invalid time format. Use HH:mm (24-hour format)');
@@ -542,7 +878,6 @@ export default function UserRolesPage() {
           icon: '🕐'
         });
         
-        // Update the user in the list
         setUsers(prevUsers => 
           prevUsers.map(user => 
             user._id === selectedEmployeeForShift._id 
@@ -566,7 +901,6 @@ export default function UserRolesPage() {
         setShowShiftManagement(false);
         fetchShiftStatistics();
         
-        // Send notification
         setTimeout(() => {
           toast(`📧 Shift change notification sent to ${selectedEmployeeForShift.email}`, {
             duration: 3000,
@@ -607,7 +941,6 @@ export default function UserRolesPage() {
           icon: '🔄'
         });
         
-        // Update the user in the list
         setUsers(prevUsers => 
           prevUsers.map(user => 
             user._id === selectedEmployeeForShift._id 
@@ -644,7 +977,6 @@ export default function UserRolesPage() {
       return;
     }
 
-    // Validate time format
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(shiftForm.startTime) || !timeRegex.test(shiftForm.endTime)) {
       toast.error('Invalid time format. Use HH:mm (24-hour format)');
@@ -738,7 +1070,6 @@ export default function UserRolesPage() {
           icon: '👥'
         });
         
-        // Refresh user list
         fetchUsers();
         setShowBulkShiftAssign(false);
         setSelectedEmployeesForBulk([]);
@@ -816,7 +1147,6 @@ export default function UserRolesPage() {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-          {/* Header */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div>
@@ -840,9 +1170,7 @@ export default function UserRolesPage() {
             </div>
           </div>
 
-          {/* Content */}
           <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
-            {/* Current Shift Info */}
             {selectedEmployeeForShift && (
               <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                 <h3 className="text-sm font-semibold text-blue-800 mb-2">Current Shift</h3>
@@ -868,7 +1196,6 @@ export default function UserRolesPage() {
               </div>
             )}
 
-            {/* Shift Form */}
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -943,7 +1270,6 @@ export default function UserRolesPage() {
               )}
             </div>
 
-            {/* Preview */}
             <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
               <h3 className="text-sm font-semibold text-gray-800 mb-2">Shift Preview</h3>
               <div className="flex items-center justify-between">
@@ -962,7 +1288,6 @@ export default function UserRolesPage() {
             </div>
           </div>
 
-          {/* Footer Actions */}
           <div className="p-6 border-t border-gray-200 bg-gray-50">
             <div className="flex justify-between">
               <div className="flex space-x-3">
@@ -1012,7 +1337,6 @@ export default function UserRolesPage() {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
-          {/* Header */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div>
@@ -1032,7 +1356,6 @@ export default function UserRolesPage() {
             </div>
           </div>
 
-          {/* Content */}
           <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
             {shiftHistory.length === 0 ? (
               <div className="text-center py-12">
@@ -1068,7 +1391,6 @@ export default function UserRolesPage() {
             )}
           </div>
 
-          {/* Footer */}
           <div className="p-6 border-t border-gray-200 bg-gray-50">
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-600">
@@ -1094,7 +1416,6 @@ export default function UserRolesPage() {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
-          {/* Header */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div>
@@ -1114,10 +1435,8 @@ export default function UserRolesPage() {
             </div>
           </div>
 
-          {/* Content */}
           <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Summary Cards */}
               <div className="space-y-4">
                 <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 rounded-xl p-4">
                   <div className="flex items-center justify-between">
@@ -1156,7 +1475,6 @@ export default function UserRolesPage() {
                 </div>
               </div>
 
-              {/* Shift Distribution */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-gray-800 mb-4">Shift Distribution</h3>
                 <div className="space-y-3">
@@ -1185,7 +1503,6 @@ export default function UserRolesPage() {
                 </div>
               </div>
 
-              {/* Default Shift */}
               <div className="md:col-span-2 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-100 rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-yellow-800 mb-3">Default Company Shift</h3>
                 <div className="flex items-center justify-center">
@@ -1200,7 +1517,6 @@ export default function UserRolesPage() {
             </div>
           </div>
 
-          {/* Footer */}
           <div className="p-6 border-t border-gray-200 bg-gray-50">
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-600">
@@ -1224,7 +1540,6 @@ export default function UserRolesPage() {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-          {/* Header */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div>
@@ -1244,10 +1559,8 @@ export default function UserRolesPage() {
             </div>
           </div>
 
-          {/* Content */}
           <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Shift Configuration */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-800 mb-4">Shift Configuration</h3>
                 <div className="space-y-4">
@@ -1295,7 +1608,6 @@ export default function UserRolesPage() {
                 </div>
               </div>
 
-              {/* Employee Selection */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-800 mb-4">
                   Select Employees ({selectedEmployeesForBulk.length} selected)
@@ -1328,7 +1640,6 @@ export default function UserRolesPage() {
                     ))}
                 </div>
 
-                {/* Quick Actions */}
                 <div className="mt-4 flex space-x-2">
                   <button
                     onClick={() => {
@@ -1351,7 +1662,6 @@ export default function UserRolesPage() {
               </div>
             </div>
 
-            {/* Preview */}
             <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
               <h3 className="text-sm font-semibold text-gray-800 mb-2">Assignment Preview</h3>
               <div className="grid grid-cols-2 gap-4">
@@ -1375,7 +1685,6 @@ export default function UserRolesPage() {
             </div>
           </div>
 
-          {/* Footer Actions */}
           <div className="p-6 border-t border-gray-200 bg-gray-50">
             <div className="flex justify-between">
               <button
@@ -1398,10 +1707,310 @@ export default function UserRolesPage() {
     );
   };
 
+  // Reset Password Page Component
+  const ResetPasswordPage = () => {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 p-4 md:p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6">
+            <button
+              onClick={handleCloseResetPasswordPage}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+            >
+              <ArrowLeft size={20} />
+              Back to Users
+            </button>
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  Admin: Reset User Password
+                </h1>
+                <p className="text-gray-600 mt-2">
+                  Secure password reset process for {selectedUserForReset?.firstName} {selectedUserForReset?.lastName}
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-gray-500">
+                  Step {resetStep} of 3
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white shadow-sm flex-shrink-0 bg-gradient-to-r from-purple-500 to-pink-500">
+                {selectedUserForReset?.profilePicture ? (
+                  <img 
+                    src={selectedUserForReset.profilePicture} 
+                    alt={selectedUserForReset.firstName} 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full rounded-full flex items-center justify-center text-white font-bold text-lg">
+                    {getUserInitials(selectedUserForReset)}
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-gray-900">
+                  {selectedUserForReset?.firstName} {selectedUserForReset?.lastName}
+                </h3>
+                <div className="flex flex-wrap gap-4 mt-2">
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-gray-400" />
+                    <span className="text-sm text-gray-600">{selectedUserForReset?.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <UserCog size={14} className="text-gray-400" />
+                    <span className="text-sm text-gray-600 capitalize">{selectedUserForReset?.role}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Building size={14} className="text-gray-400" />
+                    <span className="text-sm text-gray-600">{selectedUserForReset?.department || 'Not assigned'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-8">
+              {[1, 2, 3].map((step) => (
+                <div key={step} className="flex flex-col items-center">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                    resetStep === step 
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' 
+                      : resetStep > step 
+                      ? 'bg-green-100 text-green-600'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}>
+                    {resetStep > step ? <Check size={20} /> : step}
+                  </div>
+                  <span className={`text-xs font-medium ${
+                    resetStep === step ? 'text-purple-600' : 'text-gray-500'
+                  }`}>
+                    {step === 1 ? 'Request OTP' : step === 2 ? 'Verify OTP' : 'Reset Password'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-6">
+              {resetStep === 1 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Step 1: Request OTP</h3>
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                          {selectedUserForReset?.firstName?.charAt(0)}{selectedUserForReset?.lastName?.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {selectedUserForReset?.firstName} {selectedUserForReset?.lastName}
+                          </p>
+                          <p className="text-sm text-gray-600">{selectedUserForReset?.email}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <Mail className="text-blue-500 flex-shrink-0 mt-0.5" size={20} />
+                        <div>
+                          <h4 className="text-sm font-semibold text-blue-800">OTP Destination</h4>
+                          <p className="text-sm text-blue-600 mt-1">
+                            OTP will be sent to: <span className="font-bold">{adminEmail}</span>
+                          </p>
+                          <p className="text-xs text-blue-500 mt-2">
+                            Make sure this email is accessible. Check spam folder if needed.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {resetStep === 2 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Step 2: Verify OTP</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Enter 6-digit OTP
+                      </label>
+                      <input
+                        type="text"
+                        value={resetData.otp}
+                        onChange={(e) => setResetData(prev => ({ 
+                          ...prev, 
+                          otp: e.target.value.replace(/\D/g, '').slice(0, 6) 
+                        }))}
+                        placeholder="Enter OTP sent to admin email"
+                        maxLength={6}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 text-center text-2xl tracking-widest font-mono"
+                      />
+                      <div className="text-center mt-2 space-y-1">
+                        <p className="text-sm text-gray-500">
+                          OTP sent to: 
+                          <span className="font-medium text-blue-600 ml-1">{adminEmail}</span>
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          (Password reset for: {selectedUserForReset?.email})
+                        </p>
+                        <p className="text-xs text-amber-600">
+                          ⚠️ Check spam folder if not found in inbox
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={handleAdminRequestOtp}
+                        disabled={otpLoading}
+                        className="flex items-center gap-2 text-purple-600 hover:text-purple-700 text-sm disabled:opacity-50"
+                      >
+                        <RefreshCw size={14} className={otpLoading ? 'animate-spin' : ''} />
+                        {otpLoading ? 'Sending...' : 'Resend OTP'}
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          if (process.env.NODE_ENV === 'development') {
+                            setResetData(prev => ({ 
+                              ...prev, 
+                              otp: '123456' 
+                            }));
+                            toast.success('Demo OTP: 123456', { duration: 2000 });
+                          }
+                        }}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Demo OTP
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {resetStep === 3 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Step 3: Set New Password</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={resetData.newPassword}
+                          onChange={(e) => setResetData(prev => ({ ...prev, newPassword: e.target.value }))}
+                          placeholder="Enter new password"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none pr-12"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Confirm Password
+                      </label>
+                      <input
+                        type="password"
+                        value={resetData.confirmPassword}
+                        onChange={(e) => setResetData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        placeholder="Confirm new password"
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                      />
+                    </div>
+
+                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <Info className="text-blue-500 flex-shrink-0 mt-0.5" size={20} />
+                        <div>
+                          <h4 className="text-sm font-semibold text-blue-800">About This Process</h4>
+                          <ul className="text-sm text-blue-600 mt-1 space-y-1">
+                            <li>• Password reset is done via Admin OTP verification</li>
+                            <li>• User will receive no notification about password change</li>
+                            <li>• For security, notify the user separately</li>
+                            <li>• User will be logged out from all sessions</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-6 border-t border-gray-200">
+                <div className="flex justify-between">
+                  {resetStep > 1 ? (
+                    <button
+                      onClick={() => setResetStep(resetStep - 1)}
+                      className="px-6 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300 flex items-center gap-2"
+                    >
+                      <ArrowLeft size={18} />
+                      Previous Step
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCloseResetPasswordPage}
+                      className="px-6 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+                    >
+                      Cancel
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      if (resetStep === 1) handleAdminRequestOtp();
+                      else if (resetStep === 2) setResetStep(3);
+                      else if (resetStep === 3) handleAdminVerifyOtpAndReset();
+                    }}
+                    disabled={otpLoading || resetPasswordLoading}
+                    className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {otpLoading || resetPasswordLoading ? (
+                      <>
+                        <Loader2 className="animate-spin" size={18} />
+                        {resetStep === 1 ? 'Sending OTP...' : 
+                         resetStep === 2 ? 'Verifying...' : 
+                         'Resetting Password...'}
+                      </>
+                    ) : (
+                      <>
+                        {resetStep === 1 ? 'Send OTP to Admin' : 
+                         resetStep === 2 ? 'Verify OTP & Continue' : 
+                         'Reset Password'}
+                        {resetStep === 3 && <Key size={18} />}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Existing View function with shift management buttons
   const handleView = (user) => {
     const userPicture = user.profilePicture || user.picture;
-    const shift = getCurrentShift(user);
     
     toast.custom((t) => (
       <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} 
@@ -1447,26 +2056,6 @@ export default function UserRolesPage() {
             </button>
           </div>
           
-          {/* Shift Information */}
-          <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center">
-                <Clock size={16} className="text-blue-500 mr-2" />
-                <span className="font-medium text-gray-800">Shift Timing</span>
-              </div>
-              <div className={`px-2 py-1 rounded text-xs font-semibold ${
-                shift.type === 'assigned' 
-                  ? 'bg-purple-100 text-purple-800' 
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {shift.type === 'assigned' ? 'Custom' : 'Default'}
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900 text-center">
-              {formatShiftTime(shift)}
-            </div>
-          </div>
-          
           <div className="space-y-3">
             <div className="flex items-center text-gray-700">
               <Mail className="w-4 h-4 mr-3 text-purple-500" />
@@ -1487,46 +2076,22 @@ export default function UserRolesPage() {
           </div>
           
           <div className="mt-6 pt-4 border-t border-gray-100">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center justify-between">
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                user.status === 'active' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {user.status?.toUpperCase()}
+              </span>
               <button
                 onClick={() => {
                   toast.dismiss(t.id);
                   handleEdit(user);
                 }}
-                className="flex-1 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1"
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
               >
-                <Edit size={12} />
-                Edit
-              </button>
-              <button
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  handleOpenShiftManagement(user);
-                }}
-                className="flex-1 px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
-              >
-                <Clock size={12} />
-                Shift
-              </button>
-              <button
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  handleViewShiftHistory(user);
-                }}
-                className="flex-1 px-3 py-1.5 border border-gray-600 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
-              >
-                <History size={12} />
-                History
-              </button>
-              <button
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  handleOpenResetPasswordPage(user);
-                }}
-                className="flex-1 px-3 py-1.5 border border-amber-600 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-50 transition-colors flex items-center justify-center gap-1"
-              >
-                <Lock size={12} />
-                Reset PW
+                Edit Profile
               </button>
             </div>
           </div>
@@ -1562,12 +2127,6 @@ export default function UserRolesPage() {
   const handlePageChange = (page) => {
     if (page < 1 || page > totalPages) return;
     setCurrentPage(page);
-  };
-
-  // Reset Password Page Component (existing)
-  const ResetPasswordPage = () => {
-    // Your existing reset password page code...
-    return null; // This is just placeholder
   };
 
   // Calculate statistics
