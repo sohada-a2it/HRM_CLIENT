@@ -1,7 +1,9 @@
 // app/lib/api.js
 import axios from "axios";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://a2ithrmserver-2.onrender.com/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://a2itserver.onrender.com/api/v1";
+
+console.log('🔧 API Base URL:', API_BASE); // ডিবাগিং যোগ করুন
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -509,4 +511,183 @@ export const adminResetPassword = async (data) => {
     throw error;
   }
 };
+// Get all employee shifts (Admin only)
+export const getAllEmployeeShifts = async () => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await api.get('/shift/admin/employee-shifts');
+    return response.data;
+  } catch (error) {
+    console.error('Get all employee shifts error:', error);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+};
+
+// Assign shift to employee (Admin only)
+export const assignShiftToEmployee = async (employeeId, shiftData) => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await api.post(`/shift/admin/assign-shift/${employeeId}`, shiftData);
+    return response.data;
+  } catch (error) {
+    console.error('Assign shift error:', error);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+};
+
+// Reset employee shift to default (Admin only)
+export const resetEmployeeShift = async (employeeId, reason = '') => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await api.post(`/shift/admin/reset-shift/${employeeId}`, { reason });
+    return response.data;
+  } catch (error) {
+    console.error('Reset shift error:', error);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+};
+
+// Update default shift timing (Admin only)
+export const updateDefaultShift = async (startTime, endTime) => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await api.put('/admin/default-shift', { startTime, endTime });
+    return response.data;
+  } catch (error) {
+    console.error('Update default shift error:', error);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+};
+
+// Get employee shift history (Admin only)
+export const getEmployeeShiftHistory = async (employeeId) => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await api.get(`/shift/admin/shift-history/${employeeId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Get shift history error:', error);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+};
+
+// Bulk assign shifts (Admin only)
+export const bulkAssignShifts = async (employeeIds, shiftData) => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await api.post('/shift/admin/bulk-assign-shifts', { 
+      employeeIds, 
+      ...shiftData 
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Bulk assign shifts error:', error);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+};
+
+// Get shift statistics (Admin only)
+export const getShiftStatistics = async () => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await api.get('/shift/admin/shift-statistics');
+    return response.data;
+  } catch (error) {
+    console.error('Get shift statistics error:', error);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+};
+
+// Get my shift (Employee)
+export const getMyShift = async () => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await api.get('/shift/my-shift');
+    return response.data;
+  } catch (error) {
+    console.error('Get my shift error:', error);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+}; 
+ 
+// Welcome Email পাঠানোর API 
+// app/lib/api.js - sendWelcomeEmail ফাংশন
+export const sendWelcomeEmail = async (emailData) => {
+  try {
+    console.log('📧 [1] Starting sendWelcomeEmail...');
+    
+    // ✅ এই লাইনটি যোগ করুন
+    const API_BASE_URL = API_BASE || "https://a2itserver.onrender.com/api/v1";
+    console.log('📧 Using API Base:', API_BASE_URL);
+    
+    let token = null;
+    if (typeof window !== 'undefined') {
+      token = localStorage.getItem('adminToken');
+    }
+    
+    // ✅ Headers
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token && token.trim() !== '') {
+      headers['Authorization'] = `Bearer ${token.trim()}`;
+    }
+    
+    // ✅ Correct endpoint
+    const endpoint = `${API_BASE_URL}/send-welcome-email`;
+    console.log('📧 [2] Making API call to:', endpoint);
+    
+    // ✅ 10 second timeout (30s খুব বেশি)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(emailData),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    console.log('📧 [3] Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('📧 API Error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('✅ [4] Email sent successfully:', result);
+    return result;
+    
+  } catch (error) {
+    console.error('❌ sendWelcomeEmail error:', error.name, error.message);
+    
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout. Please try again.');
+    }
+    
+    throw error;
+  }
+};
+
 export default api;

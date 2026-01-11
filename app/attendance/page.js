@@ -1,62 +1,933 @@
-"use client";
-
+"use client"; 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  Clock, 
-  Calendar, 
-  Filter, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle,
-  Download,
-  BarChart3,
-  TrendingUp,
-  Moon,
-  Sun,
-  Zap,
-  ChevronRight,
-  Edit,
-  Eye,
-  EyeOff,
-  FileText,
-  Printer,
-  Share2,
-  User,
-  Shield,
-  Loader2,
-  LogIn,
-  LogOut,
-  Users,
-  Home,
-  Briefcase,
-  Coffee,
-  Activity,
-  ChevronLeft,
-  ChevronRight as ChevronRightIcon,
-  Plus,
-  Upload,
-  Play,
-  Settings,
-  FileSpreadsheet,
-  CalendarDays,
-  Clock4,
-  AlertTriangle,
-  MoreVertical,
-  Search,
-  UserCircle,
-  ChevronDown,
-  X,
-  FileEdit,
-  CalendarRange,
-  Layers,
-  Database,
-  Save
+  Clock, Calendar, Filter, RefreshCw, CheckCircle, XCircle, AlertCircle,
+  Download, BarChart3, TrendingUp, Moon, Sun, Zap, ChevronRight,
+  Edit, Eye, EyeOff, FileText, Printer, Share2, User, Shield, Loader2,
+  LogIn, LogOut, Users, Home, Briefcase, Coffee, Activity, ChevronLeft,
+  ChevronRight as ChevronRightIcon, Plus, Upload, Play, Settings,
+  FileSpreadsheet, CalendarDays, Clock4, AlertTriangle, MoreVertical,
+  Search, UserCircle, ChevronDown, X, FileEdit, CalendarRange, Layers,
+  Database, Save, Mail, Phone, Briefcase as BriefcaseIcon, MapPin
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
+const PDFLibraries = {
+  async load() {
+    if (typeof window === 'undefined') return null;
+    
+    try {
+      const jsPDF = (await import('jspdf')).default;
+      const autoTable = (await import('jspdf-autotable')).default;
+      return { jsPDF, autoTable };
+    } catch (error) {
+      console.error("Failed to load PDF libraries:", error);
+      return null;
+    }
+  }
+};
+
+// Format currency for BDT
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('en-BD', {
+    style: 'currency',
+    currency: 'BDT',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount || 0);
+};
+
+// Convert number to words in BDT
+const convertToWords = (num) => {
+  if (num === 0) return 'Zero Taka Only';
+  
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  
+  const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!n) return '';
+  
+  let str = '';
+  str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
+  str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
+  str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
+  str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
+  str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+  
+  return str.trim() + ' Taka Only';
+};
+
+// Month names array for payroll
+const monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+// PDF Export Functions
+const pdfUtils = {
+  // Generate Individual Attendance PDF
+  generateAttendancePDF: async (attendance, userData, summary) => {
+    try {
+      const libraries = await PDFLibraries.load();
+      if (!libraries) {
+        toast.error("PDF library failed to load");
+        return;
+      }
+      
+      const { jsPDF, autoTable } = libraries;
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      
+      // Company Header
+      doc.setFillColor(100, 65, 164); // Purple color
+      doc.rect(0, 0, 210, 30, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ATTENDANCE REPORT', 105, 12, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.text('A2IT Solutions Ltd.', 105, 19, { align: 'center' });
+      doc.text('Human Resource Management System', 105, 24, { align: 'center' });
+      
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+      
+      // Employee Information
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Employee Information', 14, 40);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      
+      const employeeInfo = [
+        ['Employee Name:', userData?.firstName + ' ' + userData?.lastName || 'N/A'],
+        ['Employee ID:', userData?.employeeId || 'N/A'],
+        ['Department:', userData?.department || 'N/A'],
+        ['Designation:', userData?.position || userData?.designation || 'N/A'],
+        ['Email:', userData?.email || 'N/A'],
+        ['Report Period:', new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })],
+        ['Generated On:', new Date().toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })],
+        ['Report Type:', 'Attendance Summary']
+      ];
+      
+      autoTable(doc, {
+        startY: 45,
+        head: [],
+        body: employeeInfo,
+        theme: 'plain',
+        styles: { fontSize: 9, cellPadding: 2 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 55 },
+          1: { cellWidth: 125 }
+        }
+      });
+      
+      // Summary Statistics
+      const summaryY = doc.lastAutoTable.finalY + 10;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary Statistics', 14, summaryY);
+      
+      const summaryData = [
+        ['Total Days', summary?.totalDays || 0],
+        ['Present Days', summary?.daysPresent || 0],
+        ['Absent Days', summary?.daysAbsent || 0],
+        ['Leave Days', summary?.daysLeave || 0],
+        ['Late Arrivals', summary?.lateArrivals || 0],
+        ['Holidays/Off', summary?.daysHoliday || 0],
+        ['Total Hours', (summary?.totalHours || 0).toFixed(2)],
+        ['Attendance Rate', (summary?.attendanceRate || 0).toFixed(1) + '%']
+      ];
+      
+      autoTable(doc, {
+        startY: summaryY + 5,
+        head: [['Metric', 'Value']],
+        body: summaryData,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { 
+          fillColor: [100, 65, 164], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold' 
+        },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 60 },
+          1: { cellWidth: 40, halign: 'center' }
+        }
+      });
+      
+      // Attendance Details Table
+      const detailsY = doc.lastAutoTable.finalY + 10;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Attendance Details', 14, detailsY);
+      
+      // Prepare attendance data for table
+      const attendanceData = attendance.map(record => [
+        new Date(record.date).toLocaleDateString('en-US', { 
+          day: '2-digit', 
+          month: 'short', 
+          year: 'numeric' 
+        }),
+        record.clockIn ? new Date(record.clockIn).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }) : '-',
+        record.clockOut ? new Date(record.clockOut).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }) : '-',
+        record.totalHours?.toFixed(2) || '-',
+        record.status
+      ]);
+      
+      autoTable(doc, {
+        startY: detailsY + 5,
+        head: [['Date', 'Clock In', 'Clock Out', 'Hours', 'Status']],
+        body: attendanceData,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { 
+          fillColor: [41, 128, 185], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold' 
+        },
+        columnStyles: {
+          0: { cellWidth: 35 },
+          1: { cellWidth: 25, halign: 'center' },
+          2: { cellWidth: 25, halign: 'center' },
+          3: { cellWidth: 20, halign: 'center' },
+          4: { cellWidth: 35, halign: 'center' }
+        },
+        didDrawPage: function (data) {
+          // Add page number
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            data.settings.margin.left,
+            doc.internal.pageSize.height - 10
+          );
+        }
+      });
+      
+      // Footer
+      const finalY = doc.lastAutoTable.finalY + 15;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text('This is a computer generated report.', 105, finalY, { align: 'center' });
+      
+      doc.setFontSize(8);
+      doc.text('Powered by A2IT HRMS', 105, finalY + 5, { align: 'center' });
+      
+      // Save the PDF
+      doc.save(`Attendance_Report_${userData?.employeeId || 'Employee'}_${new Date().toISOString().split('T')[0]}.pdf`);
+      
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      toast.error(`PDF generation failed: ${error.message}`);
+    }
+  },
+
+  // Generate Bulk Attendance PDF (Admin)
+  generateBulkAttendancePDF: async (employeesData, startDate, endDate) => {
+    try {
+      const libraries = await PDFLibraries.load();
+      if (!libraries) {
+        toast.error("PDF library failed to load");
+        return;
+      }
+      
+      const { jsPDF, autoTable } = libraries;
+      const doc = new jsPDF('landscape', 'mm', 'a4');
+      
+      // Company Header
+      doc.setFillColor(100, 65, 164);
+      doc.rect(0, 0, 297, 25, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('BULK ATTENDANCE REPORT', 148.5, 10, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.text('A2IT Solutions Ltd. - HR Department', 148.5, 16, { align: 'center' });
+      doc.text(`Period: ${startDate} to ${endDate}`, 148.5, 21, { align: 'center' });
+      
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+      
+      // Report Information
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Report Generated: ${new Date().toLocaleString()}`, 14, 35);
+      doc.text(`Total Employees: ${employeesData.length}`, 14, 40);
+      
+      // Prepare data for table
+      const tableData = employeesData.map((emp, index) => [
+        index + 1,
+        emp.employeeId || 'N/A',
+        emp.name || 'N/A',
+        emp.department || 'N/A',
+        emp.daysPresent || 0,
+        emp.daysAbsent || 0,
+        emp.daysLeave || 0,
+        emp.totalHours?.toFixed(2) || '0.00',
+        (emp.attendanceRate || 0).toFixed(1) + '%'
+      ]);
+      
+      // Main Table
+      autoTable(doc, {
+        startY: 45,
+        head: [
+          ['#', 'Emp ID', 'Name', 'Department', 'Present', 'Absent', 'Leave', 'Total Hours', 'Rate']
+        ],
+        body: tableData,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { 
+          fillColor: [52, 152, 219], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold',
+          fontSize: 9
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 20, halign: 'center' },
+          5: { cellWidth: 20, halign: 'center' },
+          6: { cellWidth: 20, halign: 'center' },
+          7: { cellWidth: 25, halign: 'center' },
+          8: { cellWidth: 25, halign: 'center' }
+        },
+        margin: { top: 45 },
+        didDrawPage: function (data) {
+          // Add page number
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            data.settings.margin.left,
+            doc.internal.pageSize.height - 10
+          );
+        }
+      });
+      
+      // Summary Section
+      const finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', 14, finalY);
+      
+      const totalPresent = employeesData.reduce((sum, emp) => sum + (emp.daysPresent || 0), 0);
+      const totalAbsent = employeesData.reduce((sum, emp) => sum + (emp.daysAbsent || 0), 0);
+      const totalLeave = employeesData.reduce((sum, emp) => sum + (emp.daysLeave || 0), 0);
+      const avgAttendance = employeesData.length > 0 
+        ? (employeesData.reduce((sum, emp) => sum + (emp.attendanceRate || 0), 0) / employeesData.length).toFixed(1)
+        : 0;
+      
+      const summaryData = [
+        ['Total Employees', employeesData.length],
+        ['Total Present Days', totalPresent],
+        ['Total Absent Days', totalAbsent],
+        ['Total Leave Days', totalLeave],
+        ['Average Attendance Rate', avgAttendance + '%']
+      ];
+      
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [],
+        body: summaryData,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 80 },
+          1: { cellWidth: 50, halign: 'center' }
+        }
+      });
+      
+      // Footer
+      const footerY = doc.lastAutoTable.finalY + 15;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Confidential - For Internal Use Only', 148.5, footerY, { align: 'center' });
+      
+      // Save the PDF
+      doc.save(`Bulk_Attendance_Report_${startDate}_to_${endDate}.pdf`);
+      
+    } catch (error) {
+      console.error("Bulk PDF generation error:", error);
+      toast.error(`Bulk PDF generation failed: ${error.message}`);
+    }
+  },
+
+  // Generate Monthly Attendance Summary PDF
+  generateMonthlySummaryPDF: async (attendanceData, userData, month, year) => {
+    try {
+      const libraries = await PDFLibraries.load();
+      if (!libraries) {
+        toast.error("PDF library failed to load");
+        return;
+      }
+      
+      const { jsPDF, autoTable } = libraries;
+      const doc = new jsPDF();
+      
+      // Header with gradient effect
+      doc.setFillColor(41, 128, 185);
+      doc.rect(0, 0, 210, 40, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('MONTHLY ATTENDANCE', 105, 20, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.text(`${new Date(year, month - 1).toLocaleString('default', { month: 'long' })} ${year}`, 105, 30, { align: 'center' });
+      
+      // Employee Details
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Employee Details', 14, 50);
+      
+      const employeeDetails = [
+        ['Name:', userData?.firstName + ' ' + userData?.lastName],
+        ['Employee ID:', userData?.employeeId || 'N/A'],
+        ['Department:', userData?.department || 'N/A'],
+        ['Designation:', userData?.position || 'N/A'],
+        ['Month:', `${month}/${year}`]
+      ];
+      
+      autoTable(doc, {
+        startY: 55,
+        head: [],
+        body: employeeDetails,
+        theme: 'plain',
+        styles: { fontSize: 10 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 40 },
+          1: { cellWidth: 140 }
+        }
+      });
+      
+      // Statistics Cards
+      const statsY = doc.lastAutoTable.finalY + 10;
+      
+      // Present Days
+      doc.setFillColor(46, 204, 113);
+      doc.roundedRect(14, statsY, 45, 25, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(attendanceData.filter(a => a.status === 'Present').length, 36.5, statsY + 17, { align: 'center' });
+      doc.setFontSize(8);
+      doc.text('Present', 36.5, statsY + 22, { align: 'center' });
+      
+      // Absent Days
+      doc.setFillColor(231, 76, 60);
+      doc.roundedRect(64, statsY, 45, 25, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(attendanceData.filter(a => a.status === 'Absent').length, 86.5, statsY + 17, { align: 'center' });
+      doc.setFontSize(8);
+      doc.text('Absent', 86.5, statsY + 22, { align: 'center' });
+      
+      // Leave Days
+      doc.setFillColor(52, 152, 219);
+      doc.roundedRect(114, statsY, 45, 25, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(attendanceData.filter(a => a.status === 'Leave').length, 136.5, statsY + 17, { align: 'center' });
+      doc.setFontSize(8);
+      doc.text('Leave', 136.5, statsY + 22, { align: 'center' });
+      
+      // Total Hours
+      doc.setFillColor(155, 89, 182);
+      doc.roundedRect(164, statsY, 45, 25, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      const totalHours = attendanceData.reduce((sum, a) => sum + (a.totalHours || 0), 0);
+      doc.text(totalHours.toFixed(0), 186.5, statsY + 17, { align: 'center' });
+      doc.setFontSize(8);
+      doc.text('Total Hours', 186.5, statsY + 22, { align: 'center' });
+      
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+      
+      // Attendance Calendar View
+      const calendarY = statsY + 35;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Monthly Attendance Calendar', 14, calendarY);
+      
+      // Create calendar grid
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const firstDay = new Date(year, month - 1, 1).getDay();
+      
+      const cellSize = 8;
+      const startX = 14;
+      const startY = calendarY + 10;
+      
+      // Day headers
+      const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      dayHeaders.forEach((day, i) => {
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text(day, startX + (i * cellSize) + 3, startY - 2);
+      });
+      
+      // Draw calendar grid
+      let day = 1;
+      for (let week = 0; week < 6; week++) {
+        for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+          if (day > daysInMonth) break;
+          
+          if (week === 0 && dayOfWeek < firstDay) {
+            continue;
+          }
+          
+          const x = startX + (dayOfWeek * cellSize);
+          const y = startY + (week * cellSize);
+          
+          // Check attendance for this day
+          const currentDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+          const attendanceForDay = attendanceData.find(a => 
+            a.date && a.date.startsWith(currentDate)
+          );
+          
+          // Set color based on status
+          if (attendanceForDay) {
+            switch(attendanceForDay.status) {
+              case 'Present':
+                doc.setFillColor(46, 204, 113); // Green
+                break;
+              case 'Absent':
+                doc.setFillColor(231, 76, 60); // Red
+                break;
+              case 'Leave':
+                doc.setFillColor(52, 152, 219); // Blue
+                break;
+              case 'Late':
+                doc.setFillColor(241, 196, 15); // Yellow
+                break;
+              case 'Govt Holiday':
+                doc.setFillColor(155, 89, 182); // Purple
+                break;
+              default:
+                doc.setFillColor(236, 240, 241); // Gray
+            }
+          } else {
+            doc.setFillColor(236, 240, 241); // Gray for no data
+          }
+          
+          doc.roundedRect(x, y, cellSize - 1, cellSize - 1, 1, 1, 'F');
+          
+          // Day number
+          doc.setFontSize(6);
+          doc.setTextColor(0, 0, 0);
+          doc.text(day.toString(), x + 3, y + 5);
+          
+          day++;
+        }
+      }
+      
+      // Legend
+      const legendY = startY + (6 * cellSize) + 10;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Legend:', 14, legendY);
+      
+      const legends = [
+        { color: [46, 204, 113], text: 'Present' },
+        { color: [231, 76, 60], text: 'Absent' },
+        { color: [52, 152, 219], text: 'Leave' },
+        { color: [241, 196, 15], text: 'Late' },
+        { color: [155, 89, 182], text: 'Holiday' },
+        { color: [236, 240, 241], text: 'No Data' }
+      ];
+      
+      legends.forEach((legend, i) => {
+        const x = 14 + (i * 30);
+        const y = legendY + 8;
+        
+        doc.setFillColor(...legend.color);
+        doc.rect(x, y, 6, 6, 'F');
+        
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text(legend.text, x + 8, y + 4);
+      });
+      
+      // Detailed Attendance Table
+      const tableY = legendY + 20;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Detailed Attendance Records', 14, tableY);
+      
+      const tableData = attendanceData.map(record => [
+        record.date ? new Date(record.date).toLocaleDateString('en-US', { 
+          day: '2-digit', 
+          month: 'short' 
+        }) : '-',
+        record.clockIn ? new Date(record.clockIn).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }) : '-',
+        record.clockOut ? new Date(record.clockOut).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }) : '-',
+        record.totalHours?.toFixed(2) || '-',
+        record.status
+      ]);
+      
+      autoTable(doc, {
+        startY: tableY + 5,
+        head: [['Date', 'In Time', 'Out Time', 'Hours', 'Status']],
+        body: tableData,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { 
+          fillColor: [52, 73, 94], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold' 
+        },
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 30 }
+        }
+      });
+      
+      // Footer
+      const finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Generated by A2IT HRMS', 105, finalY, { align: 'center' });
+      doc.text(new Date().toLocaleString(), 105, finalY + 5, { align: 'center' });
+      
+      // Save PDF
+      doc.save(`Monthly_Attendance_${userData?.employeeId || 'Employee'}_${month}_${year}.pdf`);
+      
+    } catch (error) {
+      console.error("Monthly PDF generation error:", error);
+      toast.error(`Monthly PDF generation failed: ${error.message}`);
+    }
+  },
+
+  // Generate Payroll Attendance PDF
+  generatePayrollAttendancePDF: async (payrollData, employeeData) => {
+    try {
+      const libraries = await PDFLibraries.load();
+      if (!libraries) {
+        toast.error("PDF library failed to load");
+        return;
+      }
+      
+      const { jsPDF, autoTable } = libraries;
+      const doc = new jsPDF();
+      
+      // Header with company logo area
+      doc.setFillColor(100, 65, 164);
+      doc.rect(0, 0, 210, 40, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PAYROLL ATTENDANCE', 105, 20, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.text('Attendance Based Salary Calculation', 105, 30, { align: 'center' });
+      
+      // Employee and Payroll Information
+      doc.setTextColor(0, 0, 0);
+      const infoY = 50;
+      
+      // Left Column - Employee Info
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Employee Information:', 14, infoY);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      
+      const empInfo = [
+        ['Name:', employeeData.name || 'N/A'],
+        ['Employee ID:', employeeData.employeeId || 'N/A'],
+        ['Department:', employeeData.department || 'N/A'],
+        ['Designation:', employeeData.designation || 'N/A'],
+        ['Monthly Salary:', formatCurrency(employeeData.monthlySalary || 0)],
+        ['Daily Rate:', formatCurrency((employeeData.monthlySalary || 0) / 23)]
+      ];
+      
+      autoTable(doc, {
+        startY: infoY + 5,
+        head: [],
+        body: empInfo,
+        theme: 'plain',
+        styles: { fontSize: 9 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 40 },
+          1: { cellWidth: 60 }
+        }
+      });
+      
+      // Right Column - Payroll Info
+      const payrollInfoY = infoY;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Payroll Period:', 120, payrollInfoY);
+      
+      doc.setFont('helvetica', 'normal');
+      
+      const payrollInfo = [
+        ['Period:', `${payrollData.periodStart ? new Date(payrollData.periodStart).toLocaleDateString() : 'N/A'} - ${payrollData.periodEnd ? new Date(payrollData.periodEnd).toLocaleDateString() : 'N/A'}`],
+        ['Month:', payrollData.month ? monthNames[payrollData.month - 1] : 'N/A'],
+        ['Year:', payrollData.year || 'N/A'],
+        ['Working Days:', '23'],
+        ['Present Days:', payrollData.attendance?.presentDays || 0],
+        ['Attendance Rate:', (payrollData.attendance?.attendancePercentage || 0).toFixed(1) + '%']
+      ];
+      
+      autoTable(doc, {
+        startY: payrollInfoY + 5,
+        head: [],
+        body: payrollInfo,
+        theme: 'plain',
+        styles: { fontSize: 9 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 40 },
+          1: { cellWidth: 60 }
+        },
+        margin: { left: 120 }
+      });
+      
+      // Salary Calculation Breakdown
+      const calcY = Math.max(
+        doc.lastAutoTable.finalY,
+        doc.lastAutoTable.finalY
+      ) + 10;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Salary Calculation Breakdown (23 Working Days)', 14, calcY);
+      
+      const salaryData = [
+        ['Description', 'Calculation', 'Amount (BDT)'],
+        ['Monthly Salary', 'Basic Salary', formatCurrency(employeeData.monthlySalary || 0)],
+        ['Daily Rate', 'Monthly Salary ÷ 23', formatCurrency((employeeData.monthlySalary || 0) / 23)],
+        ['Basic Pay', 'Daily Rate × Present Days', formatCurrency(payrollData.earnings?.basicPay || 0)],
+        ['Overtime', 'Additional Hours', formatCurrency(payrollData.earnings?.overtime || 0)],
+        ['Bonus', 'Performance Bonus', formatCurrency(payrollData.earnings?.bonus || 0)],
+        ['Allowance', 'Other Allowances', formatCurrency(payrollData.earnings?.allowance || 0)],
+        ['', '', ''],
+        ['Late Deduction', `${payrollData.deductions?.lateDeduction / ((employeeData.monthlySalary || 0) / 23)} days × Daily Rate`, `-${formatCurrency(payrollData.deductions?.lateDeduction || 0)}`],
+        ['Absent Deduction', `${payrollData.deductions?.absentDeduction / ((employeeData.monthlySalary || 0) / 23)} days × Daily Rate`, `-${formatCurrency(payrollData.deductions?.absentDeduction || 0)}`],
+        ['Leave Deduction', `${payrollData.deductions?.leaveDeduction / ((employeeData.monthlySalary || 0) / 23)} days × Daily Rate`, `-${formatCurrency(payrollData.deductions?.leaveDeduction || 0)}`],
+        ['', '', ''],
+        ['Gross Earnings', 'Total Additions', formatCurrency(payrollData.summary?.grossEarnings || 0)],
+        ['Total Deductions', 'Total Subtractions', `-${formatCurrency(payrollData.deductions?.total || 0)}`],
+        ['NET PAYABLE', 'Gross - Deductions', formatCurrency(payrollData.summary?.netPayable || 0)]
+      ];
+      
+      autoTable(doc, {
+        startY: calcY + 5,
+        head: [['Description', 'Calculation', 'Amount (BDT)']],
+        body: salaryData,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { 
+          fillColor: [100, 65, 164], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold' 
+        },
+        columnStyles: {
+          0: { cellWidth: 60, fontStyle: 'bold' },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 40, halign: 'right' }
+        },
+        didDrawCell: function(data) {
+          // Highlight Net Payable row
+          if (data.row.index === salaryData.length - 1 && data.column.index === 0) {
+            doc.setFillColor(100, 65, 164);
+            doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.text(data.cell.text, data.cell.x + 3, data.cell.y + 10);
+          }
+        }
+      });
+      
+      // Net Payable in Words
+      const wordsY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Net Payable in Words:', 14, wordsY);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(convertToWords(payrollData.summary?.netPayable || 0), 14, wordsY + 5);
+      
+      // Attendance Details
+      const attendanceY = wordsY + 15;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('Attendance Details for Payroll Calculation:', 14, attendanceY);
+      
+      const attendanceDetails = [
+        ['Total Working Days', '23'],
+        ['Present Days', payrollData.attendance?.presentDays || 0],
+        ['Absent Days', payrollData.attendance?.absentDays || 0],
+        ['Late Days', payrollData.attendance?.lateDays || 0],
+        ['Leave Days', payrollData.attendance?.leaves || 0],
+        ['Late Policy', '3 late days = 1 day salary deduction'],
+        ['Calculation Method', 'Monthly Salary ÷ 23 = Daily Rate']
+      ];
+      
+      autoTable(doc, {
+        startY: attendanceY + 5,
+        head: [],
+        body: attendanceDetails,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 70 },
+          1: { cellWidth: 100 }
+        }
+      });
+      
+      // Footer with authorization
+      const footerY = doc.lastAutoTable.finalY + 15;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.text('This payroll has been calculated based on 23 working days per month.', 105, footerY, { align: 'center' });
+      doc.text('All deductions are calculated as: (Deduction Days) × Daily Rate', 105, footerY + 5, { align: 'center' });
+      
+      // Signature area
+      const signatureY = footerY + 15;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('________________________', 40, signatureY);
+      doc.text('HR Manager Signature', 40, signatureY + 5);
+      
+      doc.text('________________________', 140, signatureY);
+      doc.text('Employee Signature', 140, signatureY + 5);
+      
+      // Final note
+      doc.setFontSize(8);
+      doc.text('Generated on: ' + new Date().toLocaleString(), 105, signatureY + 15, { align: 'center' });
+      
+      // Save PDF
+      doc.save(`Payroll_${employeeData.employeeId}_${payrollData.periodStart ? new Date(payrollData.periodStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}.pdf`);
+      
+    } catch (error) {
+      console.error("Payroll PDF generation error:", error);
+      toast.error(`Payroll PDF generation failed: ${error.message}`);
+    }
+  }
+};
+
 export default function Page({ userId }) {
+  // Time validation helper functions
+  const validateTimeFormat = (time) => {
+    if (!time) return true;
+    return /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time);
+  };
+
+  const validateTimeOrder = (startTime, endTime) => {
+    if (!startTime || !endTime) return true;
+    
+    const start = new Date(`2000-01-01T${startTime}:00`);
+    const end = new Date(`2000-01-01T${endTime}:00`);
+    
+    return end > start;
+  };
+
+  const calculateDuration = (startTime, endTime) => {
+    if (!startTime || !endTime) return 0;
+    
+    const start = new Date(`2000-01-01T${startTime}:00`);
+    const end = new Date(`2000-01-01T${endTime}:00`);
+    
+    return (end - start) / (1000 * 60 * 60); // hours
+  };
+
+  const formatDuration = (hours) => {
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    
+    if (wholeHours === 0) return `${minutes} min`;
+    if (minutes === 0) return `${wholeHours} hr`;
+    return `${wholeHours} hr ${minutes} min`;
+  };
+
+  // Holiday and weekend detection functions
+  const isWeekend = (dateString) => {
+    const date = new Date(dateString);
+    const day = date.getDay();
+    return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+  };
+
+  const isHolidayDate = (dateString) => {
+    // This function should check if a date is a holiday
+    // You can expand this with actual holiday data from your backend
+    const holidays = [
+      '2024-01-26', // Republic Day
+      '2024-08-15', // Independence Day
+      '2024-10-02', // Gandhi Jayanti
+      // Add more holidays as needed
+    ];
+    return holidays.includes(dateString);
+  };
+
+  const getAutoStatus = (dateString) => {
+    if (isHolidayDate(dateString)) {
+      return 'Govt Holiday';
+    }
+    if (isWeekend(dateString)) {
+      return 'Weekly Off';
+    }
+    return 'Present';
+  };
+
+  const checkIfWorkingDay = async (dateString = null) => {
+    try {
+      const dateToCheck = dateString || new Date().toISOString().split('T')[0];
+      const token = getToken();
+      
+      if (!token) return true; // Default to allowing if no token
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/check-working-day?date=${dateToCheck}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.isWorkingDay !== false; // Return true if it's a working day
+      }
+      
+      return !isWeekend(dateToCheck) && !isHolidayDate(dateToCheck);
+    } catch (error) {
+      console.error("Error checking working day:", error);
+      return !isWeekend(dateString || new Date().toISOString().split('T')[0]);
+    }
+  };
+
   const router = useRouter();
   const [attendance, setAttendance] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -99,6 +970,7 @@ export default function Page({ userId }) {
   const [showBulkAttendanceModal, setShowBulkAttendanceModal] = useState(false);
   const [showAdminActionsMenu, setShowAdminActionsMenu] = useState(false);
   const [showEmployeeSelector, setShowEmployeeSelector] = useState(false);
+  const [selectorFor, setSelectorFor] = useState(null); // "manual" or "bulk"
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -132,6 +1004,14 @@ export default function Page({ userId }) {
     skipWeekends: true
   });
   
+  // Employee Filter State
+  const [employeeFilter, setEmployeeFilter] = useState({
+    employeeId: "",
+    month: String(new Date().getMonth() + 1),
+    year: String(new Date().getFullYear()),
+    status: "all"
+  });
+
   const [todayStatus, setTodayStatus] = useState(() => {
     if (typeof window !== "undefined") {
       const storedToday = localStorage.getItem("attendanceTodayStatus");
@@ -179,14 +1059,7 @@ export default function Page({ userId }) {
     };
   });
 
-  // Employee Filter State
-  const [employeeFilter, setEmployeeFilter] = useState({
-    employeeId: "",
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
-    status: "all"
-  });
-
+  // ===================== LOCAL STORAGE EFFECTS =====================
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("attendanceTodayStatus", JSON.stringify(todayStatus));
@@ -206,7 +1079,26 @@ export default function Page({ userId }) {
     }
   }, [showRecentDetails]);
 
-  // Close admin menu when clicking outside
+  // ===================== AUTO CLOCK-OUT =====================
+  useEffect(() => {
+    const checkAutoClockOut = () => {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      
+      // Check if it's 6:10 PM (18:10)
+      if (currentHours === 18 && currentMinutes === 10) {
+        if (todayStatus.clockedIn && !todayStatus.clockedOut && userRole === "employee") {
+          handleAutoClockOut();
+        }
+      }
+    };
+    
+    const interval = setInterval(checkAutoClockOut, 60000);
+    return () => clearInterval(interval);
+  }, [todayStatus, userRole]);
+
+  // ===================== CLICK OUTSIDE =====================
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showAdminActionsMenu && !event.target.closest('.admin-actions-menu')) {
@@ -218,188 +1110,451 @@ export default function Page({ userId }) {
     };
     
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showAdminActionsMenu, showEmployeeSelector]);
 
-  // Auto Clock-Out at 6:10 PM (controller অনুযায়ী)
-  useEffect(() => {
-    const checkAutoClockOut = () => {
-      const now = new Date();
-      const currentHours = now.getHours();
-      const currentMinutes = now.getMinutes();
+  // ===================== HELPER FUNCTIONS =====================
+  const getUserType = () => {
+    if (typeof window !== "undefined") {
+      const adminToken = localStorage.getItem("adminToken");
+      const employeeToken = localStorage.getItem("employeeToken");
       
-      // Check if it's 6:10 PM (18:10) - controller অনুযায়ী
-      if (currentHours === 18 && currentMinutes === 10) {
-        if (todayStatus.clockedIn && !todayStatus.clockedOut && userRole === "employee") {
-          handleAutoClockOut();
-        }
+      if (adminToken) return "admin";
+      if (employeeToken) return "employee";
+    }
+    return null;
+  };
+
+  const getToken = () => {
+    const userType = getUserType();
+    if (userType === "admin") return localStorage.getItem("adminToken");
+    if (userType === "employee") return localStorage.getItem("employeeToken");
+    return null;
+  };
+
+  // ===================== FETCH FUNCTIONS =====================
+  const fetchUserProfile = async () => {
+    try {
+      const userType = getUserType();
+      const token = getToken();
+      
+      if (!token) {
+        router.push("/");
+        return { role: "employee", isAdmin: false, userData: null };
       }
-    };
-    
-    const interval = setInterval(checkAutoClockOut, 60000);
-    
-    return () => clearInterval(interval);
-  }, [todayStatus, userRole]);
+
+      const endpoint = userType === "admin" 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/getAdminProfile`
+        : `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
+
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+        return { role: "employee", isAdmin: false, userData: null };
+      }
+
+      const data = await response.json();
+      
+      if (data.user || (data && (data.email || data._id))) {
+        const userData = data.user || data;
+        return { 
+          role: userType, 
+          isAdmin: userType === "admin", 
+          userData 
+        };
+      } else {
+        return { role: "employee", isAdmin: false, userData: null };
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      return { role: "employee", isAdmin: false, userData: null };
+    }
+  };
 
   // Fetch all employees (for admin)
-// Fetch all employees (for admin)
-const fetchEmployees = useCallback(async () => {
-  console.log("fetchEmployees called, isAdmin:", isAdmin);
-  
-  if (!isAdmin) {
-    console.log("Not admin, skipping fetch");
-    return;
-  }
-  
-  try {
-    const token = getToken();
-    
-    if (!token) {
-      console.log("No token found");
-      toast.error("Authentication required");
+  const fetchEmployees = useCallback(async () => {
+    if (!isAdmin) {
       return;
     }
-
-    console.log("Fetching employees from:", `${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`);
     
-    // API call
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`, {
-      method: "GET",
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      cache: 'no-store'
-    });
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
 
-    console.log("Response status:", response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API Error:", errorText);
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`, {
+        method: "GET",
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
 
-    const data = await response.json();
-    console.log("API Response Data:", data);
-    
-    // Check if data exists
-    if (!data) {
-      console.log("No data received from API");
-      setEmployees([]);
-      return;
-    }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
-    // Handle response based on actual structure
-    let employeesArray = [];
-    
-    // Check common response structures
-    if (Array.isArray(data)) {
-      // Direct array response
-      employeesArray = data;
-    } else if (data.users && Array.isArray(data.users)) {
-      // Nested users array
-      employeesArray = data.users;
-    } else if (data.data && Array.isArray(data.data)) {
-      // Nested data array
-      employeesArray = data.data;
-    } else if (data.employees && Array.isArray(data.employees)) {
-      // Nested employees array
-      employeesArray = data.employees;
-    } else if (typeof data === 'object') {
-      // Try to extract array from object values
-      const values = Object.values(data);
-      for (const value of values) {
-        if (Array.isArray(value)) {
-          employeesArray = value;
-          break;
+      const data = await response.json();
+      
+      let employeesArray = [];
+      
+      // Handle different response structures
+      if (Array.isArray(data)) {
+        employeesArray = data;
+      } else if (data && data.users && Array.isArray(data.users)) {
+        employeesArray = data.users;
+      } else if (data && data.data && Array.isArray(data.data)) {
+        employeesArray = data.data;
+      } else if (data && data.employees && Array.isArray(data.employees)) {
+        employeesArray = data.employees;
+      } else if (data && typeof data === 'object') {
+        const keys = Object.keys(data);
+        for (const key of keys) {
+          if (Array.isArray(data[key])) {
+            employeesArray = data[key];
+            break;
+          }
         }
       }
-    }
-    
-    console.log("Extracted employees array:", employeesArray);
-    
-    // Transform and validate employees
-    const validEmployees = employeesArray
-      .filter(emp => emp && typeof emp === 'object')
-      .map(emp => {
-        // Extract names properly
-        let firstName = '';
-        let lastName = '';
-        
-        if (emp.firstName && emp.lastName) {
-          firstName = emp.firstName;
-          lastName = emp.lastName;
-        } else if (emp.name) {
-          const nameParts = emp.name.split(' ');
-          firstName = nameParts[0] || '';
-          lastName = nameParts.slice(1).join(' ') || '';
-        } else if (emp.first_name && emp.last_name) {
-          firstName = emp.first_name;
-          lastName = emp.last_name;
-        }
-        
-        return {
-          _id: emp._id || emp.id || emp.userId || '',
-          firstName: firstName,
-          lastName: lastName,
+      
+      const validEmployees = employeesArray
+        .filter(emp => emp && typeof emp === 'object')
+        .map(emp => ({
+          _id: emp._id || emp.id || '',
+          firstName: emp.firstName || emp.first_name || emp.name?.split(' ')[0] || '',
+          lastName: emp.lastName || emp.last_name || emp.name?.split(' ').slice(1).join(' ') || '',
           email: emp.email || '',
-          employeeId: emp.employeeId || emp.employee_id || emp.userId || emp._id?.slice(-6) || '',
+          employeeId: emp.employeeId || emp.employee_id || emp._id?.slice(-6) || '',
           department: emp.department || emp.department_name || 'No Department',
           position: emp.position || emp.job_title || '',
           phone: emp.phone || emp.phone_number || '',
           status: emp.status || 'active'
-        };
-      })
-      .filter(emp => emp._id && (emp.firstName || emp.lastName)); // Must have ID and at least one name
+        }))
+        .filter(emp => emp._id && (emp.firstName || emp.lastName));
 
-    console.log("Valid employees after processing:", validEmployees);
-    setEmployees(validEmployees);
-    
-    if (validEmployees.length === 0) {
-      toast.warning("No employees found in the system");
-    } else {
-      toast.success(`Loaded ${validEmployees.length} employees`);
+      setEmployees(validEmployees);
+      
+    } catch (error) {
+      console.error("Fetch employees error:", error);
+      setEmployees([]);
     }
+  }, [isAdmin]);
+
+  // Effect to fetch employees when admin logs in
+  useEffect(() => {
+    if (isAdmin) {
+      fetchEmployees();
+    } else {
+      setEmployees([]);
+    }
+  }, [isAdmin, fetchEmployees]);
+
+  const fetchTodayStatus = useCallback(async () => {
+    try {
+      const userType = getUserType();
+      const token = getToken();
+      
+      if (!token || userType !== "employee") return;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/today`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        const newStatus = {
+          clockedIn: data.clockedIn || false,
+          clockedOut: data.clockedOut || false,
+          clockInTime: data.attendance?.clockIn || null,
+          clockOutTime: data.attendance?.clockOut || null,
+          status: data.attendance?.status || "Not Clocked",
+          date: new Date().toDateString()
+        };
+        
+        setTodayStatus(newStatus);
+        
+        if (data.attendance) {
+          setClockDetails(data.attendance);
+        }
+      } else if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+      }
+    } catch (error) {
+      console.error("Failed to fetch today's status:", error);
+    }
+  }, []);
+
+  const fetchAttendanceRecords = useCallback(async (roleInfo) => {
+    try {
+      const token = getToken();
+      
+      if (!token) return;
+
+      const queryParams = new URLSearchParams({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        page: currentPage,
+        limit: itemsPerPage
+      });
+
+      // Add employeeId for admin viewing specific employee
+      if (roleInfo.isAdmin && userId) {
+        queryParams.append('employeeId', userId);
+      }
+
+      let endpoint;
+      if (roleInfo.isAdmin) {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${queryParams.toString()}`;
+      } else {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/records?${queryParams.toString()}`;
+      }
+
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAttendance(data.records || data || []);
+      } else if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+      } else {
+        setAttendance([]);
+      }
+    } catch (error) {
+      console.error("Fetch records error:", error);
+      setAttendance([]);
+    }
+  }, [dateRange, userId, currentPage, itemsPerPage]);
+
+  const fetchSummary = useCallback(async (roleInfo) => {
+    setLoading(true);
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        router.push("/");
+        return;
+      }
+
+      const queryParams = new URLSearchParams({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate
+      });
+
+      // Add employeeId for admin viewing specific employee
+      if (roleInfo.isAdmin && userId) {
+        queryParams.append('employeeId', userId);
+      }
+
+      let endpoint;
+      let headers = {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      };
+
+      if (roleInfo.isAdmin) {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/summary?${queryParams.toString()}`;
+      } else {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/summary?${queryParams.toString()}`;
+      }
+
+      const response = await fetch(endpoint, { headers });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (roleInfo.isAdmin) {
+          setSummary(data.summary || data);
+        } else {
+          setSummary(data.summary || data);
+        }
+      } else if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+      } else {
+        setSummary(null);
+      }
+      
+      await fetchAttendanceRecords(roleInfo);
+    } catch (err) {
+      console.error("Fetch summary error:", err);
+      setSummary(null);
+      setAttendance([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [dateRange, userId, fetchAttendanceRecords]);
+
+  const initializeData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const roleInfo = await fetchUserProfile();
+      
+      if (roleInfo) {
+        setUserRole(roleInfo.role);
+        setIsAdmin(roleInfo.isAdmin);
+        setUserData(roleInfo.userData);
+        
+        if (roleInfo.role === "employee") {
+          await fetchTodayStatus();
+        }
+        
+        await fetchSummary(roleInfo);
+      }
+    } catch (error) {
+      console.error("Initialize data error:", error);
+      toast.error("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchTodayStatus, fetchSummary]);
+
+  // ===================== EMPLOYEE FILTER FUNCTIONS =====================
+  
+  // Apply employee filter
+  const applyEmployeeFilter = async () => {
+    setLoading(true);
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        toast.error("Authentication required");
+        setLoading(false);
+        return;
+      }
+
+      const queryParams = new URLSearchParams();
+      
+      // For admin viewing specific employee
+      if (isAdmin && employeeFilter.employeeId) {
+        queryParams.append('employeeId', employeeFilter.employeeId);
+      }
+      
+      // For employee viewing their own records
+      if (!isAdmin && userData?._id) {
+        queryParams.append('employeeId', userData._id);
+      }
+      
+      if (employeeFilter.month && employeeFilter.month !== "") {
+        const monthNum = parseInt(employeeFilter.month);
+        if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+          queryParams.append('month', monthNum);
+        }
+      }
+      
+      if (employeeFilter.year && employeeFilter.year !== "") {
+        const yearNum = parseInt(employeeFilter.year);
+        if (!isNaN(yearNum) && yearNum >= 2000 && yearNum <= 2100) {
+          queryParams.append('year', yearNum);
+        }
+      }
+      
+      if (employeeFilter.status !== 'all') {
+        queryParams.append('status', employeeFilter.status);
+      }
+
+      if (employeeFilter.month && employeeFilter.year) {
+        const monthNum = parseInt(employeeFilter.month);
+        const yearNum = parseInt(employeeFilter.year);
+        
+        if (!isNaN(monthNum) && !isNaN(yearNum)) {
+          const startDate = new Date(yearNum, monthNum - 1, 1);
+          const endDate = new Date(yearNum, monthNum, 0);
+          
+          queryParams.append('startDate', startDate.toISOString().split('T')[0]);
+          queryParams.append('endDate', endDate.toISOString().split('T')[0]);
+        }
+      }
+
+      const endpoint = isAdmin 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${queryParams.toString()}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/records?${queryParams.toString()}`;
+
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAttendance(data.records || data || []);
+        setCurrentPage(1);
+        
+        // Update summary for employee view
+        if (!isAdmin) {
+          const presentCount = (data.records || []).filter(a => a.status === 'Present').length;
+          const totalCount = (data.records || []).length;
+          const attendanceRate = totalCount > 0 ? (presentCount / totalCount) * 100 : 0;
+          
+          setSummary(prev => ({
+            ...prev,
+            daysPresent: presentCount,
+            daysAbsent: (data.records || []).filter(a => a.status === 'Absent').length,
+            totalDays: totalCount,
+            attendanceRate: attendanceRate
+          }));
+        }
+        
+        toast.success("Filter applied successfully!");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || "Failed to apply filter");
+      }
+    } catch (error) {
+      console.error("Filter error:", error);
+      toast.error("Failed to apply filter");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset employee filter
+  const resetEmployeeFilter = () => {
+    setEmployeeFilter({
+      employeeId: "",
+      month: String(new Date().getMonth() + 1),
+      year: String(new Date().getFullYear()),
+      status: "all"
+    });
     
-  } catch (error) {
-    console.error("Fetch employees error:", error);
-    toast.error(`Failed to load employees: ${error.message}`);
-    setEmployees([]);
-  }
-}, [isAdmin]);
+    setDateRange({
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0]
+    });
+    
+    setCurrentPage(1);
+    handleRefresh();
+  };
 
-// Effect to fetch employees - এই useEffect টি খেয়াল করুন
-useEffect(() => {
-  console.log("Admin status changed, isAdmin:", isAdmin);
-  if (isAdmin) {
-    console.log("Fetching employees...");
-    fetchEmployees();
-  } else {
-    console.log("Not admin, clearing employees");
-    setEmployees([]);
-  }
-}, [isAdmin, fetchEmployees]);
- 
-
-// Debug: Check employees state
-useEffect(() => {
-  console.log("Employees state updated:", employees);
-}, [employees]);
-
-
-
+  // ===================== ATTENDANCE FUNCTIONS =====================
   const handleAutoClockOut = async () => {
     if (userRole !== "employee") return;
     
     try {
       const token = getToken();
       
-      if (!token) {
-        return;
-      }
+      if (!token) return;
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-out`, {
         method: "POST",
@@ -441,7 +1596,194 @@ useEffect(() => {
     }
   };
 
-  // ===================== NEW ADMIN FUNCTIONS =====================
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      const roleInfo = { role: userRole, isAdmin, userData };
+      
+      if (userRole === "employee") {
+        await fetchTodayStatus();
+      }
+      
+      await fetchSummary(roleInfo);
+      toast.success("Data refreshed");
+    } catch (error) {
+      console.error("Refresh error:", error);
+      toast.error("Refresh failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewDetails = async (attendanceId) => {
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/records/${attendanceId}`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setClockDetails(data.attendance);
+        setShowRecentDetails(true);
+        toast.success("Attendance details loaded");
+      } else {
+        toast.error("Failed to load attendance details");
+      }
+    } catch (err) {
+      console.error("View details error:", err);
+      toast.error("Error loading attendance details");
+    }
+  };
+
+  const toggleDetailsVisibility = () => {
+    setShowRecentDetails(!showRecentDetails);
+  };
+
+  const handleClockIn = async () => {
+    if (userRole !== "employee") {
+      toast.error("Only employees can clock in/out");
+      return;
+    }
+    
+    // Check if it's a working day
+    const isWorkingDay = await checkIfWorkingDay();
+    if (!isWorkingDay) {
+      toast.error("Cannot clock in on a holiday or off day");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-in`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          location: "Office",
+          device: navigator.userAgent
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const newStatus = {
+          ...todayStatus,
+          clockedIn: true,
+          clockInTime: data.attendance?.clockIn || new Date().toISOString(),
+          status: "Clocked In"
+        };
+        setTodayStatus(newStatus);
+        
+        if (data.attendance) {
+          setClockDetails(data.attendance);
+        }
+        setShowRecentDetails(true);
+        
+        toast.success(`✓ ${data.message || "Clock In successful"}`);
+        
+        await fetchTodayStatus();
+        const roleInfo = { role: userRole, isAdmin, userData };
+        await fetchSummary(roleInfo);
+      } else {
+        toast.error(data.message || "Failed to clock in");
+      }
+    } catch (err) {
+      console.error("Clock in error:", err);
+      toast.error("Clock In failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    if (userRole !== "employee") {
+      toast.error("Only employees can clock in/out");
+      return;
+    }
+    
+    // Check if it's a working day
+    const isWorkingDay = await checkIfWorkingDay();
+    if (!isWorkingDay) {
+      toast.error("Cannot clock out on a holiday or off day");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-out`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          location: "Office",
+          device: navigator.userAgent
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const newStatus = {
+          ...todayStatus,
+          clockedOut: true,
+          clockOutTime: data.attendance?.clockOut || new Date().toISOString(),
+          status: "Present"
+        };
+        setTodayStatus(newStatus);
+        
+        if (data.attendance) {
+          setClockDetails(data.attendance);
+        }
+        setShowRecentDetails(true);
+        
+        toast.success(`✓ ${data.message || "Clock Out successful"}`);
+        
+        await fetchTodayStatus();
+        const roleInfo = { role: userRole, isAdmin, userData };
+        await fetchSummary(roleInfo);
+      } else {
+        toast.error(data.message || "Failed to clock out");
+      }
+    } catch (err) {
+      console.error("Clock out error:", err);
+      toast.error("Clock Out failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ===================== ADMIN FUNCTIONS =====================
 
   // Manual Trigger Auto Clock Out (Admin Only)
   const handleTriggerAutoClockOut = async () => {
@@ -467,9 +1809,7 @@ useEffect(() => {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success(`✓ Auto clock out triggered manually: ${data.results.success} successful, ${data.results.failed} failed`);
-        
-        // Refresh data
+        toast.success(`✓ Auto clock out triggered: ${data.results?.success || 0} successful`);
         const roleInfo = { role: userRole, isAdmin, userData };
         await fetchSummary(roleInfo);
       } else {
@@ -483,92 +1823,350 @@ useEffect(() => {
     }
   };
 
-  // Create Manual Attendance (Admin Only)
-// Create Manual Attendance (Admin Only)
-const handleCreateManualAttendance = async () => {
-  if (!isAdmin) return;
-  
-  setLoading(true);
-  try {
-    const token = getToken();
+  // Generate bulk attendance data
+  const generateBulkAttendanceData = () => {
+    const month = parseInt(bulkAttendanceData.month);
+    const year = parseInt(bulkAttendanceData.year);
     
-    if (!token) {
-      toast.error("Authentication required");
-      return;
-    }
-
-    console.log("Manual Attendance Data:", manualAttendanceData);
-    console.log("Selected Employee:", selectedEmployee);
-    console.log("Is Admin:", isAdmin);
-
-    // Validate required fields - এই validation টি ঠিক করুন
-    if (!manualAttendanceData.employeeId && !selectedEmployee?._id) {
-      toast.error("Please select an employee");
-      setLoading(false);
-      return;
-    }
-
-    if (!manualAttendanceData.date) {
-      toast.error("Date is required");
-      setLoading(false);
-      return;
-    }
-
-    // Prepare data in correct format
-    const employeeId = selectedEmployee?._id || manualAttendanceData.employeeId;
+    if (isNaN(month) || isNaN(year)) return [];
     
-    // যদি employeeId না থাকে
-    if (!employeeId) {
-      toast.error("Employee ID is missing");
-      setLoading(false);
-      return;
-    }
-
-    const attendanceData = {
-      employeeId: employeeId,
-      date: manualAttendanceData.date,
-      clockIn: manualAttendanceData.clockIn ? `${manualAttendanceData.date}T${manualAttendanceData.clockIn}:00` : null,
-      clockOut: manualAttendanceData.clockOut ? `${manualAttendanceData.date}T${manualAttendanceData.clockOut}:00` : null,
-      status: manualAttendanceData.status,
-      shiftStart: manualAttendanceData.shiftStart || "09:00",
-      shiftEnd: manualAttendanceData.shiftEnd || "18:00",
-      remarks: manualAttendanceData.remarks || "Created by admin",
-      isHoliday: manualAttendanceData.isHoliday || false,
-      holidayType: manualAttendanceData.holidayType || null
-    };
-
-    console.log("Sending attendance data:", attendanceData);
-
-    // Remove null values
-    Object.keys(attendanceData).forEach(key => {
-      if (attendanceData[key] === null || attendanceData[key] === undefined) {
-        delete attendanceData[key];
-      }
-    });
-
-    // API endpoint check করুন - আপনার backend এর endpoint অনুযায়ী change করুন
-    const apiEndpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/attendance/manual`;
-    console.log("API Endpoint:", apiEndpoint);
-
-    const response = await fetch(apiEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify(attendanceData)
-    });
-
-    console.log("Response status:", response.status);
-
-    const data = await response.json();
-    console.log("Response data:", data);
-
-    if (response.ok) {
-      toast.success("✓ Manual attendance created successfully!");
-      setShowManualAttendanceModal(false);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const attendanceRecords = [];
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month - 1, day);
+      const dateString = date.toISOString().split('T')[0];
+      const dayOfWeek = date.getDay();
       
-      // Reset form
+      // Skip weekends if option is enabled
+      if (bulkAttendanceData.skipWeekends && (dayOfWeek === 0 || dayOfWeek === 6)) {
+        continue;
+      }
+      
+      // Check if it's a holiday
+      const isHoliday = bulkAttendanceData.holidays.some(h => h.date === dateString);
+      const isLeave = bulkAttendanceData.leaveDates.includes(dateString);
+      const isWorkingDay = bulkAttendanceData.workingDays.includes(dateString);
+      
+      let status = 'Present';
+      let remarks = 'Bulk created by admin';
+      
+      if (isHoliday) {
+        status = 'Govt Holiday';
+        remarks = 'Holiday - Bulk created';
+      } else if (isLeave) {
+        status = 'Leave';
+        remarks = 'Leave - Bulk created';
+      } else if (isWorkingDay) {
+        status = 'Present';
+        remarks = 'Working Day - Bulk created';
+      } else if (bulkAttendanceData.markAllAsPresent) {
+        status = 'Present';
+        remarks = 'Marked present - Bulk created';
+      }
+      
+      // Auto-clear clock in/out for non-working days
+      const clockIn = (status === 'Present') ? bulkAttendanceData.defaultShiftStart : null;
+      const clockOut = (status === 'Present') ? bulkAttendanceData.defaultShiftEnd : null;
+      
+      attendanceRecords.push({
+        date: dateString,
+        clockIn,
+        clockOut,
+        status,
+        shiftStart: bulkAttendanceData.defaultShiftStart,
+        shiftEnd: bulkAttendanceData.defaultShiftEnd,
+        remarks,
+        isHoliday: status === 'Govt Holiday',
+        holidayType: status === 'Govt Holiday' ? 'Bulk Holiday' : null,
+        autoGenerated: status !== 'Present'
+      });
+    }
+    
+    return attendanceRecords;
+  };
+
+  // Create Manual Attendance (Admin Only)
+  const handleCreateManualAttendance = async () => {
+    if (!isAdmin) return;
+    
+    setLoading(true);
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        toast.error("Authentication required");
+        setLoading(false);
+        return;
+      }
+
+      if (!selectedEmployee?._id) {
+        toast.error("Please select an employee");
+        setLoading(false);
+        return;
+      }
+
+      if (!manualAttendanceData.date) {
+        toast.error("Date is required");
+        setLoading(false);
+        return;
+      }
+
+      // Check if it's a holiday or weekend
+      const isHoliday = manualAttendanceData.status === 'Govt Holiday';
+      const isWeekendOff = manualAttendanceData.status === 'Weekly Off';
+      const isOffDay = manualAttendanceData.status === 'Off Day';
+
+      // Auto-clear clock in/out for holidays and weekends
+      const clockIn = (isHoliday || isWeekendOff || isOffDay) 
+        ? null 
+        : manualAttendanceData.clockIn;
+      
+      const clockOut = (isHoliday || isWeekendOff || isOffDay) 
+        ? null 
+        : manualAttendanceData.clockOut;
+
+      const formatDateTime = (date, time) => {
+        if (!time) return null;
+        const dateTimeString = `${date}T${time}:00`;
+        return new Date(dateTimeString).toISOString();
+      };
+
+      const attendanceData = {
+        employeeId: selectedEmployee._id,
+        date: new Date(manualAttendanceData.date).toISOString().split('T')[0],
+        clockIn: clockIn ? formatDateTime(manualAttendanceData.date, clockIn) : null,
+        clockOut: clockOut ? formatDateTime(manualAttendanceData.date, clockOut) : null,
+        status: manualAttendanceData.status,
+        shiftStart: manualAttendanceData.shiftStart,
+        shiftEnd: manualAttendanceData.shiftEnd,
+        remarks: manualAttendanceData.remarks || 
+                 (isHoliday ? 'Government Holiday' : 
+                  isWeekendOff ? 'Weekly Off' : 
+                  isOffDay ? 'Off Day' : 'Created by admin'),
+        isHoliday: isHoliday,
+        holidayType: manualAttendanceData.holidayType,
+        autoGenerated: (isHoliday || isWeekendOff || isOffDay)
+      };
+
+      console.log("Sending manual attendance data:", attendanceData);
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/create-attendance`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(attendanceData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(`✓ Attendance created successfully! ${isHoliday ? '(Holiday)' : isWeekendOff ? '(Weekly Off)' : isOffDay ? '(Off Day)' : ''}`);
+        setShowManualAttendanceModal(false);
+        
+        // Reset form
+        setManualAttendanceData({
+          employeeId: "",
+          employeeName: "",
+          date: new Date().toISOString().split('T')[0],
+          clockIn: "09:00",
+          clockOut: "18:00",
+          status: "Present",
+          shiftStart: "09:00",
+          shiftEnd: "18:00",
+          remarks: "Created by admin",
+          isHoliday: false,
+          holidayType: null
+        });
+        
+        setSelectedEmployee(null);
+        setEmployeeSearch("");
+        
+        // Refresh data
+        const roleInfo = { role: userRole, isAdmin, userData };
+        await fetchSummary(roleInfo);
+        await applyEmployeeFilter();
+      } else {
+        toast.error(data.message || data.error || "Failed to create manual attendance");
+      }
+    } catch (err) {
+      console.error("Create manual attendance error:", err);
+      toast.error(`Failed to create manual attendance: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Create Bulk Attendance (Admin Only)
+  const handleCreateBulkAttendance = async () => {
+    if (!isAdmin) return;
+    
+    setLoading(true);
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        toast.error("Authentication required");
+        setLoading(false);
+        return;
+      }
+
+      if (!selectedEmployee?._id) {
+        toast.error("Employee is required");
+        setLoading(false);
+        return;
+      }
+
+      if (!bulkAttendanceData.month || !bulkAttendanceData.year) {
+        toast.error("Month and Year are required");
+        setLoading(false);
+        return;
+      }
+
+      const month = parseInt(bulkAttendanceData.month);
+      const year = parseInt(bulkAttendanceData.year);
+      
+      if (isNaN(month) || month < 1 || month > 12) {
+        toast.error("Invalid month");
+        setLoading(false);
+        return;
+      }
+      
+      if (isNaN(year) || year < 2000 || year > 2100) {
+        toast.error("Invalid year");
+        setLoading(false);
+        return;
+      }
+
+      // Generate bulk data
+      const bulkRecords = generateBulkAttendanceData();
+      
+      if (bulkRecords.length === 0) {
+        toast.error("No records to create");
+        setLoading(false);
+        return;
+      }
+
+      const bulkData = {
+        employeeId: selectedEmployee._id,
+        month: month,
+        year: year,
+        records: bulkRecords,
+        defaultShiftStart: bulkAttendanceData.defaultShiftStart,
+        defaultShiftEnd: bulkAttendanceData.defaultShiftEnd,
+        skipWeekends: bulkAttendanceData.skipWeekends,
+        markAllAsPresent: bulkAttendanceData.markAllAsPresent
+      };
+
+      console.log("Sending bulk attendance data:", bulkData);
+
+      const confirmCreate = window.confirm(
+        `Create ${bulkRecords.length} attendance records for ${new Date(year, month - 1, 1).toLocaleString('default', { month: 'long' })} ${year}?\n\nEmployee: ${selectedEmployee?.firstName} ${selectedEmployee?.lastName}\nPresent Days: ${bulkRecords.filter(r => r.status === 'Present').length}\nHolidays: ${bulkRecords.filter(r => r.status === 'Govt Holiday').length}\nLeaves: ${bulkRecords.filter(r => r.status === 'Leave').length}\n\nAre you sure?`
+      );
+
+      if (!confirmCreate) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/attendance/bulk-create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(bulkData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const results = data.results || data;
+        let message = `✓ Bulk attendance created for ${new Date(year, month - 1, 1).toLocaleString('default', { month: 'long' })} ${year}:\n`;
+        
+        if (results.created) message += `Created: ${results.created}\n`;
+        if (results.updated) message += `Updated: ${results.updated}\n`;
+        if (results.skipped) message += `Skipped (holidays/off): ${results.skipped}\n`;
+        if (results.failed) message += `Failed: ${results.failed}`;
+        
+        toast.success(message, { duration: 6000 });
+        
+        setShowBulkAttendanceModal(false);
+        setSelectedEmployee(null);
+        setEmployeeSearch("");
+        
+        // Reset form
+        setBulkAttendanceData({
+          employeeId: "",
+          employeeName: "",
+          month: new Date().getMonth() + 1,
+          year: new Date().getFullYear(),
+          defaultShiftStart: "09:00",
+          defaultShiftEnd: "18:00",
+          holidays: [],
+          leaveDates: [],
+          workingDays: [],
+          markAllAsPresent: false,
+          skipWeekends: true
+        });
+        
+        // Refresh data
+        const roleInfo = { role: userRole, isAdmin, userData };
+        await fetchSummary(roleInfo);
+        await applyEmployeeFilter();
+      } else {
+        toast.error(data.message || data.error || "Failed to create bulk attendance");
+      }
+    } catch (err) {
+      console.error("Create bulk attendance error:", err);
+      toast.error("Failed to create bulk attendance");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle employee selection
+  const handleSelectEmployee = (employee) => {
+    if (!employee || !employee._id) {
+      toast.error("Invalid employee selected");
+      return;
+    }
+    
+    setSelectedEmployee(employee);
+    setEmployeeSearch(""); // Clear search input
+    
+    const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+    
+    // Set data based on which modal is open
+    if (showManualAttendanceModal) {
+      setManualAttendanceData(prev => ({
+        ...prev,
+        employeeId: employee._id,
+        employeeName: fullName
+      }));
+    } else if (showBulkAttendanceModal) {
+      setBulkAttendanceData(prev => ({
+        ...prev,
+        employeeId: employee._id,
+        employeeName: fullName
+      }));
+    }
+    
+    toast.success(`Selected: ${fullName}`);
+  };
+
+  // Open Manual Attendance Modal
+  const openManualAttendanceModal = () => {
+    if (!isAdmin) return;
+    
+    setSelectorFor("manual");
+    setShowEmployeeSelector(false);
+    fetchEmployees();
+    
+    // Reset if no employee selected
+    if (!selectedEmployee) {
       setManualAttendanceData({
         employeeId: "",
         employeeName: "",
@@ -582,104 +2180,21 @@ const handleCreateManualAttendance = async () => {
         isHoliday: false,
         holidayType: null
       });
-      
-      setSelectedEmployee(null);
-      
-      // Refresh data
-      const roleInfo = { role: userRole, isAdmin, userData };
-      await fetchSummary(roleInfo);
-      await fetchAttendanceRecords(roleInfo);
-    } else {
-      toast.error(data.message || data.error || data.details || "Failed to create manual attendance");
     }
-  } catch (err) {
-    console.error("Create manual attendance error:", err);
-    toast.error(`Failed to create manual attendance: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
-  // Create Bulk Attendance (Admin Only)
-const handleCreateBulkAttendance = async () => {
-  if (!isAdmin) return;
-  
-  setLoading(true);
-  try {
-    const token = getToken();
     
-    if (!token) {
-      toast.error("Authentication required");
-      return;
-    }
+    setShowManualAttendanceModal(true);
+  };
 
-    // Validate required fields
-    if (!bulkAttendanceData.employeeId) {
-      toast.error("Employee is required");
-      setLoading(false);
-      return;
-    }
-
-    if (!bulkAttendanceData.month || !bulkAttendanceData.year) {
-      toast.error("Month and Year are required");
-      setLoading(false);
-      return;
-    }
-
-    // Prepare bulk data
-    const bulkData = {
-      employeeId: selectedEmployee?._id || bulkAttendanceData.employeeId,
-      month: bulkAttendanceData.month,
-      year: bulkAttendanceData.year,
-      defaultShiftStart: bulkAttendanceData.defaultShiftStart,
-      defaultShiftEnd: bulkAttendanceData.defaultShiftEnd,
-      holidays: bulkAttendanceData.holidays || [],
-      leaveDates: bulkAttendanceData.leaveDates || [],
-      workingDays: bulkAttendanceData.workingDays || [],
-      markAllAsPresent: bulkAttendanceData.markAllAsPresent,
-      skipWeekends: bulkAttendanceData.skipWeekends
-    };
-
-    // Show confirmation dialog
-    const confirmCreate = window.confirm(
-      `This will create/update attendance for ${new Date(bulkData.year, bulkData.month - 1, 1).toLocaleString('default', { month: 'long' })} ${bulkData.year}.\nEmployee: ${selectedEmployee?.firstName} ${selectedEmployee?.lastName}\n\nAre you sure?`
-    );
-
-    if (!confirmCreate) {
-      setLoading(false);
-      return;
-    }
-
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/attendance/bulk`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify(bulkData)
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      const results = data.results || data;
-      let message = `✓ Bulk attendance created for ${new Date(bulkData.year, bulkData.month - 1, 1).toLocaleString('default', { month: 'long' })} ${bulkData.year}:\n`;
-      
-      if (results.created) message += `Created: ${results.created}\n`;
-      if (results.updated) message += `Updated: ${results.updated}\n`;
-      if (results.skipped) message += `Skipped: ${results.skipped}\n`;
-      if (results.failed) message += `Failed: ${results.failed}`;
-      
-      toast.success(
-        <div className="whitespace-pre-line">
-          {message}
-        </div>,
-        { duration: 6000 }
-      );
-      
-      setShowBulkAttendanceModal(false);
-      setSelectedEmployee(null);
-      
-      // Reset bulk form
+  // Open Bulk Attendance Modal
+  const openBulkAttendanceModal = () => {
+    if (!isAdmin) return;
+    
+    setSelectorFor("bulk");
+    setShowEmployeeSelector(false);
+    fetchEmployees();
+    
+    // Reset if no employee selected
+    if (!selectedEmployee) {
       setBulkAttendanceData({
         employeeId: "",
         employeeName: "",
@@ -693,142 +2208,64 @@ const handleCreateBulkAttendance = async () => {
         markAllAsPresent: false,
         skipWeekends: true
       });
-      
-      // Refresh data
-      const roleInfo = { role: userRole, isAdmin, userData };
-      await fetchSummary(roleInfo);
-      await fetchAttendanceRecords(roleInfo);
-    } else {
-      toast.error(data.message || data.error || "Failed to create bulk attendance");
     }
-  } catch (err) {
-    console.error("Create bulk attendance error:", err);
-    toast.error("Failed to create bulk attendance. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
+    
+    setShowBulkAttendanceModal(true);
+  };
 
-// ===================== IMPROVED EMPLOYEE SELECTOR =====================
+  // Filter employees based on search
+  const filteredEmployees = employees.filter(employee => {
+    if (!employee || typeof employee !== 'object') return false;
+    
+    const firstName = employee.firstName || '';
+    const lastName = employee.lastName || '';
+    const fullName = `${firstName} ${lastName}`.toLowerCase();
+    const employeeId = (employee.employeeId || '').toLowerCase();
+    const email = (employee.email || '').toLowerCase();
+    const department = (employee.department || '').toLowerCase();
+    const searchTerm = employeeSearch.toLowerCase();
+    
+    return fullName.includes(searchTerm) || 
+           employeeId.includes(searchTerm) ||
+           email.includes(searchTerm) ||
+           department.includes(searchTerm);
+  });
 
-// এই ফাংশনগুলি যোগ করুন বা update করুন:
+  // Add holiday/leave date management functions
+  const addHoliday = () => {
+    const date = prompt("Enter holiday date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    const type = prompt("Enter holiday type (Govt Holiday/Weekly Off/Other):", "Govt Holiday");
+    
+    if (date && type) {
+      setBulkAttendanceData(prev => ({
+        ...prev,
+        holidays: [...prev.holidays, { date, type }]
+      }));
+      toast.success(`Added holiday: ${date} - ${type}`);
+    }
+  };
 
-// Handle employee selection with better validation
-// const handleSelectEmployee = (employee) => {
-//   if (!employee || !employee._id) {
-//     toast.error("Invalid employee selected");
-//     return;
-//   }
-  
-//   setSelectedEmployee(employee);
-//   setShowEmployeeSelector(false);
-  
-//   // Update both forms
-//   const employeeInfo = {
-//     employeeId: employee._id,
-//     employeeName: `${employee.firstName || ''} ${employee.lastName || ''}`.trim()
-//   };
-  
-//   // Update manual attendance form
-//   if (showManualAttendanceModal) {
-//     setManualAttendanceData(prev => ({
-//       ...prev,
-//       ...employeeInfo
-//     }));
-//   }
-  
-//   // Update bulk attendance form
-//   if (showBulkAttendanceModal) {
-//     setBulkAttendanceData(prev => ({
-//       ...prev,
-//       ...employeeInfo
-//     }));
-//   }
-  
-//   toast.success(`Selected: ${employeeInfo.employeeName}`);
-// };
+  const addLeaveDate = () => {
+    const date = prompt("Enter leave date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    
+    if (date) {
+      setBulkAttendanceData(prev => ({
+        ...prev,
+        leaveDates: [...prev.leaveDates, date]
+      }));
+      toast.success(`Added leave date: ${date}`);
+    }
+  };
 
-// Add holiday/leave date management functions
-const addHoliday = () => {
-  const date = prompt("Enter holiday date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
-  const type = prompt("Enter holiday type (Govt Holiday/Weekly Off/Other):", "Govt Holiday");
-  
-  if (date && type) {
-    setBulkAttendanceData(prev => ({
-      ...prev,
-      holidays: [...prev.holidays, { date, type }]
-    }));
-    toast.success(`Added holiday: ${date} - ${type}`);
-  }
-};
-
-const addLeaveDate = () => {
-  const date = prompt("Enter leave date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
-  
-  if (date) {
-    setBulkAttendanceData(prev => ({
-      ...prev,
-      leaveDates: [...prev.leaveDates, date]
-    }));
-    toast.success(`Added leave date: ${date}`);
-  }
-};
-
-const addWorkingDay = () => {
-  const date = prompt("Enter working date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
-  
-  if (date) {
-    setBulkAttendanceData(prev => ({
-      ...prev,
-      workingDays: [...prev.workingDays, date]
-    }));
-    toast.success(`Added working day: ${date}`);
-  }
-};
-
-  // Get Employee Attendance with Shift Info
-  const handleViewEmployeeAttendance = async (employeeId, month, year) => {
-    try {
-      const token = getToken();
-      
-      if (!token) {
-        toast.error("Authentication required");
-        return;
-      }
-
-      const query = new URLSearchParams({
-        employeeId,
-        month,
-        year
-      }).toString();
-
-      const endpoint = isAdmin 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/employee-attendance`
-        : `${process.env.NEXT_PUBLIC_API_URL}/employee-attendance`;
-
-      const response = await fetch(`${endpoint}?${query}`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Show employee attendance in modal or new section
-        setSelectedAttendanceRecord(data);
-        
-        toast.success(
-          <div>
-            <p className="font-bold">Employee Attendance</p>
-            <p>{data.employee?.name} - {data.period?.month}/{data.period?.year}</p>
-          </div>,
-          { duration: 4000 }
-        );
-      }
-    } catch (err) {
-      console.error("Get employee attendance error:", err);
+  const addWorkingDay = () => {
+    const date = prompt("Enter working date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    
+    if (date) {
+      setBulkAttendanceData(prev => ({
+        ...prev,
+        workingDays: [...prev.workingDays, date]
+      }));
+      toast.success(`Added working day: ${date}`);
     }
   };
 
@@ -861,8 +2298,6 @@ const addWorkingDay = () => {
 
       if (response.ok) {
         const data = await response.json();
-        
-        // Show late statistics in a modal or alert
         const stats = data.statistics;
         
         toast.success(
@@ -932,7 +2367,6 @@ const addWorkingDay = () => {
     
     setLoading(true);
     try {
-      // Create an edit form/modal for detailed editing
       setSelectedAttendanceRecord({
         _id: attendanceId,
         ...currentData,
@@ -977,9 +2411,9 @@ const addWorkingDay = () => {
         toast.success("✓ Attendance corrected successfully!");
         setSelectedAttendanceRecord(null);
         
-        // Refresh data
         const roleInfo = { role: userRole, isAdmin, userData };
         await fetchSummary(roleInfo);
+        await applyEmployeeFilter();
       } else {
         toast.error(data.message || "Failed to correct attendance");
       }
@@ -1036,63 +2470,8 @@ const addWorkingDay = () => {
     }
   };
 
-  // Handle employee selection
-const handleSelectEmployee = (employee) => {
-  console.log("Selecting employee:", employee);
-  
-  if (!employee || !employee._id) {
-    toast.error("Invalid employee selected");
-    return;
-  }
-  
-  setSelectedEmployee(employee);
-  setShowEmployeeSelector(false);
-  
-  // Create full name
-  const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
-  
-  // Update manual attendance form
-  if (showManualAttendanceModal) {
-    setManualAttendanceData(prev => ({
-      ...prev,
-      employeeId: employee._id,
-      employeeName: fullName
-    }));
-  }
-  
-  // Update bulk attendance form
-  if (showBulkAttendanceModal) {
-    setBulkAttendanceData(prev => ({
-      ...prev,
-      employeeId: employee._id,
-      employeeName: fullName
-    }));
-  }
-  
-  toast.success(`Selected: ${fullName}`);
-};
-
-  // Filter employees based on search
-  const filteredEmployees = Array.isArray(employees) ? employees.filter(employee => {
-    if (!employee || typeof employee !== 'object') return false;
-    
-    const firstName = employee.firstName || '';
-    const lastName = employee.lastName || '';
-    const fullName = `${firstName} ${lastName}`.toLowerCase();
-    const employeeId = (employee.employeeId || '').toLowerCase();
-    const email = (employee.email || '').toLowerCase();
-    const searchTerm = employeeSearch.toLowerCase();
-    
-    return fullName.includes(searchTerm) || 
-           employeeId.includes(searchTerm) ||
-           email.includes(searchTerm);
-  }) : [];
-
-  // Apply employee filter
-  const applyEmployeeFilter = async () => {
-    if (!isAdmin) return;
-    
-    setLoading(true);
+  // Export Attendance Data
+  const handleExportData = async (format = 'json') => {
     try {
       const token = getToken();
       
@@ -1102,71 +2481,16 @@ const handleSelectEmployee = (employee) => {
       }
 
       const query = new URLSearchParams({
-        ...(employeeFilter.employeeId && { employeeId: employeeFilter.employeeId }),
-        ...(employeeFilter.month && { month: employeeFilter.month }),
-        ...(employeeFilter.year && { year: employeeFilter.year }),
-        ...(employeeFilter.status !== 'all' && { status: employeeFilter.status })
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        format,
+        // Add employee filter if employee is viewing their own records
+        ...(!isAdmin && userData?._id && { employeeId: userData._id })
       }).toString();
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${query}`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAttendance(data.records || data || []);
-        toast.success("Filter applied successfully!");
-      }
-    } catch (error) {
-      console.error("Filter error:", error);
-      toast.error("Failed to apply filter");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ===================== ORIGINAL FUNCTIONS =====================
-
-  const getUserType = () => {
-    if (typeof window !== "undefined") {
-      const adminToken = localStorage.getItem("adminToken");
-      const employeeToken = localStorage.getItem("employeeToken");
-      
-      if (adminToken) {
-        return "admin";
-      } else if (employeeToken) {
-        return "employee";
-      }
-    }
-    return null;
-  };
-
-  const getToken = () => {
-    const userType = getUserType();
-    if (userType === "admin") {
-      return localStorage.getItem("adminToken");
-    } else if (userType === "employee") {
-      return localStorage.getItem("employeeToken");
-    }
-    return null;
-  };
-
-  const fetchUserProfile = async () => {
-    try {
-      const userType = getUserType();
-      const token = getToken();
-      
-      if (!token) {
-        router.push("/");
-        return { role: "employee", isAdmin: false, userData: null };
-      }
-
-      const endpoint = userType === "admin" 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/getAdminProfile`
-        : `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
+      const endpoint = isAdmin 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/export?${query}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/export?${query}`;
 
       const response = await fetch(endpoint, {
         headers: { 
@@ -1175,373 +2499,51 @@ const handleSelectEmployee = (employee) => {
         }
       });
 
-      if (response.status === 401) {
-        localStorage.clear();
-        router.push("/");
-        return { role: "employee", isAdmin: false, userData: null };
-      }
-
-      const data = await response.json();
-      
-      if (data.user || (data && typeof data === 'object' && (data.email || data._id))) {
-        const userData = data.user || data;
-        return { 
-          role: userType, 
-          isAdmin: userType === "admin", 
-          userData 
-        };
-      } else {
-        return { role: "employee", isAdmin: false, userData: null };
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      return { role: "employee", isAdmin: false, userData: null };
-    }
-  };
-
-  const fetchTodayStatus = useCallback(async () => {
-    try {
-      const userType = getUserType();
-      const token = getToken();
-      
-      if (!token || userType !== "employee") {
-        return;
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/today`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-
       if (response.ok) {
-        const data = await response.json();
-        
-        const newStatus = {
-          clockedIn: data.clockedIn || false,
-          clockedOut: data.clockedOut || false,
-          clockInTime: data.attendance?.clockIn || null,
-          clockOutTime: data.attendance?.clockOut || null,
-          status: data.attendance?.status || "Not Clocked",
-          date: new Date().toDateString()
-        };
-        
-        setTodayStatus(newStatus);
-        
-        if (data.attendance) {
-          setClockDetails(data.attendance);
-        }
-      } else if (response.status === 401) {
-        localStorage.clear();
-        router.push("/");
-      }
-    } catch (error) {
-      console.error("Failed to fetch today's status:", error);
-    }
-  }, []);
-
-  const fetchSummary = useCallback(async (roleInfo) => {
-    setLoading(true);
-    try {
-      const token = getToken();
-      
-      if (!token) {
-        router.push("/");
-        return;
-      }
-
-      const query = new URLSearchParams({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        ...(roleInfo.isAdmin && userId && { employeeId: userId })
-      }).toString();
-
-      let endpoint;
-      let headers = {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      };
-
-      if (roleInfo.isAdmin) {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/summary?${query}`;
-      } else {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/summary?${query}`;
-      }
-
-      const response = await fetch(endpoint, { headers });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (roleInfo.isAdmin) {
-          setSummary(data.summary || data);
+        if (format === 'csv') {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = isAdmin 
+            ? `attendance_report_${dateRange.startDate}_to_${dateRange.endDate}.csv`
+            : `my_attendance_${dateRange.startDate}_to_${dateRange.endDate}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          toast.success("CSV exported successfully!");
         } else {
-          setSummary(data.summary || data);
+          const data = await response.json();
+          const jsonString = JSON.stringify(data, null, 2);
+          const blob = new Blob([jsonString], { type: 'application/json' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = isAdmin 
+            ? `attendance_report_${dateRange.startDate}_to_${dateRange.endDate}.json`
+            : `my_attendance_${dateRange.startDate}_to_${dateRange.endDate}.json`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          toast.success("JSON exported successfully!");
         }
-      } else if (response.status === 401) {
-        localStorage.clear();
-        router.push("/");
       } else {
-        setSummary(null);
-      }
-      
-      await fetchAttendanceRecords(roleInfo);
-    } catch (err) {
-      console.error("Fetch summary error:", err);
-      setSummary(null);
-      setAttendance([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [dateRange, userId]);
-
-  const fetchAttendanceRecords = useCallback(async (roleInfo) => {
-    try {
-      const token = getToken();
-      
-      if (!token) {
-        return;
-      }
-
-      const query = new URLSearchParams({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        page: currentPage,
-        limit: itemsPerPage,
-        ...(roleInfo.isAdmin && userId && { employeeId: userId })
-      }).toString();
-
-      let endpoint;
-      if (roleInfo.isAdmin) {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${query}`;
-      } else {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/records?${query}`;
-      }
-
-      const response = await fetch(endpoint, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAttendance(data.records || data || []);
-      } else if (response.status === 401) {
-        localStorage.clear();
-        router.push("/");
-      } else {
-        setAttendance([]);
-      }
-    } catch (error) {
-      console.error("Fetch records error:", error);
-      setAttendance([]);
-    }
-  }, [dateRange, userId, currentPage, itemsPerPage]);
-
-  const initializeData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const roleInfo = await fetchUserProfile();
-      
-      if (roleInfo) {
-        setUserRole(roleInfo.role);
-        setIsAdmin(roleInfo.isAdmin);
-        setUserData(roleInfo.userData);
-        
-        if (roleInfo.role === "employee") {
-          await fetchTodayStatus();
-        }
-        
-        await fetchSummary(roleInfo);
-      }
-    } catch (error) {
-      console.error("Initialize data error:", error);
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchTodayStatus, fetchSummary]);
-
-  const handleRefresh = async () => {
-    setLoading(true);
-    try {
-      const roleInfo = { role: userRole, isAdmin, userData };
-      
-      if (userRole === "employee") {
-        await fetchTodayStatus();
-      }
-      
-      await fetchSummary(roleInfo);
-      toast.success("Data refreshed");
-    } catch (error) {
-      console.error("Refresh error:", error);
-      toast.error("Refresh failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleViewDetails = async (attendanceId) => {
-    try {
-      const token = getToken();
-      
-      if (!token) {
-        toast.error("Authentication required");
-        return;
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/records/${attendanceId}`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setClockDetails(data.attendance);
-        setShowRecentDetails(true);
-        
-        toast.success("Attendance details loaded");
-      } else {
-        toast.error("Failed to load attendance details");
+        toast.error("Failed to export data");
       }
     } catch (err) {
-      console.error("View details error:", err);
-      toast.error("Error loading attendance details");
+      console.error("Export error:", err);
+      toast.error("Export failed");
     }
   };
 
-  const toggleDetailsVisibility = () => {
-    setShowRecentDetails(!showRecentDetails);
-  };
-
+  // ===================== INITIALIZE DATA =====================
   useEffect(() => {
     initializeData();
   }, [initializeData]);
 
-  const handleClockIn = async () => {
-    if (userRole !== "employee") {
-      toast.error("Only employees can clock in/out");
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const token = getToken();
-      
-      if (!token) {
-        toast.error("Authentication required");
-        return;
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-in`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          location: "Office",
-          device: navigator.userAgent
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const newStatus = {
-          ...todayStatus,
-          clockedIn: true,
-          clockInTime: data.attendance?.clockIn || new Date().toISOString(),
-          status: "Clocked In"
-        };
-        setTodayStatus(newStatus);
-        
-        if (data.attendance) {
-          setClockDetails(data.attendance);
-        }
-        setShowRecentDetails(true);
-        
-        toast.success(`✓ ${data.message || "Clock In successful"}`);
-        
-        await fetchTodayStatus();
-        const roleInfo = { role: userRole, isAdmin, userData };
-        await fetchSummary(roleInfo);
-      } else {
-        toast.error(data.message || "Failed to clock in");
-      }
-    } catch (err) {
-      console.error("Clock in error:", err);
-      toast.error("Clock In failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleClockOut = async () => {
-    if (userRole !== "employee") {
-      toast.error("Only employees can clock in/out");
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const token = getToken();
-      
-      if (!token) {
-        toast.error("Authentication required");
-        return;
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-out`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          location: "Office",
-          device: navigator.userAgent
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const newStatus = {
-          ...todayStatus,
-          clockedOut: true,
-          clockOutTime: data.attendance?.clockOut || new Date().toISOString(),
-          status: "Present"
-        };
-        setTodayStatus(newStatus);
-        
-        if (data.attendance) {
-          setClockDetails(data.attendance);
-        }
-        setShowRecentDetails(true);
-        
-        toast.success(`✓ ${data.message || "Clock Out successful"}`);
-        
-        await fetchTodayStatus();
-        const roleInfo = { role: userRole, isAdmin, userData };
-        await fetchSummary(roleInfo);
-      } else {
-        toast.error(data.message || "Failed to clock out");
-      }
-    } catch (err) {
-      console.error("Clock out error:", err);
-      toast.error("Clock Out failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ===================== PAGINATION =====================
   const [currentTime, setCurrentTime] = useState(new Date());
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1559,6 +2561,7 @@ const handleSelectEmployee = (employee) => {
   const nextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
   const prevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
 
+  // ===================== FORMATTING FUNCTIONS =====================
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', { 
       hour: '2-digit', 
@@ -1616,69 +2619,7 @@ const handleSelectEmployee = (employee) => {
     return 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  // Export Attendance Data
-  const handleExportData = async (format = 'json') => {
-    try {
-      const token = getToken();
-      
-      if (!token) {
-        toast.error("Authentication required");
-        return;
-      }
-
-      const query = new URLSearchParams({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        format,
-        ...(isAdmin && userId && { employeeId: userId })
-      }).toString();
-
-      const endpoint = isAdmin 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/export?${query}`
-        : `${process.env.NEXT_PUBLIC_API_URL}/export?${query}`;
-
-      const response = await fetch(endpoint, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (response.ok) {
-        if (format === 'csv') {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `attendance_report_${dateRange.startDate}_to_${dateRange.endDate}.csv`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          toast.success("CSV exported successfully!");
-        } else {
-          const data = await response.json();
-          const jsonString = JSON.stringify(data, null, 2);
-          const blob = new Blob([jsonString], { type: 'application/json' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `attendance_report_${dateRange.startDate}_to_${dateRange.endDate}.json`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          toast.success("JSON exported successfully!");
-        }
-      } else {
-        toast.error("Failed to export data");
-      }
-    } catch (err) {
-      console.error("Export error:", err);
-      toast.error("Export failed");
-    }
-  };
-
+  // ===================== LOADING STATE =====================
   if (loading && !userRole) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 flex items-center justify-center">
@@ -1691,71 +2632,156 @@ const handleSelectEmployee = (employee) => {
     );
   }
 
+  // ===================== RENDER =====================
   return (
     <>
       <Toaster position="top-right" />
       
       {/* Employee Selector Modal */}
       {showEmployeeSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden employee-selector">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Select Employee</h2>
-              <button 
-                onClick={() => setShowEmployeeSelector(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X size={24} />
-              </button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 employee-selector">
+          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Select Employee</h2>
+                  <p className="text-gray-500 mt-1">
+                    Search and select employee for {selectorFor === "manual" ? "manual" : "bulk"} attendance
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowEmployeeSelector(false);
+                    setEmployeeSearch("");
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
             
-            <div className="mb-4">
+            {/* Search Bar */}
+            <div className="p-6 border-b border-gray-200 bg-gray-50">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
                   type="text"
                   value={employeeSearch}
                   onChange={(e) => setEmployeeSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                  placeholder="Search by name, ID, or email..."
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 shadow-sm"
+                  placeholder="Search employees by name, ID, email or department..."
+                  autoFocus
                 />
+              </div>
+              <div className="flex items-center justify-between mt-3">
+                <div className="text-sm text-gray-500">
+                  {filteredEmployees.length} of {employees.length} employees
+                </div>
+                <button
+                  onClick={() => fetchEmployees()}
+                  className="text-sm text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                >
+                  <RefreshCw size={14} />
+                  Refresh List
+                </button>
               </div>
             </div>
             
-            <div className="overflow-y-auto max-h-[60vh]">
-              <div className="space-y-2">
-                {filteredEmployees.length === 0 ? (
-                  <div className="text-center py-8">
-                    <UserCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No employees found</p>
-                  </div>
-                ) : (
-                  filteredEmployees.map((employee) => (
+            {/* Employee List */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {filteredEmployees.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-700">No employees found</h3>
+                  <p className="text-gray-500 mt-2">
+                    {employeeSearch ? "Try a different search term" : "No employees available in the system"}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-2">
+                  {filteredEmployees.map((employee) => (
                     <button
                       key={employee._id}
                       onClick={() => handleSelectEmployee(employee)}
-                      className="w-full flex items-center gap-4 p-4 hover:bg-purple-50 rounded-xl transition-all duration-300 text-left"
+                      className={`text-left p-4 rounded-xl border transition-all duration-300 hover:shadow-md ${
+                        selectedEmployee?._id === employee._id
+                          ? 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-300'
+                          : 'bg-white border-gray-200 hover:border-purple-200'
+                      }`}
                     >
-                      <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
-                        {employee.firstName?.[0]}{employee.lastName?.[0]}
+                      <div className="flex items-start gap-4">
+                        <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 ${
+                          selectedEmployee?._id === employee._id
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600'
+                            : 'bg-gradient-to-r from-gray-600 to-gray-800'
+                        }`}>
+                          {employee.firstName?.[0]}{employee.lastName?.[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h3 className="font-semibold text-gray-900 truncate">
+                                {employee.firstName} {employee.lastName}
+                              </h3>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">
+                                  ID: {employee.employeeId}
+                                </span>
+                                <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                  employee.status === 'active'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {employee.status}
+                                </span>
+                              </div>
+                            </div>
+                            {selectedEmployee?._id === employee._id && (
+                              <CheckCircle className="text-green-500 flex-shrink-0" size={20} />
+                            )}
+                          </div>
+                          
+                          <div className="mt-3 space-y-2">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <BriefcaseIcon size={14} />
+                              <span className="truncate">{employee.position || 'No Position'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <MapPin size={14} />
+                              <span className="truncate">{employee.department || 'No Department'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Mail size={14} />
+                              <span className="truncate">{employee.email}</span>
+                            </div>
+                            {employee.phone && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Phone size={14} />
+                                <span>{employee.phone}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900">
-                          {employee.firstName} {employee.lastName}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {employee.employeeId} • {employee.department || 'No Department'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {employee.email}
-                        </div>
-                      </div>
-                      {selectedEmployee?._id === employee._id && (
-                        <CheckCircle className="text-green-500" size={20} />
-                      )}
                     </button>
-                  ))
-                )}
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-500">
+                  {selectorFor === "manual" ? "Manual Attendance" : "Bulk Attendance"}
+                </div>
+                <button
+                  onClick={() => setShowEmployeeSelector(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
@@ -1763,548 +2789,1055 @@ const handleSelectEmployee = (employee) => {
       )}
 
       {/* Manual Attendance Modal */}
-{showManualAttendanceModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Create Manual Attendance</h2>
-        <button 
-          onClick={() => {
-            setShowManualAttendanceModal(false);
-            setSelectedEmployee(null);
-          }}
-          className="p-2 hover:bg-gray-100 rounded-lg"
-        >
-          <XCircle size={24} />
-        </button>
-      </div>
-      
-      {/* Employee Selection */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee *</label>
-        <div className="relative">
-          <button
-            onClick={() => setShowEmployeeSelector(true)}
-            className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              {selectedEmployee ? (
-                <>
-                  <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
-                    {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-900">
-                      {selectedEmployee.firstName} {selectedEmployee.lastName}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {selectedEmployee.employeeId} • {selectedEmployee.department || 'No Department'}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center gap-2 text-gray-500">
-                  <UserCircle size={20} />
-                  <span>Click to select employee *</span>
-                </div>
-              )}
-            </div>
-            <ChevronDown size={20} />
-          </button>
-          {!selectedEmployee && (
-            <p className="text-red-500 text-sm mt-1">Employee selection is required</p>
-          )}
-        </div>
-      </div>
-      
-      {selectedEmployee && (
-        <div className="space-y-4">
-          {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
-              <input
-                type="date"
-                value={manualAttendanceData.date}
-                onChange={(e) => setManualAttendanceData({...manualAttendanceData, date: e.target.value})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status *</label>
-              <select
-                value={manualAttendanceData.status}
-                onChange={(e) => setManualAttendanceData({...manualAttendanceData, status: e.target.value})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                required
+      {showManualAttendanceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Create Manual Attendance</h2>
+              <button 
+                onClick={() => {
+                  setShowManualAttendanceModal(false);
+                  setSelectedEmployee(null);
+                  setEmployeeSearch("");
+                  setManualAttendanceData({
+                    employeeId: "",
+                    employeeName: "",
+                    date: new Date().toISOString().split('T')[0],
+                    clockIn: "09:00",
+                    clockOut: "18:00",
+                    status: "Present",
+                    shiftStart: "09:00",
+                    shiftEnd: "18:00",
+                    remarks: "Created by admin",
+                    isHoliday: false,
+                    holidayType: null
+                  });
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
               >
-                <option value="">Select Status</option>
-                <option value="Present">Present</option>
-                <option value="Absent">Absent</option>
-                <option value="Leave">Leave</option>
-                <option value="Late">Late</option>
-                <option value="Govt Holiday">Govt Holiday</option>
-                <option value="Weekly Off">Weekly Off</option>
-                <option value="Off Day">Off Day</option>
-                <option value="Half Day">Half Day</option>
-              </select>
-            </div>
-          </div>
-          
-          {/* Time Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Clock In Time {manualAttendanceData.status === 'Present' && '*'}
-              </label>
-              <input
-                type="time"
-                value={manualAttendanceData.clockIn}
-                onChange={(e) => setManualAttendanceData({...manualAttendanceData, clockIn: e.target.value})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                disabled={['Absent', 'Leave', 'Govt Holiday', 'Weekly Off', 'Off Day'].includes(manualAttendanceData.status)}
-              />
-              {['Absent', 'Leave', 'Govt Holiday', 'Weekly Off', 'Off Day'].includes(manualAttendanceData.status) && (
-                <p className="text-gray-500 text-xs mt-1">Disabled for selected status</p>
-              )}
+                <XCircle size={24} />
+              </button>
             </div>
             
-            <div>
+            {/* Employee Search */}
+            <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Clock Out Time {manualAttendanceData.status === 'Present' && '*'}
+                Search Employee *
+                {selectedEmployee && (
+                  <span className="ml-2 text-green-600 text-sm font-normal">
+                    ✓ Selected
+                  </span>
+                )}
               </label>
-              <input
-                type="time"
-                value={manualAttendanceData.clockOut}
-                onChange={(e) => setManualAttendanceData({...manualAttendanceData, clockOut: e.target.value})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                disabled={['Absent', 'Leave', 'Govt Holiday', 'Weekly Off', 'Off Day'].includes(manualAttendanceData.status)}
-              />
-              {['Absent', 'Leave', 'Govt Holiday', 'Weekly Off', 'Off Day'].includes(manualAttendanceData.status) && (
-                <p className="text-gray-500 text-xs mt-1">Disabled for selected status</p>
-              )}
-            </div>
-          </div>
-          
-          {/* Shift Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Shift Start Time</label>
-              <input
-                type="time"
-                value={manualAttendanceData.shiftStart}
-                onChange={(e) => setManualAttendanceData({...manualAttendanceData, shiftStart: e.target.value})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Shift End Time</label>
-              <input
-                type="time"
-                value={manualAttendanceData.shiftEnd}
-                onChange={(e) => setManualAttendanceData({...manualAttendanceData, shiftEnd: e.target.value})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              />
-            </div>
-          </div>
-          
-          {/* Holiday Information (if applicable) */}
-          {manualAttendanceData.status === 'Govt Holiday' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Holiday Type</label>
-                <select
-                  value={manualAttendanceData.holidayType || ''}
-                  onChange={(e) => setManualAttendanceData({...manualAttendanceData, holidayType: e.target.value})}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                >
-                  <option value="">Select Holiday Type</option>
-                  <option value="National">National Holiday</option>
-                  <option value="Regional">Regional Holiday</option>
-                  <option value="Religious">Religious Holiday</option>
-                  <option value="Company">Company Holiday</option>
-                </select>
-              </div>
-              <div className="flex items-center mt-6">
+              
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
-                  type="checkbox"
-                  id="isHoliday"
-                  checked={manualAttendanceData.isHoliday}
-                  onChange={(e) => setManualAttendanceData({...manualAttendanceData, isHoliday: e.target.checked})}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  type="text"
+                  value={employeeSearch}
+                  onChange={(e) => {
+                    setEmployeeSearch(e.target.value);
+                  }}
+                  className="w-full pl-12 pr-10 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                  placeholder="Search employee by name or ID..."
+                  autoFocus
                 />
-                <label htmlFor="isHoliday" className="ml-2 text-sm text-gray-700">
-                  Mark as Paid Holiday
-                </label>
+                {employeeSearch && (
+                  <button
+                    onClick={() => setEmployeeSearch("")}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
               </div>
-            </div>
-          )}
-          
-          {/* Remarks */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
-            <textarea
-              value={manualAttendanceData.remarks}
-              onChange={(e) => setManualAttendanceData({...manualAttendanceData, remarks: e.target.value})}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              rows="3"
-              placeholder="Enter remarks or reason for manual entry..."
-            />
-          </div>
-          
-          {/* Preview Card */}
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="text-green-600" size={20} />
-              <p className="text-sm font-medium text-green-800">Preview</p>
-            </div>
-            <div className="text-sm text-green-700 space-y-1">
-              <p>
-                <span className="font-medium">Employee:</span> {selectedEmployee.firstName} {selectedEmployee.lastName}
-              </p>
-              <p>
-                <span className="font-medium">Date:</span> {new Date(manualAttendanceData.date).toLocaleDateString('en-US', { 
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </p>
-              <p>
-                <span className="font-medium">Status:</span> {manualAttendanceData.status}
-              </p>
-              {manualAttendanceData.clockIn && (
-                <p>
-                  <span className="font-medium">Clock In:</span> {manualAttendanceData.clockIn}
-                </p>
-              )}
-              {manualAttendanceData.clockOut && (
-                <p>
-                  <span className="font-medium">Clock Out:</span> {manualAttendanceData.clockOut}
-                </p>
-              )}
-              {manualAttendanceData.remarks && (
-                <p>
-                  <span className="font-medium">Remarks:</span> {manualAttendanceData.remarks}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-        <button
-          onClick={() => {
-            setShowManualAttendanceModal(false);
-            setSelectedEmployee(null);
-          }}
-          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleCreateManualAttendance}
-          disabled={loading || !selectedEmployee || !manualAttendanceData.date || !manualAttendanceData.status}
-          className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus size={20} />
-          {loading ? (
-            <>
-              <Loader2 size={20} className="animate-spin" />
-              Creating...
-            </>
-          ) : (
-            "Create Attendance"
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-      {/* Bulk Attendance Modal */}
-{showBulkAttendanceModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Create Bulk Attendance</h2>
-        <button 
-          onClick={() => {
-            setShowBulkAttendanceModal(false);
-            setSelectedEmployee(null);
-          }}
-          className="p-2 hover:bg-gray-100 rounded-lg"
-        >
-          <XCircle size={24} />
-        </button>
-      </div>
-      
-      {/* Employee Selection */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee *</label>
-        <div className="relative">
-          <button
-            onClick={() => setShowEmployeeSelector(true)}
-            className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              {selectedEmployee ? (
-                <>
-                  <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
-                    {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
+              
+              {/* Search Results Dropdown */}
+              {employeeSearch && !selectedEmployee && (
+                <div className="relative z-10">
+                  <div className="absolute mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                    {filteredEmployees.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">
+                        No employees found for "{employeeSearch}"
+                      </div>
+                    ) : (
+                      filteredEmployees.map((employee) => (
+                        <button
+                          key={employee._id}
+                          onClick={() => handleSelectEmployee(employee)}
+                          className="w-full text-left p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors flex items-center gap-3"
+                        >
+                          <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                            {employee.firstName?.[0]}{employee.lastName?.[0]}
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {employee.firstName} {employee.lastName}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              ID: {employee.employeeId} • {employee.department || 'No Department'}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
                   </div>
-                  <div>
-                    <div className="font-medium text-gray-900">
-                      {selectedEmployee.firstName} {selectedEmployee.lastName}
+                </div>
+              )}
+              
+              {/* Selected Employee Display */}
+              {selectedEmployee && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
+                        {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900">
+                          {selectedEmployee.firstName} {selectedEmployee.lastName}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          ID: {selectedEmployee.employeeId} • {selectedEmployee.department || 'No Department'}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {selectedEmployee.employeeId} • {selectedEmployee.department || 'No Department'}
-                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedEmployee(null);
+                        setEmployeeSearch("");
+                        setManualAttendanceData(prev => ({
+                          ...prev,
+                          employeeId: "",
+                          employeeName: ""
+                        }));
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-500"
+                    >
+                      <X size={20} />
+                    </button>
                   </div>
-                </>
-              ) : (
-                <div className="flex items-center gap-2 text-gray-500">
-                  <UserCircle size={20} />
-                  <span>Click to select employee *</span>
+                </div>
+              )}
+              
+              {!selectedEmployee && (
+                <p className="text-red-500 text-sm mt-2">
+                  ⚠️ Please search and select an employee
+                </p>
+              )}
+            </div>
+            
+            {/* Auto-detect status based on date */}
+            <div className="mb-4">
+              {manualAttendanceData.date && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="text-blue-600" size={16} />
+                    <span className="text-sm font-medium text-blue-800">Date Analysis:</span>
+                    <span className="text-sm font-bold text-blue-700 ml-1">
+                      {getAutoStatus(manualAttendanceData.date)}
+                    </span>
+                  </div>
+                  {isWeekend(manualAttendanceData.date) && (
+                    <div className="text-xs text-purple-600 mt-1">
+                      ⓘ This is a weekend (no clock in/out required)
+                    </div>
+                  )}
+                  {isHolidayDate(manualAttendanceData.date) && (
+                    <div className="text-xs text-purple-600 mt-1">
+                      ⓘ This is a holiday (no clock in/out required)
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-            <ChevronDown size={20} />
-          </button>
-          {!selectedEmployee && (
-            <p className="text-red-500 text-sm mt-1">Employee selection is required</p>
-          )}
-        </div>
-      </div>
-      
-      {selectedEmployee && (
-        <div className="space-y-6">
-          {/* Month and Year Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
-              <select
-                value={bulkAttendanceData.month}
-                onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, month: parseInt(e.target.value)})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              >
-                {Array.from({length: 12}, (_, i) => i + 1).map(month => (
-                  <option key={month} value={month}>
-                    {new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' })}
-                  </option>
-                ))}
-              </select>
-            </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
-              <input
-                type="number"
-                value={bulkAttendanceData.year}
-                onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, year: parseInt(e.target.value)})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                placeholder="YYYY"
-                min="2000"
-                max="2100"
-              />
-            </div>
-          </div>
-          
-          {/* Default Shift Timings */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Default Shift Start</label>
-              <input
-                type="time"
-                value={bulkAttendanceData.defaultShiftStart}
-                onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, defaultShiftStart: e.target.value})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Default Shift End</label>
-              <input
-                type="time"
-                value={bulkAttendanceData.defaultShiftEnd}
-                onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, defaultShiftEnd: e.target.value})}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              />
-            </div>
-          </div>
-          
-          {/* Options */}
-          <div className="flex flex-wrap gap-4">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="skipWeekends"
-                checked={bulkAttendanceData.skipWeekends}
-                onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, skipWeekends: e.target.checked})}
-                className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-              />
-              <label htmlFor="skipWeekends" className="ml-2 text-sm text-gray-700">
-                Skip Saturdays and Sundays
-              </label>
-            </div>
-            
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="markAllAsPresent"
-                checked={bulkAttendanceData.markAllAsPresent}
-                onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, markAllAsPresent: e.target.checked})}
-                className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-              />
-              <label htmlFor="markAllAsPresent" className="ml-2 text-sm text-gray-700">
-                Mark all days as Present
-              </label>
-            </div>
-          </div>
-          
-          {/* Special Dates Management */}
-          <div className="bg-gray-50 rounded-xl p-4">
-            <h3 className="font-medium text-gray-700 mb-3">Special Dates Management</h3>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={addHoliday}
-                className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm"
-              >
-                + Add Holiday
-              </button>
-              <button
-                type="button"
-                onClick={addLeaveDate}
-                className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
-              >
-                + Add Leave Date
-              </button>
-              <button
-                type="button"
-                onClick={addWorkingDay}
-                className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
-              >
-                + Add Working Day
-              </button>
-            </div>
-            
-            {/* Display added dates */}
-            {(bulkAttendanceData.holidays.length > 0 || bulkAttendanceData.leaveDates.length > 0 || bulkAttendanceData.workingDays.length > 0) && (
-              <div className="mt-4 space-y-2">
-                {bulkAttendanceData.holidays.length > 0 && (
+            {/* Attendance Form Fields */}
+            {selectedEmployee && (
+              <div className="space-y-4">
+                {/* Basic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <span className="text-sm font-medium text-purple-600">Holidays:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {bulkAttendanceData.holidays.map((holiday, index) => (
-                        <span key={index} className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded">
-                          {holiday.date} ({holiday.type})
-                        </span>
-                      ))}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                    <input
+                      type="date"
+                      value={manualAttendanceData.date}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        const autoStatus = getAutoStatus(newDate);
+                        setManualAttendanceData({
+                          ...manualAttendanceData, 
+                          date: newDate,
+                          status: autoStatus
+                        });
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status *</label>
+                    <select
+                      value={manualAttendanceData.status}
+                      onChange={(e) => setManualAttendanceData({...manualAttendanceData, status: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                      required
+                    >
+                      <option value="">Select Status</option>
+                      <option value="Present">Present</option>
+                      <option value="Absent">Absent</option>
+                      <option value="Leave">Leave</option>
+                      <option value="Late">Late</option>
+                      <option value="Govt Holiday">Govt Holiday</option>
+                      <option value="Weekly Off">Weekly Off</option>
+                      <option value="Off Day">Off Day</option>
+                      <option value="Half Day">Half Day</option>
+                    </select>
+                  </div>
+                </div>
+                
+                {/* Time Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Clock In Time 
+                      {manualAttendanceData.status === 'Present' && '*'}
+                      {(manualAttendanceData.status === 'Govt Holiday' || 
+                        manualAttendanceData.status === 'Weekly Off' || 
+                        manualAttendanceData.status === 'Off Day') && (
+                        <span className="text-xs text-gray-500 ml-2">(Auto: No clock required)</span>
+                      )}
+                    </label>
+                    <input
+                      type="time"
+                      value={manualAttendanceData.clockIn}
+                      onChange={(e) => {
+                        const time = e.target.value;
+                        if (time && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+                          toast.error("Please enter a valid time in HH:mm format");
+                          return;
+                        }
+                        
+                        if (manualAttendanceData.clockOut && time) {
+                          const clockIn = new Date(`2000-01-01T${time}:00`);
+                          const clockOut = new Date(`2000-01-01T${manualAttendanceData.clockOut}:00`);
+                          if (clockIn >= clockOut) {
+                            toast.error("Clock in time must be before clock out time");
+                            return;
+                          }
+                        }
+                        
+                        setManualAttendanceData({...manualAttendanceData, clockIn: time});
+                      }}
+                      className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 ${
+                        (manualAttendanceData.status === 'Govt Holiday' || 
+                         manualAttendanceData.status === 'Weekly Off' || 
+                         manualAttendanceData.status === 'Off Day') ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      disabled={manualAttendanceData.status === 'Govt Holiday' || 
+                                manualAttendanceData.status === 'Weekly Off' || 
+                                manualAttendanceData.status === 'Off Day' || 
+                                manualAttendanceData.status === 'Absent' || 
+                                manualAttendanceData.status === 'Leave'}
+                    />
+                    {manualAttendanceData.clockIn && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Selected: {manualAttendanceData.clockIn}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Clock Out Time 
+                      {manualAttendanceData.status === 'Present' && '*'}
+                      {(manualAttendanceData.status === 'Govt Holiday' || 
+                        manualAttendanceData.status === 'Weekly Off' || 
+                        manualAttendanceData.status === 'Off Day') && (
+                        <span className="text-xs text-gray-500 ml-2">(Auto: No clock required)</span>
+                      )}
+                    </label>
+                    <input
+                      type="time"
+                      value={manualAttendanceData.clockOut}
+                      onChange={(e) => {
+                        const time = e.target.value;
+                        if (time && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+                          toast.error("Please enter a valid time in HH:mm format");
+                          return;
+                        }
+                        
+                        if (manualAttendanceData.clockIn && time) {
+                          const clockIn = new Date(`2000-01-01T${manualAttendanceData.clockIn}:00`);
+                          const clockOut = new Date(`2000-01-01T${time}:00`);
+                          if (clockOut <= clockIn) {
+                            toast.error("Clock out time must be after clock in time");
+                            return;
+                          }
+                        }
+                        
+                        setManualAttendanceData({...manualAttendanceData, clockOut: time});
+                      }}
+                      className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 ${
+                        (manualAttendanceData.status === 'Govt Holiday' || 
+                         manualAttendanceData.status === 'Weekly Off' || 
+                         manualAttendanceData.status === 'Off Day') ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      disabled={manualAttendanceData.status === 'Govt Holiday' || 
+                                manualAttendanceData.status === 'Weekly Off' || 
+                                manualAttendanceData.status === 'Off Day' || 
+                                manualAttendanceData.status === 'Absent' || 
+                                manualAttendanceData.status === 'Leave'}
+                    />
+                    {manualAttendanceData.clockOut && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Selected: {manualAttendanceData.clockOut}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Shift Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Shift Start Time *</label>
+                    <input
+                      type="time"
+                      value={manualAttendanceData.shiftStart}
+                      onChange={(e) => {
+                        const time = e.target.value;
+                        if (time && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+                          toast.error("Please enter a valid time in HH:mm format");
+                          return;
+                        }
+                        
+                        if (manualAttendanceData.shiftEnd && time) {
+                          const shiftStart = new Date(`2000-01-01T${time}:00`);
+                          const shiftEnd = new Date(`2000-01-01T${manualAttendanceData.shiftEnd}:00`);
+                          if (shiftStart >= shiftEnd) {
+                            toast.error("Shift start time must be before shift end time");
+                            return;
+                          }
+                        }
+                        
+                        setManualAttendanceData({...manualAttendanceData, shiftStart: time});
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                      required
+                    />
+                    {manualAttendanceData.shiftStart && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Selected: {manualAttendanceData.shiftStart}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Shift End Time *</label>
+                    <input
+                      type="time"
+                      value={manualAttendanceData.shiftEnd}
+                      onChange={(e) => {
+                        const time = e.target.value;
+                        if (time && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+                          toast.error("Please enter a valid time in HH:mm format");
+                          return;
+                        }
+                        
+                        if (manualAttendanceData.shiftStart && time) {
+                          const shiftStart = new Date(`2000-01-01T${manualAttendanceData.shiftStart}:00`);
+                          const shiftEnd = new Date(`2000-01-01T${time}:00`);
+                          if (shiftEnd <= shiftStart) {
+                            toast.error("Shift end time must be after shift start time");
+                            return;
+                          }
+                        }
+                        
+                        setManualAttendanceData({...manualAttendanceData, shiftEnd: time});
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                      required
+                    />
+                    {manualAttendanceData.shiftEnd && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Selected: {manualAttendanceData.shiftEnd}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Time Validation Summary */}
+                {(manualAttendanceData.clockIn || manualAttendanceData.clockOut || manualAttendanceData.shiftStart || manualAttendanceData.shiftEnd) && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Time Validation Summary</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      {manualAttendanceData.clockIn && manualAttendanceData.clockOut && (
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            (() => {
+                              const clockIn = new Date(`2000-01-01T${manualAttendanceData.clockIn}:00`);
+                              const clockOut = new Date(`2000-01-01T${manualAttendanceData.clockOut}:00`);
+                              return clockOut > clockIn ? 'bg-green-500' : 'bg-red-500';
+                            })()
+                          }`}></div>
+                          <span className="text-gray-600">Clock In/Out:</span>
+                          <span className="font-medium">
+                            {manualAttendanceData.clockIn} - {manualAttendanceData.clockOut}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {manualAttendanceData.shiftStart && manualAttendanceData.shiftEnd && (
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            (() => {
+                              const shiftStart = new Date(`2000-01-01T${manualAttendanceData.shiftStart}:00`);
+                              const shiftEnd = new Date(`2000-01-01T${manualAttendanceData.shiftEnd}:00`);
+                              return shiftEnd > shiftStart ? 'bg-green-500' : 'bg-red-500';
+                            })()
+                          }`}></div>
+                          <span className="text-gray-600">Shift:</span>
+                          <span className="font-medium">
+                            {manualAttendanceData.shiftStart} - {manualAttendanceData.shiftEnd}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {manualAttendanceData.clockIn && manualAttendanceData.shiftStart && (
+                        <div className="text-xs text-gray-500">
+                          Clock In vs Shift Start: {
+                            (() => {
+                              const clockIn = new Date(`2000-01-01T${manualAttendanceData.clockIn}:00`);
+                              const shiftStart = new Date(`2000-01-01T${manualAttendanceData.shiftStart}:00`);
+                              const diffMinutes = (clockIn - shiftStart) / (1000 * 60);
+                              
+                              if (diffMinutes === 0) return "✅ On time";
+                              if (diffMinutes > 0) return `⚠️ Late by ${diffMinutes} minutes`;
+                              return `✅ Early by ${Math.abs(diffMinutes)} minutes`;
+                            })()
+                          }
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
                 
-                {bulkAttendanceData.leaveDates.length > 0 && (
-                  <div>
-                    <span className="text-sm font-medium text-blue-600">Leave Dates:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {bulkAttendanceData.leaveDates.map((date, index) => (
-                        <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
-                          {date}
-                        </span>
-                      ))}
+                {/* Holiday Information */}
+                {manualAttendanceData.status === 'Govt Holiday' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Holiday Type</label>
+                      <select
+                        value={manualAttendanceData.holidayType || ''}
+                        onChange={(e) => setManualAttendanceData({...manualAttendanceData, holidayType: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                      >
+                        <option value="">Select Holiday Type</option>
+                        <option value="National">National Holiday</option>
+                        <option value="Regional">Regional Holiday</option>
+                        <option value="Religious">Religious Holiday</option>
+                        <option value="Company">Company Holiday</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center mt-6">
+                      <input
+                        type="checkbox"
+                        id="isHoliday"
+                        checked={manualAttendanceData.isHoliday}
+                        onChange={(e) => setManualAttendanceData({...manualAttendanceData, isHoliday: e.target.checked})}
+                        className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                      />
+                      <label htmlFor="isHoliday" className="ml-2 text-sm text-gray-700">
+                        Mark as Paid Holiday
+                      </label>
                     </div>
                   </div>
                 )}
                 
-                {bulkAttendanceData.workingDays.length > 0 && (
-                  <div>
-                    <span className="text-sm font-medium text-green-600">Working Days:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {bulkAttendanceData.workingDays.map((date, index) => (
-                        <span key={index} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
-                          {date}
-                        </span>
-                      ))}
-                    </div>
+                {/* Remarks */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+                  <textarea
+                    value={manualAttendanceData.remarks}
+                    onChange={(e) => setManualAttendanceData({...manualAttendanceData, remarks: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                    rows="3"
+                    placeholder="Enter remarks or reason for manual entry..."
+                  />
+                </div>
+                
+                {/* Preview Card */}
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="text-green-600" size={20} />
+                    <p className="text-sm font-medium text-green-800">Preview</p>
                   </div>
-                )}
+                  <div className="text-sm text-green-700 space-y-1">
+                    <p>
+                      <span className="font-medium">Employee:</span> {selectedEmployee.firstName} {selectedEmployee.lastName}
+                    </p>
+                    <p>
+                      <span className="font-medium">Date:</span> {new Date(manualAttendanceData.date).toLocaleDateString('en-US', { 
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                    <p>
+                      <span className="font-medium">Status:</span> {manualAttendanceData.status}
+                      {(manualAttendanceData.status === 'Govt Holiday' || manualAttendanceData.status === 'Weekly Off') && (
+                        <span className="text-xs text-purple-600 ml-2">(Auto-detected)</span>
+                      )}
+                    </p>
+                    {manualAttendanceData.clockIn && (
+                      <p>
+                        <span className="font-medium">Clock In:</span> {manualAttendanceData.clockIn}
+                      </p>
+                    )}
+                    {manualAttendanceData.clockOut && (
+                      <p>
+                        <span className="font-medium">Clock Out:</span> {manualAttendanceData.clockOut}
+                      </p>
+                    )}
+                    {(manualAttendanceData.status === 'Govt Holiday' || manualAttendanceData.status === 'Weekly Off') && (
+                      <p className="text-xs text-green-600">
+                        ✓ No clock in/out required for this status
+                      </p>
+                    )}
+                    {manualAttendanceData.remarks && (
+                      <p>
+                        <span className="font-medium">Remarks:</span> {manualAttendanceData.remarks}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
-          </div>
-          
-          {/* Preview Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar className="text-blue-600" size={20} />
-              <p className="text-sm font-medium text-blue-800">Preview</p>
+            
+            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowManualAttendanceModal(false);
+                  setSelectedEmployee(null);
+                  setEmployeeSearch("");
+                }}
+                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateManualAttendance}
+                disabled={
+                  loading || 
+                  !selectedEmployee || 
+                  !manualAttendanceData.date || 
+                  !manualAttendanceData.status ||
+                  !manualAttendanceData.shiftStart ||
+                  !manualAttendanceData.shiftEnd ||
+                  !validateTimeOrder(manualAttendanceData.shiftStart, manualAttendanceData.shiftEnd) ||
+                  (manualAttendanceData.clockIn && manualAttendanceData.clockOut && 
+                   !validateTimeOrder(manualAttendanceData.clockIn, manualAttendanceData.clockOut))
+                }
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Plus size={20} />
+                {loading ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Attendance"
+                )}
+              </button>
             </div>
-            <div className="text-sm text-blue-700 space-y-1">
-              <p>
-                <span className="font-medium">Employee:</span> {selectedEmployee.firstName} {selectedEmployee.lastName}
-              </p>
-              <p>
-                <span className="font-medium">Period:</span> {new Date(bulkAttendanceData.year, bulkAttendanceData.month - 1, 1).toLocaleString('default', { month: 'long' })} {bulkAttendanceData.year}
-              </p>
-              <p>
-                <span className="font-medium">Shift:</span> {bulkAttendanceData.defaultShiftStart} - {bulkAttendanceData.defaultShiftEnd}
-              </p>
-              <p>
-                <span className="font-medium">Options:</span> {bulkAttendanceData.skipWeekends ? 'Skip weekends, ' : ''} {bulkAttendanceData.markAllAsPresent ? 'Mark all as Present' : 'Based on actual dates'}
-              </p>
-            </div>
-          </div>
-          
-          {/* Warning Note */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="text-yellow-600" size={20} />
-              <p className="text-sm font-medium text-yellow-800">Important Note</p>
-            </div>
-            <ul className="text-sm text-yellow-700 space-y-1 list-disc pl-4">
-              <li>This will create or update attendance records for all days in the selected month</li>
-              <li>Existing records will be updated with new data</li>
-              <li>New records will be created for missing dates</li>
-              <li>This action cannot be undone easily</li>
-            </ul>
           </div>
         </div>
       )}
-      
-      <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-        <button
-          onClick={() => {
-            setShowBulkAttendanceModal(false);
-            setSelectedEmployee(null);
-          }}
-          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleCreateBulkAttendance}
-          disabled={loading || !selectedEmployee || !bulkAttendanceData.month || !bulkAttendanceData.year}
-          className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <FileSpreadsheet size={20} />
-          {loading ? (
-            <>
-              <Loader2 size={20} className="animate-spin" />
-              Processing...
-            </>
-          ) : (
-            "Create Bulk Attendance"
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+
+      {/* Bulk Attendance Modal */}
+      {showBulkAttendanceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Create Bulk Attendance</h2>
+              <button 
+                onClick={() => {
+                  setShowBulkAttendanceModal(false);
+                  setSelectedEmployee(null);
+                  setEmployeeSearch("");
+                  setBulkAttendanceData({
+                    employeeId: "",
+                    employeeName: "",
+                    month: new Date().getMonth() + 1,
+                    year: new Date().getFullYear(),
+                    defaultShiftStart: "09:00",
+                    defaultShiftEnd: "18:00",
+                    holidays: [],
+                    leaveDates: [],
+                    workingDays: [],
+                    markAllAsPresent: false,
+                    skipWeekends: true
+                  });
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <XCircle size={24} />
+              </button>
+            </div>
+            
+            {/* Employee Search */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search Employee *
+                {selectedEmployee && (
+                  <span className="ml-2 text-green-600 text-sm font-normal">
+                    ✓ Selected
+                  </span>
+                )}
+              </label>
+              
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  value={employeeSearch}
+                  onChange={(e) => {
+                    setEmployeeSearch(e.target.value);
+                  }}
+                  className="w-full pl-12 pr-10 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                  placeholder="Search employee by name or ID..."
+                  autoFocus
+                />
+                {employeeSearch && (
+                  <button
+                    onClick={() => setEmployeeSearch("")}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+              
+              {/* Search Results Dropdown */}
+              {employeeSearch && !selectedEmployee && (
+                <div className="relative z-10">
+                  <div className="absolute mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                    {filteredEmployees.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">
+                        No employees found for "{employeeSearch}"
+                      </div>
+                    ) : (
+                      filteredEmployees.map((employee) => (
+                        <button
+                          key={employee._id}
+                          onClick={() => handleSelectEmployee(employee)}
+                          className="w-full text-left p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors flex items-center gap-3"
+                        >
+                          <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                            {employee.firstName?.[0]}{employee.lastName?.[0]}
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {employee.firstName} {employee.lastName}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              ID: {employee.employeeId} • {employee.department || 'No Department'}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Selected Employee Display */}
+              {selectedEmployee && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
+                        {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900">
+                          {selectedEmployee.firstName} {selectedEmployee.lastName}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          ID: {selectedEmployee.employeeId} • {selectedEmployee.department || 'No Department'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedEmployee(null);
+                        setEmployeeSearch("");
+                        setBulkAttendanceData(prev => ({
+                          ...prev,
+                          employeeId: "",
+                          employeeName: ""
+                        }));
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-500"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {!selectedEmployee && (
+                <p className="text-red-500 text-sm mt-2">
+                  ⚠️ Please search and select an employee
+                </p>
+              )}
+            </div>
+            
+            {/* Bulk Attendance Form Fields */}
+            {selectedEmployee && (
+              <div className="space-y-6">
+                {/* Month and Year Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
+                    <select
+                      value={bulkAttendanceData.month}
+                      onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, month: parseInt(e.target.value)})}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                    >
+                      {Array.from({length: 12}, (_, i) => i + 1).map(month => (
+                        <option key={month} value={month}>
+                          {new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
+                    <input
+                      type="number"
+                      value={bulkAttendanceData.year}
+                      onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, year: parseInt(e.target.value)})}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                      placeholder="YYYY"
+                      min="2000"
+                      max="2100"
+                    />
+                  </div>
+                </div>
+                
+                {/* Default Shift Timings */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Default Shift Start *</label>
+                    <input
+                      type="time"
+                      value={bulkAttendanceData.defaultShiftStart}
+                      onChange={(e) => {
+                        const time = e.target.value;
+                        if (time && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+                          toast.error("Please enter a valid time in HH:mm format");
+                          return;
+                        }
+                        setBulkAttendanceData({...bulkAttendanceData, defaultShiftStart: time});
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                      required
+                    />
+                    {bulkAttendanceData.defaultShiftStart && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Selected: {bulkAttendanceData.defaultShiftStart}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Default Shift End *</label>
+                    <input
+                      type="time"
+                      value={bulkAttendanceData.defaultShiftEnd}
+                      onChange={(e) => {
+                        const time = e.target.value;
+                        if (time && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+                          toast.error("Please enter a valid time in HH:mm format");
+                          return;
+                        }
+                        
+                        if (bulkAttendanceData.defaultShiftStart && time) {
+                          const start = new Date(`2000-01-01T${bulkAttendanceData.defaultShiftStart}:00`);
+                          const end = new Date(`2000-01-01T${time}:00`);
+                          if (end <= start) {
+                            toast.error("Shift end time must be after shift start time");
+                            return;
+                          }
+                        }
+                        
+                        setBulkAttendanceData({...bulkAttendanceData, defaultShiftEnd: time});
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                      required
+                    />
+                    {bulkAttendanceData.defaultShiftEnd && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Selected: {bulkAttendanceData.defaultShiftEnd}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Additional validation for shift timing difference */}
+                {bulkAttendanceData.defaultShiftStart && bulkAttendanceData.defaultShiftEnd && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="text-blue-600" size={16} />
+                      <span className="text-sm font-medium text-blue-800">Shift Duration:</span>
+                      <span className="text-sm font-bold text-blue-700 ml-1">
+                        {(() => {
+                          const start = new Date(`2000-01-01T${bulkAttendanceData.defaultShiftStart}:00`);
+                          const end = new Date(`2000-01-01T${bulkAttendanceData.defaultShiftEnd}:00`);
+                          const diffHours = (end - start) / (1000 * 60 * 60);
+                          return `${diffHours.toFixed(2)} hours`;
+                        })()}
+                      </span>
+                    </div>
+                    {(() => {
+                      const start = new Date(`2000-01-01T${bulkAttendanceData.defaultShiftStart}:00`);
+                      const end = new Date(`2000-01-01T${bulkAttendanceData.defaultShiftEnd}:00`);
+                      const diffHours = (end - start) / (1000 * 60 * 60);
+                      
+                      if (diffHours < 1) {
+                        return (
+                          <div className="text-xs text-yellow-600 mt-1">
+                            ⚠️ Shift duration is less than 1 hour
+                          </div>
+                        );
+                      } else if (diffHours > 12) {
+                        return (
+                          <div className="text-xs text-yellow-600 mt-1">
+                            ⚠️ Shift duration is more than 12 hours
+                          </div>
+                        );
+                      } else if (diffHours < 4) {
+                        return (
+                          <div className="text-xs text-blue-600 mt-1">
+                            ℹ️ Considered as Half Day shift
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                )}
+                
+                {/* Options */}
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="skipWeekends"
+                      checked={bulkAttendanceData.skipWeekends}
+                      onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, skipWeekends: e.target.checked})}
+                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                    />
+                    <label htmlFor="skipWeekends" className="ml-2 text-sm text-gray-700">
+                      Skip Saturdays and Sundays
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="markAllAsPresent"
+                      checked={bulkAttendanceData.markAllAsPresent}
+                      onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, markAllAsPresent: e.target.checked})}
+                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                    />
+                    <label htmlFor="markAllAsPresent" className="ml-2 text-sm text-gray-700">
+                      Mark all days as Present
+                    </label>
+                  </div>
+                </div>
+                
+                {/* Special Dates Management */}
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h3 className="font-medium text-gray-700 mb-3">Special Dates Management</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={addHoliday}
+                      className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm"
+                    >
+                      + Add Holiday
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addLeaveDate}
+                      className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                    >
+                      + Add Leave Date
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addWorkingDay}
+                      className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
+                    >
+                      + Add Working Day
+                    </button>
+                  </div>
+                  
+                  {/* Display added dates */}
+                  {(bulkAttendanceData.holidays.length > 0 || bulkAttendanceData.leaveDates.length > 0 || bulkAttendanceData.workingDays.length > 0) && (
+                    <div className="mt-4 space-y-2">
+                      {bulkAttendanceData.holidays.length > 0 && (
+                        <div>
+                          <span className="text-sm font-medium text-purple-600">Holidays:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {bulkAttendanceData.holidays.map((holiday, index) => (
+                              <span key={index} className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded">
+                                {holiday.date} ({holiday.type})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {bulkAttendanceData.leaveDates.length > 0 && (
+                        <div>
+                          <span className="text-sm font-medium text-blue-600">Leave Dates:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {bulkAttendanceData.leaveDates.map((date, index) => (
+                              <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+                                {date}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {bulkAttendanceData.workingDays.length > 0 && (
+                        <div>
+                          <span className="text-sm font-medium text-green-600">Working Days:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {bulkAttendanceData.workingDays.map((date, index) => (
+                              <span key={index} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
+                                {date}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Preview Info */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar className="text-blue-600" size={20} />
+                    <p className="text-sm font-medium text-blue-800">Preview Summary</p>
+                  </div>
+                  <div className="text-sm text-blue-700 space-y-1">
+                    <p>
+                      <span className="font-medium">Employee:</span> {selectedEmployee.firstName} {selectedEmployee.lastName}
+                    </p>
+                    <p>
+                      <span className="font-medium">Period:</span> {new Date(bulkAttendanceData.year, bulkAttendanceData.month - 1, 1).toLocaleString('default', { month: 'long' })} {bulkAttendanceData.year}
+                    </p>
+                    <p>
+                      <span className="font-medium">Shift:</span> {bulkAttendanceData.defaultShiftStart} - {bulkAttendanceData.defaultShiftEnd}
+                    </p>
+                    <p>
+                      <span className="font-medium">Total Days:</span> {new Date(bulkAttendanceData.year, bulkAttendanceData.month, 0).getDate()}
+                    </p>
+                    <p>
+                      <span className="font-medium">Working Days:</span> {
+                        generateBulkAttendanceData().filter(record => record.status === 'Present').length
+                      }
+                    </p>
+                    <p>
+                      <span className="font-medium">Holidays:</span> {
+                        generateBulkAttendanceData().filter(record => record.status === 'Govt Holiday').length
+                      }
+                    </p>
+                    <p>
+                      <span className="font-medium">Leaves:</span> {
+                        generateBulkAttendanceData().filter(record => record.status === 'Leave').length
+                      }
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const records = generateBulkAttendanceData();
+                      toast.success(
+                        <div>
+                          <p className="font-bold">Bulk Preview Generated</p>
+                          <p>Total Records: {records.length}</p>
+                          <p>Present: {records.filter(r => r.status === 'Present').length}</p>
+                          <p>Holidays: {records.filter(r => r.status === 'Govt Holiday').length}</p>
+                          <p>Leaves: {records.filter(r => r.status === 'Leave').length}</p>
+                        </div>,
+                        { duration: 5000 }
+                      );
+                    }}
+                    className="mt-3 w-full px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                  >
+                    Generate Preview
+                  </button>
+                </div>
+                
+                {/* Warning Note */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="text-yellow-600" size={20} />
+                    <p className="text-sm font-medium text-yellow-800">Important Note</p>
+                  </div>
+                  <ul className="text-sm text-yellow-700 space-y-1 list-disc pl-4">
+                    <li>This will create or update attendance records for all days in the selected month</li>
+                    <li>Existing records will be updated with new data</li>
+                    <li>New records will be created for missing dates</li>
+                    <li>Weekends and holidays will be automatically marked (no clock in/out)</li>
+                    <li>This action cannot be undone easily</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowBulkAttendanceModal(false);
+                  setSelectedEmployee(null);
+                  setEmployeeSearch("");
+                }}
+                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateBulkAttendance}
+                disabled={loading || !selectedEmployee || !bulkAttendanceData.month || !bulkAttendanceData.year}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileSpreadsheet size={20} />
+                {loading ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  "Create Bulk Attendance"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Attendance Modal */}
       {selectedAttendanceRecord?.isEditing && (
@@ -2443,6 +3976,7 @@ const handleSelectEmployee = (employee) => {
         </div>
       )}
 
+      {/* Main App UI */}
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 p-6 overflow-hidden">
         {/* Header Section */}
         <div className="mb-8">
@@ -2485,6 +4019,17 @@ const handleSelectEmployee = (employee) => {
                 Refresh
               </button>
               
+              {/* Export button for employees */}
+              {!isAdmin && (
+                <button
+                  onClick={() => handleExportData('csv')}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center gap-2 shadow-sm hover:shadow"
+                >
+                  <Download size={18} />
+                  Export CSV
+                </button>
+              )}
+              
               {isAdmin && (
                 <div className="relative admin-actions-menu">
                   <button 
@@ -2499,7 +4044,7 @@ const handleSelectEmployee = (employee) => {
                       <div className="p-2 space-y-1">
                         <button
                           onClick={() => {
-                            setShowManualAttendanceModal(true);
+                            openManualAttendanceModal();
                             setShowAdminActionsMenu(false);
                           }}
                           className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition-colors"
@@ -2509,7 +4054,7 @@ const handleSelectEmployee = (employee) => {
                         </button>
                         <button
                           onClick={() => {
-                            setShowBulkAttendanceModal(true);
+                            openBulkAttendanceModal();
                             setShowAdminActionsMenu(false);
                           }}
                           className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition-colors"
@@ -2527,6 +4072,47 @@ const handleSelectEmployee = (employee) => {
                           <BarChart3 size={18} />
                           <span>Late Statistics</span>
                         </button>
+                        <button
+                          onClick={() => {
+                            handleTriggerAutoClockOut();
+                            setShowAdminActionsMenu(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition-colors"
+                        >
+                          <Clock size={18} />
+                          <span>Trigger Auto Clock Out</span>
+                        </button>
+                        <button
+  onClick={async () => {
+    if (selectedEmployee) {
+      const employeeAttendance = attendance.filter(a => 
+        a.employee?._id === selectedEmployee._id || 
+        a.employee === selectedEmployee._id
+      );
+      
+      const employeeSummary = {
+        totalDays: employeeAttendance.length,
+        daysPresent: employeeAttendance.filter(a => a.status === 'Present').length,
+        daysAbsent: employeeAttendance.filter(a => a.status === 'Absent').length,
+        daysLeave: employeeAttendance.filter(a => a.status === 'Leave').length,
+        totalHours: employeeAttendance.reduce((sum, a) => sum + (a.totalHours || 0), 0),
+        attendanceRate: employeeAttendance.length > 0 
+          ? (employeeAttendance.filter(a => a.status === 'Present').length / employeeAttendance.length) * 100
+          : 0
+      };
+      
+      await pdfUtils.generateAttendancePDF(employeeAttendance, selectedEmployee, employeeSummary);
+      toast.success(`PDF exported for ${selectedEmployee.firstName} ${selectedEmployee.lastName}`);
+    } else {
+      toast.error("Please select an employee first from the filter above");
+    }
+    setShowAdminActionsMenu(false);
+  }}
+  className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors"
+>
+  <FileText size={18} />
+  <span>Export Employee PDF</span>
+</button>
                         <div className="border-t border-gray-200 my-1"></div>
                         <button
                           onClick={() => {
@@ -2573,6 +4159,129 @@ const handleSelectEmployee = (employee) => {
               </button>
             </div>
           </div>
+
+          {/* Employee Self View Section - Only for Employees */}
+          {!isAdmin && userData && (
+            <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl p-6 shadow-xl border border-blue-100 mb-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <User className="text-blue-600" size={24} />
+                    My Attendance Records
+                  </h2>
+                  <p className="text-gray-500 text-sm mt-1">
+                    View your attendance records by month and year
+                  </p>
+                </div>
+                <div className="flex gap-2 mt-4 md:mt-0">
+                  <button
+                    onClick={() => {
+                      // Reset to current month
+                      setEmployeeFilter({
+                        ...employeeFilter,
+                        month: String(new Date().getMonth() + 1),
+                        year: String(new Date().getFullYear()),
+                        status: "all"
+                      });
+                      handleRefresh();
+                    }}
+                    className="px-4 py-2.5 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-all duration-300 flex items-center gap-2"
+                  >
+                    <RefreshCw size={18} />
+                    This Month
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Month</label>
+                  <select
+                    value={employeeFilter.month}
+                    onChange={(e) => {
+                      setEmployeeFilter({...employeeFilter, month: e.target.value});
+                      // Auto-fetch when month changes
+                      setTimeout(() => applyEmployeeFilter(), 100);
+                    }}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
+                  >
+                    {Array.from({length: 12}, (_, i) => i + 1).map(month => (
+                      <option key={month} value={month}>
+                        {new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                  <input
+                    type="number"
+                    value={employeeFilter.year}
+                    onChange={(e) => {
+                      setEmployeeFilter({...employeeFilter, year: e.target.value});
+                      // Auto-fetch when year changes
+                      setTimeout(() => applyEmployeeFilter(), 100);
+                    }}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
+                    placeholder="YYYY"
+                    min="2000"
+                    max="2100"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status Filter</label>
+                  <select
+                    value={employeeFilter.status}
+                    onChange={(e) => {
+                      setEmployeeFilter({...employeeFilter, status: e.target.value});
+                      // Auto-fetch when status changes
+                      setTimeout(() => applyEmployeeFilter(), 100);
+                    }}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="Present">Present</option>
+                    <option value="Absent">Absent</option>
+                    <option value="Leave">Leave</option>
+                    <option value="Late">Late</option>
+                    <option value="Govt Holiday">Govt Holiday</option>
+                    <option value="Weekly Off">Weekly Off</option>
+                    <option value="Off Day">Off Day</option>
+                  </select>
+                </div>
+              </div>
+              
+              {/* Employee Summary Card */}
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 bg-white rounded-xl border border-blue-100 hover:border-blue-200 transition-all duration-300">
+                  <div className="text-sm text-gray-500">Total Days</div>
+                  <div className="text-2xl font-bold text-blue-600 mt-1">{attendance.length}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-green-100 hover:border-green-200 transition-all duration-300">
+                  <div className="text-sm text-gray-500">Present</div>
+                  <div className="text-2xl font-bold text-green-600 mt-1">
+                    {attendance.filter(a => a.status === 'Present').length}
+                  </div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-red-100 hover:border-red-200 transition-all duration-300">
+                  <div className="text-sm text-gray-500">Absent</div>
+                  <div className="text-2xl font-bold text-red-600 mt-1">
+                    {attendance.filter(a => a.status === 'Absent').length}
+                  </div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-purple-100 hover:border-purple-200 transition-all duration-300">
+                  <div className="text-sm text-gray-500">Attendance %</div>
+                  <div className="text-2xl font-bold text-purple-600 mt-1">
+                    {attendance.length > 0 
+                      ? ((attendance.filter(a => a.status === 'Present').length / attendance.length) * 100).toFixed(1)
+                      : '0.0'}%
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Clock In/Out Card - Only for Employees */}
           {userRole === "employee" && (
@@ -2747,7 +4456,7 @@ const handleSelectEmployee = (employee) => {
                     <Users className="text-gray-500" size={16} />
                     <div className="text-sm text-gray-500">Total Employees</div>
                   </div>
-                  <div className="text-2xl font-bold text-gray-900 mt-1">{summary?.totalEmployees || 0}</div>
+                  <div className="text-2xl font-bold text-gray-900 mt-1">{summary?.totalEmployees || employees.length || 0}</div>
                 </div>
                 <div className="p-4 bg-white rounded-xl border border-gray-200 hover:border-green-200 transition-all duration-300">
                   <div className="flex items-center gap-2 mb-1">
@@ -2764,36 +4473,22 @@ const handleSelectEmployee = (employee) => {
                   <div className="text-2xl font-bold text-red-600 mt-1">{summary?.absentToday || 0}</div>
                 </div>
               </div>
-              
+               
               {/* Admin Action Buttons */}
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
-                  onClick={() => setShowManualAttendanceModal(true)}
+                  onClick={openManualAttendanceModal}
                   className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
                 >
                   <Plus size={18} />
                   Manual Attendance
                 </button>
                 <button
-                  onClick={() => setShowBulkAttendanceModal(true)}
+                  onClick={openBulkAttendanceModal}
                   className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
                 >
                   <FileSpreadsheet size={18} />
                   Bulk Attendance
-                </button>
-                <button
-                  onClick={handleViewLateStatistics}
-                  className="px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                >
-                  <BarChart3 size={18} />
-                  Late Statistics
-                </button>
-                <button
-                  onClick={() => handleExportData('csv')}
-                  className="px-4 py-2.5 bg-gradient-to-r from-gray-500 to-gray-700 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                >
-                  <Download size={18} />
-                  Export CSV
                 </button>
               </div>
             </div>
@@ -2812,14 +4507,23 @@ const handleSelectEmployee = (employee) => {
                     Filter attendance records for specific employees and months
                   </p>
                 </div>
-                <button
-                  onClick={applyEmployeeFilter}
-                  disabled={loading}
-                  className="mt-4 md:mt-0 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                >
-                  <Filter size={18} />
-                  Apply Filter
-                </button>
+                <div className="flex gap-2 mt-4 md:mt-0">
+                  <button
+                    onClick={resetEmployeeFilter}
+                    className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300 flex items-center gap-2"
+                  >
+                    <X size={18} />
+                    Reset
+                  </button>
+                  <button
+                    onClick={applyEmployeeFilter}
+                    disabled={loading}
+                    className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+                  >
+                    <Filter size={18} />
+                    Apply Filter
+                  </button>
+                </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -2848,7 +4552,9 @@ const handleSelectEmployee = (employee) => {
                   >
                     <option value="">All Months</option>
                     {Array.from({length: 12}, (_, i) => i + 1).map(month => (
-                      <option key={month} value={month}>{new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' })}</option>
+                      <option key={month} value={month}>
+                        {new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' })}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -2887,6 +4593,7 @@ const handleSelectEmployee = (employee) => {
             </div>
           )}
 
+          {/* Recent Clock Details */}
           {(clockDetails && showRecentDetails) && (
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 shadow-xl border border-blue-100 mb-8 animate-fadeIn">
               <div className="flex items-center justify-between mb-4">
@@ -3004,52 +4711,6 @@ const handleSelectEmployee = (employee) => {
                     {clockDetails.status}
                   </div>
                 </div>
-                
-                <div className="p-4 bg-white rounded-xl border border-gray-100 hover:border-gray-200 transition-all duration-300">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Activity size={16} className="text-gray-500" />
-                    <span className="text-sm font-medium text-gray-700">Device</span>
-                  </div>
-                  <div className="text-sm text-gray-900 space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Briefcase size={12} className="text-gray-400" />
-                      <span>Type: {clockDetails.device?.type || 'Unknown'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Home size={12} className="text-gray-400" />
-                      <span>OS: {clockDetails.device?.os || 'Unknown'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Coffee size={12} className="text-gray-400" />
-                      <span>Browser: {clockDetails.device?.browser || 'Unknown'}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="p-4 bg-white rounded-xl border border-gray-100 hover:border-gray-200 transition-all duration-300">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Zap size={16} className="text-yellow-500" />
-                    <span className="text-sm font-medium text-gray-700">IP Address</span>
-                  </div>
-                  <div className="text-sm font-mono text-gray-900">
-                    {clockDetails.ipAddress || 'Unknown'}
-                  </div>
-                </div>
-                
-                {clockDetails.correctedByAdmin && (
-                  <div className="p-4 bg-white rounded-xl border border-orange-100 hover:border-orange-200 transition-all duration-300">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Edit size={16} className="text-orange-500" />
-                      <span className="text-sm font-medium text-gray-700">Admin Correction</span>
-                    </div>
-                    <div className="inline-flex px-3 py-1 rounded-full text-sm font-semibold bg-orange-100 text-orange-800">
-                      Corrected by Admin
-                    </div>
-                    <div className="text-xs text-gray-500 mt-2">
-                      Modified by administrator
-                    </div>
-                  </div>
-                )}
               </div>
               
               <div className="mt-6 pt-6 border-t border-blue-100 flex flex-wrap gap-3">
@@ -3094,6 +4755,7 @@ const handleSelectEmployee = (employee) => {
             </div>
           )}
 
+          {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between">
@@ -3154,16 +4816,17 @@ const handleSelectEmployee = (employee) => {
             </div>
           </div>
 
-          <div className="">
-            <div className="">
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 overflow-hidden h-full">
+          {/* Main Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-3">
+              <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 h-full">
                 <div className="p-6 border-b border-gray-100">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-bold text-gray-900">Attendance Records</h2>
                       <p className="text-gray-500 text-sm">
                         Showing {currentItems.length} of {attendance.length} records
-                        {userId && ` for Employee ID: ${userId}`}
+                        {isAdmin && employeeFilter.employeeId && ` (Filtered)`}
                       </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
@@ -3195,7 +4858,7 @@ const handleSelectEmployee = (employee) => {
                           className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
                         >
                           <Filter size={18} />
-                          Apply Filter
+                          Apply Date
                         </button>
                       </div>
                     </div>
@@ -3218,7 +4881,7 @@ const handleSelectEmployee = (employee) => {
                         </div>
                         <h3 className="text-lg font-semibold text-gray-700 mb-2">No attendance records</h3>
                         <p className="text-gray-500 max-w-md">
-                          No records found for the selected date range
+                          No records found for the selected {employeeFilter.employeeId ? 'employee and ' : ''}date range
                         </p>
                       </div>
                     </div>
@@ -3382,7 +5045,8 @@ const handleSelectEmployee = (employee) => {
               </div>
             </div>
 
-            <div className="lg:col-span-1 mt-6">
+            {/* Summary Sidebar */}
+            <div className="lg:col-span-1">
               <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 h-full">
                 <div className="p-6 border-b border-gray-100">
                   <h2 className="text-xl font-bold text-gray-900">Attendance Summary</h2>
@@ -3397,7 +5061,7 @@ const handleSelectEmployee = (employee) => {
                           <>
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600">Total Employees</span>
-                              <span className="font-semibold text-gray-900">{summary.totalEmployees || 0}</span>
+                              <span className="font-semibold text-gray-900">{summary.totalEmployees || employees.length || 0}</span>
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600">Present Today</span>

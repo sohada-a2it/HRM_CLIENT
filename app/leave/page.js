@@ -477,6 +477,15 @@ const API_BASE_URL = useMemo(() =>
     setEditForm({ ...editForm, [e.target.name]: e.target.value });
   };
 
+  // Check if leave request is at least 24 hours before start date
+  const isAtLeast24HoursBefore = (startDate) => {
+    const now = new Date();
+    const start = new Date(startDate);
+    const timeDiff = start.getTime() - now.getTime();
+    const hoursDiff = timeDiff / (1000 * 60 * 60);
+    return hoursDiff >= 24;
+  };
+
   // Request leave - FIXED ENDPOINT
   const handleRequestLeave = async (e) => {
     e.preventDefault();
@@ -502,6 +511,12 @@ const API_BASE_URL = useMemo(() =>
     
     if (startDateUTC < today) {
       toast.error("Cannot request leave for past dates");
+      return;
+    }
+    
+    // ✅ NEW: Check if request is made at least 24 hours before start date (for employees only)
+    if (!isAdmin && !isAtLeast24HoursBefore(form.startDate)) {
+      toast.error("You must request leave at least 24 hours before the start date");
       return;
     }
     
@@ -639,6 +654,12 @@ const API_BASE_URL = useMemo(() =>
       return;
     }
     
+    // ✅ NEW: Check if request is made at least 24 hours before start date (for employees only)
+    if (!isAdmin && !isAtLeast24HoursBefore(editForm.startDate)) {
+      toast.error("You must request leave at least 24 hours before the start date");
+      return;
+    }
+    
     setFormLoading(true);
     const loadingToast = toast.loading("Updating leave request...");
     
@@ -755,363 +776,7 @@ const API_BASE_URL = useMemo(() =>
         }, 1000);
         return;
       }
-      <div className={`${viewMode === 'grid' ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
-  <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 overflow-hidden mb-8">
-    <div className="p-4 md:p-6 border-b border-gray-100">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg md:text-xl font-bold text-gray-900">Leave Requests</h2>
-          <p className="text-gray-500 text-sm">
-            {filteredLeaves.length} of {leaves.length} requests
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && filteredLeaves.length > 0 && (
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="selectAll"
-                checked={selectedLeaves.length === filteredLeaves.length && filteredLeaves.length > 0}
-                onChange={selectAllLeaves}
-                className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
-              />
-              <label htmlFor="selectAll" className="ml-2 text-sm text-gray-600">
-                Select All
-              </label>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-
-    {/* Leaves List */}
-    {loading ? (
-      <div className="p-8 md:p-12 text-center">
-        <div className="inline-flex flex-col items-center">
-          <div className="w-12 h-12 md:w-16 md:h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading leaves...</p>
-          <p className="text-gray-400 text-sm mt-2">Please wait a moment</p>
-        </div>
-      </div>
-    ) : filteredLeaves.length === 0 ? (
-      <div className="p-8 md:p-12 text-center">
-        <div className="flex flex-col items-center justify-center">
-          <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
-            <CalendarDays className="text-gray-400" size={24} />
-          </div>
-          <h3 className="text-base md:text-lg font-semibold text-gray-700 mb-2">No leave requests found</h3>
-          <p className="text-gray-500 max-w-md text-sm md:text-base">
-            {searchTerm || statusFilter !== "all" || typeFilter !== "all" || dateRange.start || dateRange.end
-              ? 'Try adjusting your search or filters' 
-              : isAdmin
-              ? 'No leave requests submitted yet'
-              : 'Start by requesting your first leave'}
-          </p>
-          {!isAdmin && (
-            <button
-              onClick={() => setShowRequestModal(true)}
-              className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition-opacity"
-            >
-              Request Leave
-            </button>
-          )}
-          {(searchTerm || statusFilter !== "all" || typeFilter !== "all" || dateRange.start || dateRange.end) && (
-            <button
-              onClick={resetFilters}
-              className="mt-4 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Clear Filters
-            </button>
-          )}
-        </div>
-      </div>
-    ) : viewMode === 'grid' ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 md:p-6">
-        {filteredLeaves.map((leave) => {
-          const totalDays = leave.totalDays || calculateDays(leave.startDate, leave.endDate);
-          const canEdit = !isAdmin && leave.status === 'Pending';
-          const canDelete = !isAdmin && leave.status === 'Pending';
-          
-          return (
-            <div 
-              key={leave._id}
-              className="bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all duration-300 overflow-hidden"
-            >
-              <div className="p-4">
-                {/* Header with Employee Avatar */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    {getEmployeeAvatar(leave)}
-                    <div>
-                      <h3 className="font-semibold text-gray-900 text-sm">
-                        {isAdmin ? getEmployeeInfo(leave).name : (currentUser?.name || "Your Leave")}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(leave.status)}`}>
-                          {leave.status}
-                        </span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPayStatusColor(leave.payStatus)}`}>
-                          {leave.payStatus}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {isAdmin && (
-                    <input
-                      type="checkbox"
-                      checked={selectedLeaves.includes(leave._id)}
-                      onChange={() => toggleLeaveSelection(leave._id)}
-                      className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
-                    />
-                  )}
-                </div>
-                
-                {/* Details */}
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Period:</span>
-                    <span className="font-medium">
-                      {formatDate(leave.startDate)} - {formatDate(leave.endDate)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Duration:</span>
-                    <span className="font-medium">{totalDays} days</span>
-                  </div>
-                  {isAdmin && getEmployeeInfo(leave).department && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Department:</span>
-                      <span className="font-medium text-purple-600">{getEmployeeInfo(leave).department}</span>
-                    </div>
-                  )}
-                  <div className="text-sm">
-                    <p className="text-gray-600 mb-1">Reason:</p>
-                    <p className="text-gray-700 line-clamp-2">{leave.reason}</p>
-                  </div>
-                </div>
-                
-                {/* Footer */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div className="text-xs text-gray-500">
-                    {formatDateTime(leave.createdAt || leave.appliedDate)}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* View Button - Always visible for all users */}
-                    <button
-                      onClick={() => handleViewDetails(leave._id)}
-                      className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                      title="View Details"
-                    >
-                      <Eye size={14} />
-                    </button>
-                    
-                    {/* Employee can edit only PENDING leaves */}
-                    {canEdit && (
-                      <button
-                        onClick={() => handleEditLeave(leave)}
-                        className="p-1.5 text-blue-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Edit Leave"
-                      >
-                        <Edit size={14} />
-                      </button>
-                    )}
-                    
-                    {/* Employee can delete only PENDING leaves */}
-                    {canDelete && (
-                      <button
-                        onClick={() => handleDeleteLeave(leave._id)}
-                        className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete Leave"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                    
-                    {/* Admin can approve/reject PENDING leaves */}
-                    {isAdmin && leave.status === 'Pending' && (
-                      <>
-                        <button
-                          onClick={() => {
-                            setSelectedLeave(leave);
-                            setShowApproveModal(true);
-                          }}
-                          className="p-1.5 text-green-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Approve"
-                        >
-                          <Check size={14} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedLeave(leave);
-                            setShowRejectModal(true);
-                          }}
-                          className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Reject"
-                        >
-                          <X size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    ) : (
-      <div className="divide-y divide-gray-100">
-        {filteredLeaves.map((leave) => {
-          const totalDays = leave.totalDays || calculateDays(leave.startDate, leave.endDate);
-          const canEdit = !isAdmin && leave.status === 'Pending';
-          const canDelete = !isAdmin && leave.status === 'Pending';
-          const employeeInfo = getEmployeeInfo(leave);
-          
-          return (
-            <div 
-              key={leave._id}
-              className="group p-4 md:p-6 hover:bg-gray-50 transition-all duration-300"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3 md:gap-4 flex-1">
-                  {isAdmin && (
-                    <div className="mt-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedLeaves.includes(leave._id)}
-                        onChange={() => toggleLeaveSelection(leave._id)}
-                        className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
-                      />
-                    </div>
-                  )}
-                  
-                  {getEmployeeAvatar(leave)}
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col md:flex-row md:items-center md:gap-3 mb-2">
-                      <h3 className="font-semibold text-gray-900 text-sm md:text-base">
-                        {isAdmin ? employeeInfo.name : (currentUser?.name || "Your Leave")}
-                        {isAdmin && employeeInfo.employeeId && (
-                          <span className="text-sm font-normal text-gray-500 ml-2">
-                            ({employeeInfo.employeeId})
-                          </span>
-                        )}
-                      </h3>
-                      <div className="flex flex-wrap gap-2 mt-1 md:mt-0">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(leave.status)}`}>
-                          {leave.status}
-                        </span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPayStatusColor(leave.payStatus)}`}>
-                          {leave.payStatus}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-gray-600 mb-3">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={12} />
-                        {formatDate(leave.startDate)} - {formatDate(leave.endDate)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} />
-                        {totalDays} days
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <FileText size={12} />
-                        {leave.leaveType} Leave
-                      </span>
-                      {isAdmin && employeeInfo.department && (
-                        <span className="flex items-center gap-1 text-purple-600">
-                          <Building size={12} />
-                          {employeeInfo.department}
-                        </span>
-                      )}
-                    </div>
-                    
-                    <p className="text-gray-700 text-sm line-clamp-2 md:line-clamp-1 mb-3">
-                      {leave.reason}
-                    </p>
-                    
-                    <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs text-gray-500">
-                      <span>Requested: {formatDateTime(leave.createdAt || leave.appliedDate)}</span>
-                      {/* Show edit info for PENDING employee leaves */}
-                      {!isAdmin && leave.status === 'Pending' && (
-                        <span className="text-yellow-600">
-                          (Editable until approved)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="flex items-center gap-1 md:gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ml-2">
-                  {/* View Button - Always visible */}
-                  <button
-                    onClick={() => handleViewDetails(leave._id)}
-                    className="p-1.5 md:p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                    title="View Details"
-                  >
-                    <Eye size={14} />
-                  </button>
-                  
-                  {/* Edit Button - Only for employee's PENDING leaves */}
-                  {canEdit && (
-                    <button
-                      onClick={() => handleEditLeave(leave)}
-                      className="p-1.5 md:p-2 text-blue-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Edit Leave"
-                    >
-                      <Edit size={14} />
-                    </button>
-                  )}
-                  
-                  {/* Delete Button - Only for employee's PENDING leaves */}
-                  {canDelete && (
-                    <button
-                      onClick={() => handleDeleteLeave(leave._id)}
-                      className="p-1.5 md:p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete Leave"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                  
-                  {/* Admin Approve/Reject Buttons - Only for PENDING leaves */}
-                  {isAdmin && leave.status === 'Pending' && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setSelectedLeave(leave);
-                          setShowApproveModal(true);
-                        }}
-                        className="p-1.5 md:p-2 text-green-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Approve"
-                      >
-                        <Check size={14} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedLeave(leave);
-                          setShowRejectModal(true);
-                        }}
-                        className="p-1.5 md:p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Reject"
-                      >
-                        <X size={14} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-</div>
+      
       // ✅ CORRECT ENDPOINT
       const response = await fetch(`${API_BASE_URL}/admin/approve/${selectedLeave._id}`, {
         method: 'PUT',
@@ -1804,122 +1469,32 @@ const API_BASE_URL = useMemo(() =>
   };
 
   // Modal components
-  const RequestLeaveModal = () => (
-    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Request Leave</h2>
-              <p className="text-gray-500 text-sm mt-1">Submit a new leave request</p>
-            </div>
-            <button
-              onClick={() => {
-                setShowRequestModal(false);
-                setForm({
-                  leaveType: "Sick",
-                  payStatus: "Paid",
-                  startDate: "",
-                  endDate: "",
-                  reason: ""
-                });
-              }}
-              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-        
-        <form onSubmit={handleRequestLeave} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Leave Type *
-            </label>
-            <select
-              name="leaveType"
-              value={form.leaveType}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-            >
-              {leaveTypeOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Pay Status *
-            </label>
-            <select
-              name="payStatus"
-              value={form.payStatus}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-            >
-              {payStatusOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Start Date *
-              </label>
-              <input
-                type="date"
-                name="startDate"
-                value={form.startDate}
-                onChange={handleChange}
-                required
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                End Date *
-              </label>
-              <input
-                type="date"
-                name="endDate"
-                value={form.endDate}
-                onChange={handleChange}
-                required
-                min={form.startDate || new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Reason *
-            </label>
-            <textarea
-              name="reason"
-              value={form.reason}
-              onChange={handleChange}
-              placeholder="Brief reason for leave..."
-              required
-              rows="3"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 resize-none"
-            />
-          </div>
-          
-          <div className="pt-4 border-t border-gray-100">
-            <div className="flex gap-3">
+  const RequestLeaveModal = () => {
+    // Calculate minimum date (24 hours from now)
+    const calculateMinDate = () => {
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split('T')[0];
+    };
+
+    return (
+      <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Request Leave</h2>
+                <p className="text-gray-500 text-sm mt-1">Submit a new leave request</p>
+                {!isAdmin && (
+                  <div className="mt-2 px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-xs text-yellow-700">
+                      <strong>Note:</strong> You must request leave at least 24 hours before the start date
+                    </p>
+                  </div>
+                )}
+              </div>
               <button
-                type="button"
                 onClick={() => {
                   setShowRequestModal(false);
                   setForm({
@@ -1930,51 +1505,179 @@ const API_BASE_URL = useMemo(() =>
                     reason: ""
                   });
                 }}
-                className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+                className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={formLoading}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {formLoading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Calendar size={18} />
-                    Request Leave
-                  </>
-                )}
+                <X size={20} />
               </button>
             </div>
           </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  const EditLeaveModal = () => (
-    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <div className="flex items-center justify-between">
+          
+          <form onSubmit={handleRequestLeave} className="p-6 space-y-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Edit Leave</h2>
-              <p className="text-gray-500 text-sm mt-1">Update leave request details</p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Leave Type *
+              </label>
+              <select
+                name="leaveType"
+                value={form.leaveType}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+              >
+                {leaveTypeOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <button
-              onClick={() => {
-                setShowEditModal(false);
-                setSelectedLeave(null);
-              }}
-              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
-            >
-              <X size={20} />
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Pay Status *
+              </label>
+              <select
+                name="payStatus"
+                value={form.payStatus}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+              >
+                {payStatusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Start Date *
+                </label>
+                <input
+                  type="date"
+                  name="startDate"
+                  value={form.startDate}
+                  onChange={handleChange}
+                  required
+                  min={isAdmin ? new Date().toISOString().split('T')[0] : calculateMinDate()}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                />
+                {!isAdmin && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Must be at least 24 hours from now
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  End Date *
+                </label>
+                <input
+                  type="date"
+                  name="endDate"
+                  value={form.endDate}
+                  onChange={handleChange}
+                  required
+                  min={form.startDate || new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason *
+              </label>
+              <textarea
+                name="reason"
+                value={form.reason}
+                onChange={handleChange}
+                placeholder="Brief reason for leave..."
+                required
+                rows="3"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 resize-none"
+              />
+            </div>
+            
+            <div className="pt-4 border-t border-gray-100">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRequestModal(false);
+                    setForm({
+                      leaveType: "Sick",
+                      payStatus: "Paid",
+                      startDate: "",
+                      endDate: "",
+                      reason: ""
+                    });
+                  }}
+                  className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {formLoading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <Calendar size={18} />
+                      Request Leave
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  const EditLeaveModal = () => {
+    // Calculate minimum date (24 hours from now)
+    const calculateMinDate = () => {
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split('T')[0];
+    };
+
+    return (
+      <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Edit Leave</h2>
+                <p className="text-gray-500 text-sm mt-1">Update leave request details</p>
+                {!isAdmin && (
+                  <div className="mt-2 px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-xs text-yellow-700">
+                      <strong>Note:</strong> You must request leave at least 24 hours before the start date
+                    </p>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedLeave(null);
+                }}
+                className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+              >
+                <X size={20} />
             </button>
           </div>
         </div>
@@ -2029,8 +1732,14 @@ const API_BASE_URL = useMemo(() =>
                 value={editForm.startDate}
                 onChange={handleEditChange}
                 required
+                min={isAdmin ? new Date().toISOString().split('T')[0] : calculateMinDate()}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
               />
+              {!isAdmin && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Must be at least 24 hours from now
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2098,6 +1807,7 @@ const API_BASE_URL = useMemo(() =>
       </div>
     </div>
   );
+  };
 
   const ApproveLeaveModal = () => (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
