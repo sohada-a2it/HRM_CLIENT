@@ -1,6 +1,6 @@
 "use client"
-import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign, Users, Calendar, FileText, PlusCircle, Edit, Trash2,
@@ -30,7 +30,113 @@ const formatCurrency = (amount) => {
     maximumFractionDigits: 0
   }).format(amount || 0).replace('BDT', '৳');
 };
-
+// FIXED loadEmployeeSpecificPayrolls function
+const loadEmployeeSpecificPayrolls = async (employeeId) => {
+  if (!employeeId) {
+    console.error('❌ No employee ID provided');
+    return [];
+  }
+  
+  console.log(`📊 Loading payrolls for employee: ${employeeId}`);
+  
+  setLoading(prev => ({ ...prev, payrolls: true }));
+  
+  try {
+    let employeePayrollsData = [];
+    
+    // First, try to get from local payrolls
+    const localPayrollsForEmployee = payrolls.filter(p => {
+      if (!p) return false;
+      
+      // Check multiple possible employee ID fields
+      const matchesEmployee = 
+        p.employee === employeeId || 
+        p.employeeId === employeeId ||
+        (p.employeeDetails && p.employeeDetails.employeeId === employeeId);
+      
+      return matchesEmployee;
+    });
+    
+    console.log(`📊 Found ${localPayrollsForEmployee.length} local payrolls for employee`);
+    
+    // If API is connected, try to fetch from server
+    if (apiConnected) {
+      try {
+        console.log(`🌐 Fetching from API for employee ${employeeId}`);
+        
+        // Try different endpoints
+        const endpoints = [
+          `/payroll/employee/${employeeId}`,
+          `/employee/${employeeId}/payrolls`,
+          `/payroll/employee-payrolls/${employeeId}`
+        ];
+        
+        for (const endpoint of endpoints) {
+          try {
+            const response = await API.get(endpoint);
+            console.log(`✅ API Response from ${endpoint}:`, response.data);
+            
+            if (response.data) {
+              if (Array.isArray(response.data)) {
+                employeePayrollsData = response.data;
+                break;
+              } else if (response.data.payrolls && Array.isArray(response.data.payrolls)) {
+                employeePayrollsData = response.data.payrolls;
+                break;
+              } else if (response.data.data && Array.isArray(response.data.data)) {
+                employeePayrollsData = response.data.data;
+                break;
+              }
+            }
+          } catch (endpointError) {
+            console.log(`❌ Endpoint ${endpoint} failed:`, endpointError.message);
+            continue;
+          }
+        }
+      } catch (apiError) {
+        console.log('❌ API employee payrolls load failed:', apiError.message);
+        // Fallback to local data
+        employeePayrollsData = localPayrollsForEmployee;
+      }
+    } else {
+      employeePayrollsData = localPayrollsForEmployee;
+    }
+    
+    // Combine and deduplicate
+    const allPayrolls = [...employeePayrollsData, ...localPayrollsForEmployee];
+    const uniqueIds = new Set();
+    const uniquePayrolls = [];
+    
+    allPayrolls.forEach(p => {
+      const id = p._id || p.id;
+      if (id && !uniqueIds.has(id)) {
+        uniqueIds.add(id);
+        uniquePayrolls.push(p);
+      } else if (!id) {
+        uniquePayrolls.push(p);
+      }
+    });
+    
+    // Sort by date (newest first)
+    uniquePayrolls.sort((a, b) => {
+      const dateA = new Date(a.periodStart || a.createdAt || Date.now());
+      const dateB = new Date(b.periodStart || b.createdAt || Date.now());
+      return dateB - dateA;
+    });
+    
+    console.log(`✅ Total unique payrolls for employee: ${uniquePayrolls.length}`);
+    
+    setEmployeePayrolls(uniquePayrolls);
+    return uniquePayrolls;
+    
+  } catch (error) {
+    console.error('❌ Load employee payrolls error:', error);
+    toast.error('Failed to load employee payrolls');
+    return [];
+  } finally {
+    setLoading(prev => ({ ...prev, payrolls: false }));
+  }
+};
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   try {
@@ -189,7 +295,7 @@ const generateEmployeePayrollPDF = (employee, payrolls = []) => {
       
       finalY += 10;
       
-      // Prepare payroll data
+      // Prepare payroll data with deduction details
       const payrollData = payrolls.map((p, index) => [
         index + 1,
         `${formatDate(p.periodStart)} - ${formatDate(p.periodEnd)}`,
@@ -227,6 +333,46 @@ const generateEmployeePayrollPDF = (employee, payrolls = []) => {
           doc.text(`Employee: ${getEmployeeName(employee)}`, 190, 290, { align: "right" });
         }
       });
+      
+      // Deduction Details Section
+      finalY = doc.lastAutoTable.finalY + 15;
+      
+      if (payrolls.some(p => p.deductions && (p.deductions.lateDeduction > 0 || p.deductions.absentDeduction > 0 || p.deductions.leaveDeduction > 0))) {
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Deduction Details", 20, finalY);
+        doc.setDrawColor(200, 200, 200);
+        doc.line(20, finalY + 2, 190, finalY + 2);
+        
+        finalY += 10;
+        
+        const deductionData = payrolls.map((p, index) => [
+          index + 1,
+          p.month ? `${monthNames[p.month - 1]} ${p.year}` : 'N/A',
+          formatCurrency(p.deductions?.lateDeduction || 0),
+          formatCurrency(p.deductions?.absentDeduction || 0),
+          formatCurrency(p.deductions?.leaveDeduction || 0),
+          formatCurrency(p.deductions?.total || 0)
+        ]);
+        
+        doc.autoTable({
+          startY: finalY,
+          margin: { left: 20, right: 20 },
+          head: [['#', 'Month-Year', 'Late', 'Absent', 'Leave', 'Total']],
+          body: deductionData,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 87, 87], textColor: 255 },
+          styles: { fontSize: 8, cellPadding: 3 },
+          columnStyles: {
+            0: { cellWidth: 15, halign: 'center' },
+            1: { cellWidth: 40 },
+            2: { cellWidth: 25, halign: 'right' },
+            3: { cellWidth: 25, halign: 'right' },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
+          }
+        });
+      }
     } else {
       doc.setFontSize(11);
       doc.setTextColor(100, 100, 100);
@@ -336,29 +482,50 @@ const generateSinglePayrollPDF = (payroll, employee) => {
       }
     });
     
-    // Deductions Table
+    // Deductions Table - Detailed
     const deductionsY = doc.lastAutoTable.finalY + 10;
     doc.autoTable({
       startY: deductionsY,
       margin: { left: 20, right: 20 },
-      head: [['Deductions', 'Amount (BDT)']],
+      head: [['Deductions (23 Days Month)', 'Amount (BDT)', 'Details']],
       body: [
-        ['Late Deduction', formatCurrency(payroll.deductions?.lateDeduction || 0)],
-        ['Absent Deduction', formatCurrency(payroll.deductions?.absentDeduction || 0)],
-        ['Leave Deduction', formatCurrency(payroll.deductions?.leaveDeduction || 0)],
-        ['Other Deductions', formatCurrency((payroll.deductions?.total || 0) - 
-          (payroll.deductions?.lateDeduction || 0) - 
-          (payroll.deductions?.absentDeduction || 0) - 
-          (payroll.deductions?.leaveDeduction || 0))],
-        ['', ''],
-        ['Total Deductions', formatCurrency(payroll.deductions?.total || 0)]
+        [
+          'Late Deduction', 
+          formatCurrency(payroll.deductions?.lateDeduction || 0),
+          payroll.attendance?.lateDays ? `${payroll.attendance.lateDays} late days` : ''
+        ],
+        [
+          'Absent Deduction', 
+          formatCurrency(payroll.deductions?.absentDeduction || 0),
+          payroll.attendance?.absentDays ? `${payroll.attendance.absentDays} absent days` : ''
+        ],
+        [
+          'Leave Deduction', 
+          formatCurrency(payroll.deductions?.leaveDeduction || 0),
+          payroll.attendance?.leaveDays ? `${payroll.attendance.leaveDays} leave days` : ''
+        ],
+        [
+          'Other Deductions', 
+          formatCurrency((payroll.deductions?.total || 0) - 
+            (payroll.deductions?.lateDeduction || 0) - 
+            (payroll.deductions?.absentDeduction || 0) - 
+            (payroll.deductions?.leaveDeduction || 0)),
+          ''
+        ],
+        ['', '', ''],
+        [
+          'Total Deductions', 
+          formatCurrency(payroll.deductions?.total || 0),
+          'Based on 23 working days'
+        ]
       ],
       theme: 'grid',
       headStyles: { fillColor: secondaryColor, textColor: 255 },
-      styles: { fontSize: 10, cellPadding: 5 },
+      styles: { fontSize: 9, cellPadding: 4 },
       columnStyles: {
-        0: { cellWidth: 120, fontStyle: 'bold' },
-        1: { cellWidth: 50, halign: 'right', fontStyle: 'bold' }
+        0: { cellWidth: 70, fontStyle: 'bold' },
+        1: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
+        2: { cellWidth: 60 }
       }
     });
     
@@ -388,19 +555,26 @@ const generateSinglePayrollPDF = (payroll, employee) => {
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
-      doc.text("Attendance Summary", 20, attendanceY);
+      doc.text("Attendance Summary (23 Days Month)", 20, attendanceY);
       
       doc.setDrawColor(200, 200, 200);
       doc.line(20, attendanceY + 2, 190, attendanceY + 2);
+      
+      const presentDays = payroll.attendance.presentDays || 0;
+      const totalWorkingDays = payroll.attendance.totalWorkingDays || 23;
+      const absentDays = totalWorkingDays - presentDays;
+      const attendancePercentage = Math.round((presentDays / totalWorkingDays) * 100);
       
       doc.autoTable({
         startY: attendanceY + 5,
         margin: { left: 20, right: 20 },
         body: [
-          ['Present Days', payroll.attendance.presentDays || 0],
-          ['Working Days', payroll.attendance.totalWorkingDays || 30],
-          ['Absent Days', (payroll.attendance.totalWorkingDays || 30) - (payroll.attendance.presentDays || 0)],
-          ['Attendance %', `${Math.round(((payroll.attendance.presentDays || 0) / (payroll.attendance.totalWorkingDays || 30)) * 100)}%`]
+          ['Present Days', presentDays],
+          ['Working Days', totalWorkingDays],
+          ['Absent Days', absentDays],
+          ['Late Days', payroll.attendance.lateDays || 0],
+          ['Leave Days', payroll.attendance.leaveDays || 0],
+          ['Attendance %', `${attendancePercentage}%`]
         ],
         theme: 'plain',
         styles: { fontSize: 10, cellPadding: 5 },
@@ -410,6 +584,24 @@ const generateSinglePayrollPDF = (payroll, employee) => {
         }
       });
     }
+    
+    // Calculation Basis
+    const calculationY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Calculation Basis:", 20, calculationY);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    
+    const monthlySalary = payroll.monthlySalary || payroll.salaryDetails?.monthlySalary || 30000;
+    const dailyRate = Math.round(monthlySalary / 23);
+    
+    doc.text(`• Monthly Salary: ${formatCurrency(monthlySalary)}`, 25, calculationY + 7);
+    doc.text(`• Daily Rate: ${formatCurrency(dailyRate)} (${formatCurrency(monthlySalary)} ÷ 23)`, 25, calculationY + 14);
+    doc.text(`• Late Deduction: 3 late days = 1 day salary (${formatCurrency(dailyRate)})`, 25, calculationY + 21);
+    doc.text(`• Absent/Leave: 1 day = ${formatCurrency(dailyRate)} deduction`, 25, calculationY + 28);
     
     // Footer
     doc.setFontSize(8);
@@ -471,6 +663,7 @@ const generateMonthWiseBulkPDF = (monthYearData, employees, payrolls) => {
       });
       
       const totalAmount = empPayrolls.reduce((sum, p) => sum + (p.summary?.netPayable || p.netSalary || 0), 0);
+      const totalDeductions = empPayrolls.reduce((sum, p) => sum + (p.deductions?.total || 0), 0);
       const status = empPayrolls.length > 0 ? empPayrolls[0].status : 'No Payroll';
       
       return {
@@ -479,22 +672,25 @@ const generateMonthWiseBulkPDF = (monthYearData, employees, payrolls) => {
         department: emp.department || 'N/A',
         payrollCount: empPayrolls.length,
         totalAmount,
+        totalDeductions,
         status
       };
     });
     
     const totalAmount = employeeDetails.reduce((sum, emp) => sum + emp.totalAmount, 0);
+    const totalDeductions = employeeDetails.reduce((sum, emp) => sum + emp.totalDeductions, 0);
     
     // Employee Table
     doc.autoTable({
       startY: 50,
       margin: { left: 20, right: 20 },
-      head: [['Employee', 'Designation', 'Department', 'Payroll Count', 'Total Amount', 'Status']],
+      head: [['Employee', 'Designation', 'Department', 'Payrolls', 'Deductions', 'Net Amount', 'Status']],
       body: employeeDetails.map(emp => [
         emp.name,
         emp.designation,
         emp.department,
         emp.payrollCount,
+        formatCurrency(emp.totalDeductions),
         formatCurrency(emp.totalAmount),
         emp.status
       ]),
@@ -505,9 +701,10 @@ const generateMonthWiseBulkPDF = (monthYearData, employees, payrolls) => {
         0: { cellWidth: 60 },
         1: { cellWidth: 40 },
         2: { cellWidth: 40 },
-        3: { cellWidth: 30, halign: 'center' },
-        4: { cellWidth: 40, halign: 'right' },
-        5: { cellWidth: 30, halign: 'center' }
+        3: { cellWidth: 25, halign: 'center' },
+        4: { cellWidth: 35, halign: 'right' },
+        5: { cellWidth: 40, halign: 'right' },
+        6: { cellWidth: 30, halign: 'center' }
       },
       didDrawPage: (data) => {
         // Footer
@@ -541,8 +738,9 @@ const generateMonthWiseBulkPDF = (monthYearData, employees, payrolls) => {
     doc.text(`Total Employees: ${employees.length}`, 25, summaryY + 18);
     doc.text(`Paid: ${paidCount}`, 100, summaryY + 18);
     doc.text(`Pending: ${pendingCount}`, 150, summaryY + 18);
-    doc.text(`Total Amount: ${formatCurrency(totalAmount)}`, 200, summaryY + 18);
-    doc.text(`Average per Employee: ${formatCurrency(avgAmount)}`, 25, summaryY + 25);
+    doc.text(`Total Deductions: ${formatCurrency(totalDeductions)}`, 200, summaryY + 18);
+    doc.text(`Total Amount: ${formatCurrency(totalAmount)}`, 25, summaryY + 25);
+    doc.text(`Average per Employee: ${formatCurrency(avgAmount)}`, 100, summaryY + 25);
     
     // Save PDF
     const fileName = `Payroll_Report_${monthNames[month - 1]}_${year}_${Date.now()}.pdf`;
@@ -647,12 +845,15 @@ const generateEmployeeSalaryStatementPDF = (employee, payrolls = [], selectedMon
     const totalAmount = filteredPayrolls.reduce((sum, p) => sum + (p.summary?.netPayable || p.netSalary || 0), 0);
     const totalBasic = filteredPayrolls.reduce((sum, p) => sum + (p.earnings?.basicPay || p.basicPay || 0), 0);
     const totalDeductions = filteredPayrolls.reduce((sum, p) => sum + (p.deductions?.total || 0), 0);
+    const totalLateDeductions = filteredPayrolls.reduce((sum, p) => sum + (p.deductions?.lateDeduction || 0), 0);
+    const totalAbsentDeductions = filteredPayrolls.reduce((sum, p) => sum + (p.deductions?.absentDeduction || 0), 0);
+    const totalLeaveDeductions = filteredPayrolls.reduce((sum, p) => sum + (p.deductions?.leaveDeduction || 0), 0);
     const avgSalary = filteredPayrolls.length > 0 ? totalAmount / filteredPayrolls.length : 0;
     
     doc.setFillColor(240, 240, 240);
-    doc.rect(20, summaryY, 170, 35, 'F');
+    doc.rect(20, summaryY, 170, 45, 'F');
     doc.setDrawColor(200, 200, 200);
-    doc.rect(20, summaryY, 170, 35);
+    doc.rect(20, summaryY, 170, 45);
     
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
@@ -662,12 +863,15 @@ const generateEmployeeSalaryStatementPDF = (employee, payrolls = [], selectedMon
     doc.setFontSize(10);
     doc.text(`Total Payrolls: ${filteredPayrolls.length}`, 25, summaryY + 18);
     doc.text(`Total Basic Salary: ${formatCurrency(totalBasic)}`, 100, summaryY + 18);
-    doc.text(`Total Deductions: ${formatCurrency(totalDeductions)}`, 25, summaryY + 25);
-    doc.text(`Total Net Salary: ${formatCurrency(totalAmount)}`, 100, summaryY + 25);
-    doc.text(`Average per Payroll: ${formatCurrency(avgSalary)}`, 25, summaryY + 32);
+    doc.text(`Total Late Deductions: ${formatCurrency(totalLateDeductions)}`, 25, summaryY + 25);
+    doc.text(`Total Absent Deductions: ${formatCurrency(totalAbsentDeductions)}`, 100, summaryY + 25);
+    doc.text(`Total Leave Deductions: ${formatCurrency(totalLeaveDeductions)}`, 25, summaryY + 32);
+    doc.text(`Total Deductions: ${formatCurrency(totalDeductions)}`, 100, summaryY + 32);
+    doc.text(`Total Net Salary: ${formatCurrency(totalAmount)}`, 25, summaryY + 39);
+    doc.text(`Average per Payroll: ${formatCurrency(avgSalary)}`, 100, summaryY + 39);
     
     // Detailed Payrolls
-    const detailsY = summaryY + 45;
+    const detailsY = summaryY + 55;
     
     if (filteredPayrolls.length > 0) {
       doc.setFontSize(12);
@@ -712,6 +916,44 @@ const generateEmployeeSalaryStatementPDF = (employee, payrolls = [], selectedMon
           doc.text(`Employee: ${getEmployeeName(employee)}`, 190, 290, { align: "right" });
         }
       });
+      
+      // Deduction Breakdown
+      const deductionY = doc.lastAutoTable.finalY + 10;
+      
+      if (filteredPayrolls.some(p => p.deductions && (p.deductions.lateDeduction > 0 || p.deductions.absentDeduction > 0 || p.deductions.leaveDeduction > 0))) {
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Deduction Breakdown", 20, deductionY);
+        doc.setDrawColor(200, 200, 200);
+        doc.line(20, deductionY + 2, 190, deductionY + 2);
+        
+        const deductionDetails = filteredPayrolls.map((p, index) => [
+          index + 1,
+          p.month ? `${monthNames[p.month - 1]} ${p.year}` : 'N/A',
+          formatCurrency(p.deductions?.lateDeduction || 0),
+          formatCurrency(p.deductions?.absentDeduction || 0),
+          formatCurrency(p.deductions?.leaveDeduction || 0),
+          formatCurrency(p.deductions?.total || 0)
+        ]);
+        
+        doc.autoTable({
+          startY: deductionY + 5,
+          margin: { left: 20, right: 20 },
+          head: [['#', 'Month-Year', 'Late', 'Absent', 'Leave', 'Total']],
+          body: deductionDetails,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 87, 87], textColor: 255 },
+          styles: { fontSize: 8, cellPadding: 3 },
+          columnStyles: {
+            0: { cellWidth: 15, halign: 'center' },
+            1: { cellWidth: 40 },
+            2: { cellWidth: 30, halign: 'right' },
+            3: { cellWidth: 30, halign: 'right' },
+            4: { cellWidth: 30, halign: 'right' },
+            5: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+          }
+        });
+      }
     } else {
       doc.setFontSize(11);
       doc.setTextColor(100, 100, 100);
@@ -776,6 +1018,7 @@ const generateAllEmployeesPDF = (employees, payrolls) => {
       );
       
       const totalAmount = empPayrolls.reduce((sum, p) => sum + (p.summary?.netPayable || p.netSalary || 0), 0);
+      const totalDeductions = empPayrolls.reduce((sum, p) => sum + (p.deductions?.total || 0), 0);
       const paidCount = empPayrolls.filter(p => p.status === 'Paid').length;
       const pendingCount = empPayrolls.filter(p => p.status === 'Pending').length;
       const lastPayroll = empPayrolls.length > 0 ? 
@@ -786,8 +1029,7 @@ const generateAllEmployeesPDF = (employees, payrolls) => {
         emp.designation || 'Employee',
         emp.department || 'N/A',
         empPayrolls.length,
-        paidCount,
-        pendingCount,
+        formatCurrency(totalDeductions),
         formatCurrency(totalAmount),
         lastPayroll
       ];
@@ -798,12 +1040,13 @@ const generateAllEmployeesPDF = (employees, payrolls) => {
     const totalPaid = payrolls.filter(p => p.status === 'Paid').length;
     const totalPending = payrolls.filter(p => p.status === 'Pending').length;
     const totalAmount = payrolls.reduce((sum, p) => sum + (p.summary?.netPayable || p.netSalary || 0), 0);
+    const totalDeductions = payrolls.reduce((sum, p) => sum + (p.deductions?.total || 0), 0);
     
     // Employee Table
     doc.autoTable({
       startY: 50,
       margin: { left: 20, right: 20 },
-      head: [['Employee', 'Designation', 'Department', 'Total Payrolls', 'Paid', 'Pending', 'Total Amount', 'Last Payroll']],
+      head: [['Employee', 'Designation', 'Department', 'Payrolls', 'Total Deductions', 'Total Amount', 'Last Payroll']],
       body: employeeData,
       theme: 'striped',
       headStyles: { fillColor: secondaryColor, textColor: 255 },
@@ -813,10 +1056,9 @@ const generateAllEmployeesPDF = (employees, payrolls) => {
         1: { cellWidth: 35 },
         2: { cellWidth: 35 },
         3: { cellWidth: 25, halign: 'center' },
-        4: { cellWidth: 20, halign: 'center' },
-        5: { cellWidth: 20, halign: 'center' },
-        6: { cellWidth: 35, halign: 'right' },
-        7: { cellWidth: 30, halign: 'center' }
+        4: { cellWidth: 35, halign: 'right' },
+        5: { cellWidth: 35, halign: 'right' },
+        6: { cellWidth: 30, halign: 'center' }
       },
       didDrawPage: (data) => {
         // Footer
@@ -846,7 +1088,8 @@ const generateAllEmployeesPDF = (employees, payrolls) => {
     doc.text(`Total Payrolls: ${totalPayrolls}`, 100, summaryY + 18);
     doc.text(`Paid: ${totalPaid}`, 150, summaryY + 18);
     doc.text(`Pending: ${totalPending}`, 200, summaryY + 18);
-    doc.text(`Total Amount: ${formatCurrency(totalAmount)}`, 25, summaryY + 25);
+    doc.text(`Total Deductions: ${formatCurrency(totalDeductions)}`, 25, summaryY + 25);
+    doc.text(`Total Amount: ${formatCurrency(totalAmount)}`, 100, summaryY + 25);
     
     // Save PDF
     const fileName = `All_Employees_Payroll_Report_${Date.now()}.pdf`;
@@ -865,92 +1108,127 @@ const Page = () => {
   // API Configuration - সঠিক API URL ইউজ করুন
   const API_BASE_URL = 'https://a2itserver.onrender.com/api/v1';
   
-  // Add this function after your API_BASE_URL
-  const savePayrollToMongoDB = async (payrollData) => {
+  // Updated savePayrollToMongoDB function - FIXED 
+const savePayrollToMongoDB = async (payrollData) => {
+  try {
+    console.log('🚀 Attempting to save to MongoDB...', payrollData);
+    
+    // Get authentication token
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('employeeToken');
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    
+    // Extract token if it starts with Bearer
+    const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+    
+    // MINIMAL payload structure - শুধু required fields
+    const payload = {
+      employee: payrollData.employee,
+      employeeName: payrollData.employeeName,
+      periodStart: payrollData.periodStart,
+      periodEnd: payrollData.periodEnd,
+      status: payrollData.status || 'Pending',
+      month: payrollData.month,
+      year: payrollData.year,
+      basicPay: payrollData.basicPay || payrollData.earnings?.basicPay || 0,
+      monthlySalary: payrollData.monthlySalary || payrollData.basicPay || 30000,
+      
+      // Earnings
+      earnings: {
+        basicPay: payrollData.basicPay || payrollData.earnings?.basicPay || 0,
+        overtime: payrollData.earnings?.overtime || 0,
+        bonus: payrollData.earnings?.bonus || 0,
+        allowance: payrollData.earnings?.allowance || 0,
+        total: (payrollData.basicPay || payrollData.earnings?.basicPay || 0) + 
+              (payrollData.earnings?.overtime || 0) + 
+              (payrollData.earnings?.bonus || 0) + 
+              (payrollData.earnings?.allowance || 0)
+      },
+      
+      // Deductions
+      deductions: {
+        lateDeduction: payrollData.deductions?.lateDeduction || 0,
+        absentDeduction: payrollData.deductions?.absentDeduction || 0,
+        leaveDeduction: payrollData.deductions?.leaveDeduction || 0,
+        total: (payrollData.deductions?.lateDeduction || 0) + 
+              (payrollData.deductions?.absentDeduction || 0) + 
+              (payrollData.deductions?.leaveDeduction || 0)
+      },
+      
+      // Summary
+      summary: {
+        grossEarnings: (payrollData.basicPay || payrollData.earnings?.basicPay || 0) + 
+                      (payrollData.earnings?.overtime || 0) + 
+                      (payrollData.earnings?.bonus || 0) + 
+                      (payrollData.earnings?.allowance || 0),
+        totalDeductions: (payrollData.deductions?.lateDeduction || 0) + 
+                        (payrollData.deductions?.absentDeduction || 0) + 
+                        (payrollData.deductions?.leaveDeduction || 0),
+        netPayable: payrollData.netSalary || 
+                   ((payrollData.basicPay || payrollData.earnings?.basicPay || 0) + 
+                    (payrollData.earnings?.overtime || 0) + 
+                    (payrollData.earnings?.bonus || 0) + 
+                    (payrollData.earnings?.allowance || 0)) - 
+                   ((payrollData.deductions?.lateDeduction || 0) + 
+                    (payrollData.deductions?.absentDeduction || 0) + 
+                    (payrollData.deductions?.leaveDeduction || 0))
+      },
+      
+      createdBy: getUserId(),
+      isAutoGenerated: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    console.log('📦 Payload for MongoDB:', JSON.stringify(payload, null, 2));
+    
+    // শুধু একটি endpoint চেষ্টা করুন
+    const endpoint = '/payroll/create';
+    console.log(`Trying endpoint: ${API_BASE_URL}${endpoint}`);
+    
     try {
-      console.log('🚀 Attempting to save to MongoDB...');
+      const response = await axios.post(
+        `${API_BASE_URL}${endpoint}`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cleanToken}`
+          },
+          timeout: 30000
+        }
+      );
       
-      // Get authentication token
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('employeeToken');
-      if (!token) {
-        throw new Error('Authentication token not found');
+      console.log(`✅ Response from MongoDB:`, response.data);
+      
+      if (response.status === 200 || response.status === 201) {
+        console.log(`✅ Successfully saved to MongoDB`);
+        return response.data;
+      } else {
+        throw new Error(`Failed with status: ${response.status}`);
       }
+    } catch (apiError) {
+      console.error('❌ API Error:', apiError.message);
       
-      // Extract token if it starts with Bearer
-      const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
-      
-      // Prepare the payload
-      const payload = {
-        employee: payrollData.employee,
-        employeeName: payrollData.employeeName,
-        employeeId: payrollData.employeeId,
-        periodStart: payrollData.periodStart,
-        periodEnd: payrollData.periodEnd,
-        status: payrollData.status || 'Pending',
-        month: payrollData.month,
-        year: payrollData.year,
-        basicSalary: payrollData.salaryDetails?.basicSalary || payrollData.basicPay,
-        monthlySalary: payrollData.salaryDetails?.monthlySalary || payrollData.monthlySalary,
-        attendance: payrollData.attendance,
-        earnings: payrollData.earnings,
-        deductions: payrollData.deductions,
-        summary: payrollData.summary,
-        createdBy: payrollData.createdBy,
-        createdRole: payrollData.createdRole,
-        autoGenerated: true
+      // যদি API error হয়, তাহলে localStorage-এ save করুন
+      console.log('📱 Saving to localStorage instead...');
+      const localPayroll = {
+        ...payload,
+        _id: `local_${Date.now()}_${payload.employee}`,
+        localSave: true,
+        mongoDBSaveFailed: true,
+        mongoDBError: apiError.message
       };
       
-      console.log('📦 Payload for MongoDB:', payload);
-      
-      // Try multiple endpoints
-      const endpoints = [
-        '/payroll/create',
-        '/payrollCreate',
-        '/admin/payroll/create',
-        '/payroll/add',
-        '/api/payroll'
-      ];
-      
-      let savedResponse = null;
-      
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`Trying endpoint: ${API_BASE_URL}${endpoint}`);
-          
-          const response = await axios.post(
-            `${API_BASE_URL}${endpoint}`,
-            payload,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${cleanToken}`
-              },
-              timeout: 10000
-            }
-          );
-          
-          if (response.status === 200 || response.status === 201) {
-            console.log(`✅ Success with endpoint: ${endpoint}`, response.data);
-            savedResponse = response.data;
-            break;
-          }
-        } catch (endpointError) {
-          console.log(`❌ Endpoint ${endpoint} failed:`, endpointError.message);
-          continue;
-        }
-      }
-      
-      if (!savedResponse) {
-        throw new Error('All MongoDB endpoints failed');
-      }
-      
-      return savedResponse;
-      
-    } catch (error) {
-      console.error('❌ MongoDB save error:', error);
-      throw error;
+      return localPayroll;
     }
-  };
+    
+  } catch (error) {
+    console.error('❌ MongoDB save error:', error);
+    throw error;
+  }
+};
 
   const router = useRouter();
   
@@ -1379,6 +1657,7 @@ const Page = () => {
           payrolls: [],
           monthYearMap: {},
           totalAmount: 0,
+          totalDeductions: 0,
           totalPayrolls: 0,
           statusCount: {
             Paid: 0,
@@ -1392,6 +1671,7 @@ const Page = () => {
       
       employeeMap[employeeId].payrolls.push(payroll);
       employeeMap[employeeId].totalAmount += payroll.summary?.netPayable || payroll.netSalary || 0;
+      employeeMap[employeeId].totalDeductions += payroll.deductions?.total || 0;
       employeeMap[employeeId].totalPayrolls++;
       
       // Track status
@@ -1469,6 +1749,7 @@ const Page = () => {
           monthName: monthNames[month - 1],
           payrolls: [],
           totalAmount: 0,
+          totalDeductions: 0,
           statusCount: {
             Paid: 0,
             Pending: 0
@@ -1478,6 +1759,7 @@ const Page = () => {
       
       monthYearMap[key].payrolls.push(payroll);
       monthYearMap[key].totalAmount += payroll.summary?.netPayable || payroll.netSalary || 0;
+      monthYearMap[key].totalDeductions += payroll.deductions?.total || 0;
       
       if (payroll.status === 'Paid' || payroll.status === 'Approved') {
         monthYearMap[key].statusCount.Paid++;
@@ -1499,62 +1781,117 @@ const Page = () => {
   };
 
   // Load employees with fallback
-  const loadEmployees = async () => {
-    setLoading(prev => ({ ...prev, employees: true }));
+// FIXED loadEmployees function
+const loadEmployees = async () => {
+  setLoading(prev => ({ ...prev, employees: true }));
+  
+  try {
+    console.log('👥 Loading employees from API...');
     
-    try {
-      const response = await API.get('/admin/getAll-user');
-      let employeesData = [];
-      
-      if (response.data.users && Array.isArray(response.data.users)) {
-        employeesData = response.data.users;
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        employeesData = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        employeesData = response.data;
-      } else if (response.data.success && Array.isArray(response.data.users)) {
-        employeesData = response.data.users;
-      }
-      
-      const activeEmployees = employeesData.filter(emp => 
-        !emp.status || 
-        emp.status === 'active' || 
-        emp.status === 'Active' ||
-        (emp.status !== 'inactive' && emp.status !== 'terminated')
-      );
-      
-      setEmployees(activeEmployees);
-      
-      const salaryMap = {};
-      activeEmployees.forEach(emp => {
-        if (emp._id) {
-          salaryMap[emp._id] = {
-            salary: emp.salary || emp.monthlySalary || emp.basicSalary || 30000,
-            monthlyBasic: emp.monthlyBasic || emp.salary || emp.basicSalary || 30000,
-            designation: emp.designation || emp.role || 'Employee',
-            department: emp.department || 'General',
-            name: getEmployeeName(emp)
-          };
-        }
-      });
-      setEmployeeSalaries(salaryMap);
-      
-      return activeEmployees;
-      
-    } catch (error) {
-      console.error('Failed to load employees:', error);
-      return [];
-    } finally {
-      setLoading(prev => ({ ...prev, employees: false }));
+    const response = await API.get('/admin/getAll-user');
+    console.log('👥 API Response:', response.data);
+    
+    let employeesData = [];
+    
+    // Different response structures handling
+    if (response.data.users && Array.isArray(response.data.users)) {
+      employeesData = response.data.users;
+    } else if (response.data.data && Array.isArray(response.data.data)) {
+      employeesData = response.data.data;
+    } else if (Array.isArray(response.data)) {
+      employeesData = response.data;
+    } else if (response.data.success && Array.isArray(response.data.users)) {
+      employeesData = response.data.users;
+    } else {
+      console.error('❌ Unexpected response structure:', response.data);
+      employeesData = [];
     }
-  };
+    
+    console.log(`✅ Found ${employeesData.length} employees`);
+    
+    // Filter active employees
+    const activeEmployees = employeesData.filter(emp => {
+      if (!emp) return false;
+      
+      // Check if employee is active
+      const status = emp.status || emp.employeeStatus;
+      const isActive = !status || 
+                      status === 'active' || 
+                      status === 'Active' ||
+                      status === 'employed' ||
+                      status === 'working';
+      
+      // Check if employee has required fields
+      const hasRequiredFields = emp._id && (emp.firstName || emp.lastName || emp.name || emp.email);
+      
+      return isActive && hasRequiredFields;
+    });
+    
+    console.log(`✅ ${activeEmployees.length} active employees found`);
+    
+    setEmployees(activeEmployees);
+    
+    // Create salary map
+    const salaryMap = {};
+    activeEmployees.forEach(emp => {
+      if (emp._id) {
+        salaryMap[emp._id] = {
+          salary: emp.salary || emp.monthlySalary || emp.basicSalary || 30000,
+          monthlyBasic: emp.monthlyBasic || emp.salary || emp.basicSalary || 30000,
+          designation: emp.designation || emp.role || emp.position || 'Employee',
+          department: emp.department || emp.departmentName || 'General',
+          name: getEmployeeName(emp),
+          email: emp.email || 'N/A',
+          phone: emp.phone || emp.mobile || 'N/A',
+          employeeId: emp.employeeId || emp.employeeCode || emp._id.substring(0, 8)
+        };
+      }
+    });
+    
+    setEmployeeSalaries(salaryMap);
+    
+    // Log first few employees for debugging
+    if (activeEmployees.length > 0) {
+      console.log('👥 First 3 employees:', activeEmployees.slice(0, 3).map(e => ({
+        id: e._id,
+        name: getEmployeeName(e),
+        salary: salaryMap[e._id]?.salary
+      })));
+    }
+    
+    return activeEmployees;
+    
+  } catch (error) {
+    console.error('❌ Failed to load employees:', error);
+    
+    // Fallback: Use localStorage data if available
+    try {
+      const savedEmployees = localStorage.getItem('employees');
+      if (savedEmployees) {
+        const parsed = JSON.parse(savedEmployees);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setEmployees(parsed);
+          console.log(`📱 Loaded ${parsed.length} employees from localStorage`);
+          return parsed;
+        }
+      }
+    } catch (localError) {
+      console.error('LocalStorage error:', localError);
+    }
+    
+    toast.error('Failed to load employees');
+    return [];
+  } finally {
+    setLoading(prev => ({ ...prev, employees: false }));
+  }
+};
 
   // calculateHourlyRate ফাংশন
   const calculateHourlyRate = (dailyRate) => {
     return Math.round(dailyRate / 8);
   };
 
-  // Calculate daily rate based on 23 working days
+  // Calculate daily rate based on 23 working days - UPDATED
   const calculateDailyRate = (monthlySalary) => {
     return Math.round(monthlySalary / 23);
   };
@@ -1564,7 +1901,7 @@ const Page = () => {
     return monthlySalary;
   };
 
-  // Calculate attendance with 23 working days
+  // Calculate attendance with 23 working days - UPDATED
   const calculateAutoAttendance = (employeeId, month, year) => {
     if (!employeeId) {
       return {
@@ -1602,7 +1939,7 @@ const Page = () => {
     };
   };
 
-  // Calculate deductions with 23 days logic
+  // Calculate deductions with 23 days logic - UPDATED
   const calculateAttendanceDeductions = (employeeId, monthlySalary, month, year) => {
     const attendance = calculateAutoAttendance(employeeId, month, year);
     const dailyRate = calculateDailyRate(monthlySalary);
@@ -1863,6 +2200,10 @@ const Page = () => {
       return sum + (p.summary?.netPayable || p.netSalary || p.earnings?.total || 0);
     }, 0);
     
+    const totalDeductions = payrollData.reduce((sum, p) => {
+      return sum + (p.deductions?.total || 0);
+    }, 0);
+    
     const totalProcessed = payrollData.length;
     const totalPending = payrollData.filter(p => p.status === 'Pending' || p.status === 'pending_approval').length;
     const totalPaid = payrollData.filter(p => p.status === 'Paid').length;
@@ -1885,14 +2226,20 @@ const Page = () => {
       return sum + (p.summary?.netPayable || p.netSalary || p.earnings?.total || 0);
     }, 0);
     
+    const monthlyDeductions = currentMonthPayrolls.reduce((sum, p) => {
+      return sum + (p.deductions?.total || 0);
+    }, 0);
+    
     setStats({
       totalPayroll,
+      totalDeductions,
       totalEmployees: employees.length,
       totalProcessed,
       totalPending,
       totalPaid,
       totalRejected,
       monthlyExpense,
+      monthlyDeductions,
       pendingSalaryRequests: 0
     });
   };
@@ -1948,7 +2295,7 @@ const Page = () => {
     
     const dailyRate = calculateDailyRate(monthlySalary);
     
-    // Basic Pay = Monthly Salary
+    // Basic Pay = Monthly Salary (for 23 days month)
     const basicPay = monthlySalary; 
     
     const totalEarnings = 
@@ -2133,6 +2480,7 @@ const Page = () => {
           payrolls: [],
           employees: new Set(),
           totalAmount: 0,
+          totalDeductions: 0,
           statusCount: {
             Paid: 0,
             Pending: 0,
@@ -2144,6 +2492,7 @@ const Page = () => {
       
       monthYearMap[key].payrolls.push(payroll);
       monthYearMap[key].totalAmount += payroll.summary?.netPayable || payroll.netSalary || 0;
+      monthYearMap[key].totalDeductions += payroll.deductions?.total || 0;
       
       // Add employee to set
       if (payroll.employee) {
@@ -2175,6 +2524,9 @@ const Page = () => {
         const totalAmount = employeePayrolls.reduce((sum, p) => 
           sum + (p.summary?.netPayable || p.netSalary || 0), 0
         );
+        const totalDeductions = employeePayrolls.reduce((sum, p) => 
+          sum + (p.deductions?.total || 0), 0
+        );
         
         return {
           id: empId,
@@ -2182,6 +2534,7 @@ const Page = () => {
           designation: employee?.designation || 'Employee',
           payrollCount: employeePayrolls.length,
           totalAmount: totalAmount,
+          totalDeductions: totalDeductions,
           status: employeePayrolls.every(p => p.status === 'Paid') ? 'Paid' : 
                   employeePayrolls.some(p => p.status === 'Pending') ? 'Pending' : 'Mixed'
         };
@@ -2217,167 +2570,166 @@ const Page = () => {
     setShowMonthYearDetails(true);
   };
 
-  // Handle create payroll function - Optimized for MongoDB
-  const handleCreatePayroll = async (e) => {
-    e.preventDefault();
+  // Handle create payroll function - Optimized for MongoDB - UPDATED
+// FIXED handleCreatePayroll function
+const handleCreatePayroll = async (e) => {
+  e.preventDefault();
+  
+  if (!createForm.employee || !createForm.periodStart || !createForm.periodEnd) {
+    toast.error('Please select employee and period dates');
+    return;
+  }
+  
+  setLoading(prev => ({ ...prev, action: true }));
+  
+  try {
+    console.log('🔄 Starting payroll creation...');
     
-    if (!createForm.employee || !createForm.periodStart || !createForm.periodEnd) {
-      toast.error('Please select employee and period dates');
-      return;
+    // 1. Find selected employee
+    const selectedEmployee = employees.find(emp => emp._id === createForm.employee);
+    if (!selectedEmployee) {
+      throw new Error('Selected employee not found in employees list');
     }
     
-    setLoading(prev => ({ ...prev, action: true }));
+    console.log('✅ Selected employee:', getEmployeeName(selectedEmployee));
+    
+    // 2. Get salary data
+    const salaryData = employeeSalaries[createForm.employee] || {};
+    const monthlySalary = salaryData.salary || 30000;
+    
+    // 3. Calculate period
+    const periodStartDate = new Date(createForm.periodStart);
+    const month = periodStartDate.getMonth() + 1;
+    const year = periodStartDate.getFullYear();
+    
+    // 4. Generate attendance data for 23 days
+    const attendance = calculateAutoAttendance(createForm.employee, month, year);
+    const deductions = calculateAttendanceDeductions(createForm.employee, monthlySalary, month, year);
+    
+    // 5. Calculate values
+    const dailyRate = calculateDailyRate(monthlySalary);
+    const basicPay = monthlySalary;
+    
+    const overtimeAmount = createForm.earnings.overtime || 0;
+    const bonusAmount = createForm.earnings.bonus || 0;
+    const allowanceAmount = createForm.earnings.allowance || 0;
+    const totalEarnings = basicPay + overtimeAmount + bonusAmount + allowanceAmount;
+    const totalDeductions = deductions.total;
+    const netPayable = totalEarnings - totalDeductions;
+    
+    // 6. Create payroll data object
+    const payrollData = {
+      employee: createForm.employee,
+      employeeName: getEmployeeName(selectedEmployee),
+      employeeId: selectedEmployee.employeeId || selectedEmployee._id,
+      periodStart: createForm.periodStart,
+      periodEnd: createForm.periodEnd,
+      status: createForm.status || 'Pending',
+      month: month,
+      year: year,
+      
+      // Core salary fields
+      basicPay: basicPay,
+      monthlySalary: monthlySalary,
+      netSalary: netPayable,
+      
+      // Attendance
+      attendance: {
+        presentDays: attendance.presentDays,
+        totalWorkingDays: 23,
+        attendancePercentage: attendance.attendancePercentage,
+        lateDays: attendance.lateDays,
+        absentDays: attendance.absentDays,
+        leaveDays: attendance.leaves
+      },
+      
+      // Earnings
+      earnings: {
+        basicPay: basicPay,
+        overtime: overtimeAmount,
+        bonus: bonusAmount,
+        allowance: allowanceAmount,
+        total: totalEarnings
+      },
+      
+      // Deductions
+      deductions: {
+        lateDeduction: deductions.lateDeduction,
+        absentDeduction: deductions.absentDeduction,
+        leaveDeduction: deductions.leaveDeduction,
+        total: totalDeductions
+      },
+      
+      // Summary
+      summary: {
+        grossEarnings: totalEarnings,
+        totalDeductions: totalDeductions,
+        netPayable: netPayable,
+        inWords: convertToWords(netPayable)
+      },
+      
+      createdBy: getUserId(),
+      isAutoGenerated: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    console.log('📋 Payroll Data:', payrollData);
+    
+    // 7. Save to MongoDB
+    let savedPayroll = null;
     
     try {
-      console.log('🔄 Starting payroll creation...');
+      savedPayroll = await savePayrollToMongoDB(payrollData);
+      console.log('✅ Payroll saved successfully:', savedPayroll);
       
-      // 1. Find selected employee
-      const selectedEmployee = employees.find(emp => emp._id === createForm.employee);
-      if (!selectedEmployee) {
-        throw new Error('Selected employee not found');
+      if (savedPayroll.localSave) {
+        toast.warning('📱 Saved locally. Database connection failed.');
+      } else {
+        toast.success('✅ Payroll saved to database!');
       }
+    } catch (saveError) {
+      console.error('❌ Save error:', saveError);
       
-      // 2. Get salary data
-      const salaryData = employeeSalaries[createForm.employee] || {};
-      const monthlySalary = salaryData.salary || 30000;
-      
-      // 3. Calculate period
-      const periodStartDate = new Date(createForm.periodStart);
-      const month = periodStartDate.getMonth() + 1;
-      const year = periodStartDate.getFullYear();
-      
-      // 4. Generate attendance data for 23 days
-      const attendance = calculateAutoAttendance(createForm.employee, month, year);
-      const deductions = calculateAttendanceDeductions(createForm.employee, monthlySalary, month, year);
-      
-      // 5. Calculate values
-      const dailyRate = calculateDailyRate(monthlySalary);
-      const basicPay = monthlySalary;
-      
-      const overtimeAmount = createForm.earnings.overtime || 0;
-      const bonusAmount = createForm.earnings.bonus || 0;
-      const allowanceAmount = createForm.earnings.allowance || 0;
-      const totalEarnings = basicPay + overtimeAmount + bonusAmount + allowanceAmount;
-      const totalDeductions = deductions.total;
-      const netPayable = totalEarnings - totalDeductions;
-      
-      // 6. Create payroll data object
-      const payrollData = {
-        employee: createForm.employee,
-        employeeName: getEmployeeName(selectedEmployee),
-        employeeId: selectedEmployee.employeeId || selectedEmployee._id,
-        periodStart: createForm.periodStart,
-        periodEnd: createForm.periodEnd,
-        status: createForm.status || 'Pending',
-        month: month,
-        year: year,
-        basicSalary: basicPay,
-        monthlySalary: monthlySalary,
-        dailyRate: dailyRate,
-        attendance: {
-          presentDays: attendance.presentDays,
-          totalWorkingDays: 23,
-          attendancePercentage: attendance.attendancePercentage,
-          lateDays: attendance.lateDays,
-          absentDays: attendance.absentDays,
-          leaveDays: attendance.leaves
-        },
-        earnings: {
-          basicPay: basicPay,
-          overtime: overtimeAmount,
-          bonus: bonusAmount,
-          allowance: allowanceAmount,
-          total: totalEarnings
-        },
-        deductions: {
-          lateDeduction: deductions.lateDeduction,
-          absentDeduction: deductions.absentDeduction,
-          leaveDeduction: deductions.leaveDeduction,
-          total: totalDeductions
-        },
-        summary: {
-          grossEarnings: totalEarnings,
-          totalDeductions: totalDeductions,
-          netPayable: netPayable,
-          inWords: convertToWords(netPayable),
-          payableDays: attendance.presentDays
-        },
-        createdBy: getUserId(),
-        createdRole: getUserRole(),
-        isAutoGenerated: false,
-        calculationMethod: "23 days month",
-        deductionRules: {
-          lateRule: "3 late days = 1 day salary deduction",
-          absentRule: "1 absent day = 1 day salary deduction",
-          leaveRule: "1 leave day = 1 day salary deduction",
-          calculationBase: "Daily rate = Monthly salary ÷ 23"
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+      // Create local payroll if save fails
+      savedPayroll = {
+        ...payrollData,
+        _id: `local_${Date.now()}_${payrollData.employee}`,
+        localSave: true,
+        saveError: saveError.message
       };
       
-      console.log('📋 Payroll Data:', payrollData);
-      
-      // 7. Save to MongoDB
-      let savedPayroll = null;
-      
-      if (apiConnected) {
-        try {
-          const mongoResponse = await savePayrollToMongoDB(payrollData);
-          
-          if (mongoResponse && (mongoResponse._id || mongoResponse.data?._id)) {
-            savedPayroll = mongoResponse.data || mongoResponse;
-            console.log('✅ Saved to MongoDB:', savedPayroll._id);
-            toast.success('✅ Payroll saved to database!');
-          } else {
-            throw new Error('MongoDB response missing ID');
-          }
-        } catch (mongoError) {
-          console.error('❌ MongoDB save failed:', mongoError);
-          
-          savedPayroll = {
-            ...payrollData,
-            _id: `local_${Date.now()}_${payrollData.employee}`,
-            localSave: true,
-            mongoDBSaveFailed: true,
-            mongoDBError: mongoError.message
-          };
-          
-          toast.warning('📱 Saved locally. Database connection failed.');
-        }
-      } else {
-        savedPayroll = {
-          ...payrollData,
-          _id: `local_${Date.now()}_${payrollData.employee}`,
-          localSave: true,
-          offlineMode: true
-        };
-        
-        toast.info('📱 Saved locally (offline mode)');
-      }
-      
-      // 8. Update local state
-      const updatedPayrolls = [savedPayroll, ...payrolls];
-      setPayrolls(updatedPayrolls);
-      savePayrollsToLocalStorage(updatedPayrolls);
-      
-      // 9. Update statistics
-      calculateStats(updatedPayrolls);
-      
-      // 10. Success message
-      toast.success(`✅ Payroll created for ${payrollData.employeeName}! Net: ${formatCurrency(netPayable)}`);
-      
-      // 11. Reset form
-      resetCreateForm();
-      setShowCreateModal(false);
-      
-    } catch (error) {
-      console.error('❌ Create payroll error:', error);
-      toast.error(`❌ Error: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, action: false }));
+      toast.warning('📱 Saved locally due to save error');
     }
-  };
+    
+    // 8. Update local state
+    const updatedPayrolls = [savedPayroll, ...payrolls];
+    setPayrolls(updatedPayrolls);
+    savePayrollsToLocalStorage(updatedPayrolls);
+    
+    // 9. Update employee payrolls if modal is open
+    if (showEmployeeDetails && selectedEmployeeForPayroll?._id === createForm.employee) {
+      const updatedEmployeePayrolls = [savedPayroll, ...employeePayrolls];
+      setEmployeePayrolls(updatedEmployeePayrolls);
+    }
+    
+    // 10. Update statistics
+    calculateStats(updatedPayrolls);
+    
+    // 11. Success message
+    toast.success(`✅ Payroll created for ${payrollData.employeeName}! Net: ${formatCurrency(netPayable)}`);
+    
+    // 12. Reset form and close modal
+    resetCreateForm();
+    setShowCreateModal(false);
+    
+  } catch (error) {
+    console.error('❌ Create payroll error:', error);
+    toast.error(`❌ Error: ${error.message}`);
+  } finally {
+    setLoading(prev => ({ ...prev, action: false }));
+  }
+};
 
   // Handle calculate payroll
   const handleCalculatePayroll = async (e) => {
@@ -2407,7 +2759,7 @@ const Page = () => {
       
       const dailyRate = calculateDailyRate(monthlySalary);
       const hourlyRate = calculateHourlyRate(dailyRate);
-      const basicPay = Math.round(dailyRate * attendance.presentDays);
+      const basicPay = monthlySalary; // Full month salary for 23 days
       const overtimeAmount = Math.round(hourlyRate * 10 * 1.5);
       const totalEarnings = basicPay + overtimeAmount;
       const totalDeductions = deductions.total;
@@ -2462,7 +2814,7 @@ const Page = () => {
         }
       });
       
-      toast.success(`Payroll calculated successfully for ${month}/${year}!`);
+      toast.success(`Payroll calculated successfully for ${month}/${year}! Deductions: ${formatCurrency(totalDeductions)}`);
       
     } catch (error) {
       console.error('Calculate payroll error:', error);
@@ -2498,7 +2850,7 @@ const Page = () => {
         
         const dailyRate = calculateDailyRate(monthlySalary);
         const hourlyRate = calculateHourlyRate(dailyRate);
-        const basicPay = Math.round(dailyRate * attendance.presentDays);
+        const basicPay = monthlySalary; // Full month salary for 23 days
         const overtimeAmount = Math.round(hourlyRate * 10 * 1.5);
         const totalEarnings = basicPay + overtimeAmount;
         const totalDeductions = deductions.total;
@@ -2512,22 +2864,22 @@ const Page = () => {
           periodEnd: new Date(year, month, 0).toISOString().split('T')[0],
           status: 'Pending',
           
-          salaryDetails: {
-            monthlySalary,
-            dailyRate,
-            hourlyRate
-          },
+          monthlySalary: monthlySalary,
+          basicPay: basicPay,
+          dailyRate: dailyRate,
+          hourlyRate: hourlyRate,
           
           attendance: {
             presentDays: attendance.presentDays,
             totalWorkingDays: attendance.totalWorkingDays,
             attendancePercentage: attendance.attendancePercentage,
-            lateMinutes: attendance.lateMinutes,
-            absentDays: attendance.absentDays
+            lateDays: attendance.lateDays,
+            absentDays: attendance.absentDays,
+            leaveDays: attendance.leaves
           },
           
           earnings: {
-            basicPay,
+            basicPay: basicPay,
             overtime: overtimeAmount,
             total: totalEarnings
           },
@@ -2545,7 +2897,9 @@ const Page = () => {
           },
           
           summary: {
-            netPayable,
+            grossEarnings: totalEarnings,
+            totalDeductions: totalDeductions,
+            netPayable: netPayable,
             inWords: convertToWords(netPayable)
           },
           
@@ -2563,9 +2917,9 @@ const Page = () => {
         // Try to save to API
         if (apiConnected) {
           try {
-            const response = await payrollApi.bulkAutoGeneratePayroll(payrollData);
-            if (response.data) {
-              newPayrolls.push(response.data.payroll || response.data);
+            const response = await savePayrollToMongoDB(payrollData);
+            if (response && (response._id || response.data?._id)) {
+              newPayrolls.push(response.data || response);
             }
           } catch (apiError) {
             console.error(`API save failed for ${emp._id}:`, apiError.message);
@@ -2585,7 +2939,7 @@ const Page = () => {
       savePayrollsToLocalStorage(updatedPayrolls);
       calculateStats(updatedPayrolls);
       
-      toast.success(`Created ${newPayrolls.length} payrolls for ${month}/${year}`);
+      toast.success(`Created ${newPayrolls.length} payrolls for ${month}/${year} with auto deductions`);
       setShowBulkModal(false);
       setBulkForm({ month: '', year: '' });
       
@@ -2795,6 +3149,8 @@ const Page = () => {
         periodStart: new Date(year, month - 1, 1).toISOString().split('T')[0],
         periodEnd: new Date(year, month, 0).toISOString().split('T')[0],
         status: 'Pending',
+        monthlySalary: earnings.basicPay,
+        basicPay: earnings.basicPay,
         attendance: attendanceBreakdown,
         earnings,
         deductions,
@@ -2806,8 +3162,8 @@ const Page = () => {
       let savedPayroll;
       if (apiConnected) {
         try {
-          const response = await payrollApi.autoGeneratePayroll(payrollData);
-          savedPayroll = response.data;
+          const response = await savePayrollToMongoDB(payrollData);
+          savedPayroll = response;
         } catch (apiError) {
           console.error('API auto generate failed:', apiError.message);
           savedPayroll = {
@@ -3122,6 +3478,7 @@ const Page = () => {
       stats.totalPaid += payroll.status === 'Paid' ? 1 : 0;
       stats.totalPending += payroll.status === 'Pending' ? 1 : 0;
       stats.totalAmount += payroll.summary?.netPayable || 0;
+      stats.totalDeductions += payroll.deductions?.total || 0;
       stats.avgSalary = stats.totalAmount / stats.totalPayrolls;
       return stats;
     }, {
@@ -3129,6 +3486,7 @@ const Page = () => {
       totalPaid: 0,
       totalPending: 0,
       totalAmount: 0,
+      totalDeductions: 0,
       avgSalary: 0
     });
     
@@ -3169,6 +3527,7 @@ const Page = () => {
                   employees.map(emp => {
                     const empPayrolls = payrolls.filter(p => p.employee === emp._id);
                     const totalSalary = empPayrolls.reduce((sum, p) => sum + (p.summary?.netPayable || 0), 0);
+                    const totalDeductions = empPayrolls.reduce((sum, p) => sum + (p.deductions?.total || 0), 0);
                     
                     return (
                       <div
@@ -3196,6 +3555,10 @@ const Page = () => {
                           <div className="text-gray-600">Total Paid:</div>
                           <div className="font-semibold text-right text-green-600">
                             ৳{totalSalary.toLocaleString()}
+                          </div>
+                          <div className="text-gray-600">Total Deductions:</div>
+                          <div className="font-semibold text-right text-red-600">
+                            ৳{totalDeductions.toLocaleString()}
                           </div>
                         </div>
                       </div>
@@ -3253,18 +3616,18 @@ const Page = () => {
                       </div>
                     </div>
                     <div className="bg-white border border-gray-200 rounded-xl p-4">
+                      <div className="text-xs text-gray-500">Total Deductions</div>
+                      <div className="text-lg font-bold text-red-600">
+                        ৳{employeeStats.totalDeductions.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-4">
                       <div className="text-xs text-gray-500">Paid</div>
                       <div className="text-lg font-bold text-green-600">{employeeStats.totalPaid}</div>
                     </div>
                     <div className="bg-white border border-gray-200 rounded-xl p-4">
                       <div className="text-xs text-gray-500">Pending</div>
                       <div className="text-lg font-bold text-amber-600">{employeeStats.totalPending}</div>
-                    </div>
-                    <div className="bg-white border border-gray-200 rounded-xl p-4">
-                      <div className="text-xs text-gray-500">Avg Salary</div>
-                      <div className="text-lg font-bold text-blue-600">
-                        ৳{employeeStats.avgSalary.toFixed(0).toLocaleString()}
-                      </div>
                     </div>
                   </div>
                   
@@ -3274,58 +3637,110 @@ const Page = () => {
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
                     </div>
-                  ) : employeePayrolls.length === 0 ? (
-                    <div className="text-center py-12 border border-dashed border-gray-300 rounded-xl">
-                      <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-500">No payrolls found for this employee</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {employeePayrolls.map(payroll => (
-                        <div key={payroll._id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:bg-gray-100 transition-colors">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <div className="font-medium text-gray-900">
-                                {payroll.month ? 
-                                  `${monthNames[payroll.month - 1]} ${payroll.year}` :
-                                  'N/A'
-                                }
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {formatDate(payroll.periodStart)} - {formatDate(payroll.periodEnd)}
-                              </div>
-                            </div>
-                            <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              payroll.status === 'Paid' ? 'bg-green-100 text-green-800' :
-                              payroll.status === 'Pending' ? 'bg-amber-100 text-amber-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {payroll.status}
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-3 gap-3 text-sm">
-                            <div>
-                              <div className="text-gray-600">Basic Pay</div>
-                              <div className="font-semibold">৳{payroll.earnings?.basicPay?.toLocaleString() || '0'}</div>
-                            </div>
-                            <div>
-                              <div className="text-gray-600">Deductions</div>
-                              <div className="font-semibold text-red-600">
-                                -৳{payroll.deductions?.total?.toLocaleString() || '0'}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-gray-600">Net Pay</div>
-                              <div className="font-semibold text-green-600">
-                                ৳{payroll.summary?.netPayable?.toLocaleString() || '0'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  ) :  
+employeePayrolls.length === 0 ? (
+  <div className="text-center py-12 border border-dashed border-gray-300 rounded-xl">
+    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+    <p className="text-gray-500">No payrolls found for this employee</p>
+    <p className="text-gray-400 text-sm mt-2">Create a payroll for this employee to see records here</p>
+  </div>
+) : (
+  <div className="space-y-3 max-h-96 overflow-y-auto">
+    {employeePayrolls.map((payroll, index) => {
+      // Safely extract data with fallbacks
+      const netPayable = payroll.summary?.netPayable || payroll.netSalary || 0;
+      const basicPay = payroll.earnings?.basicPay || payroll.basicPay || 0;
+      const deductions = payroll.deductions?.total || 
+        ((payroll.deductions?.lateDeduction || 0) + 
+         (payroll.deductions?.absentDeduction || 0) + 
+         (payroll.deductions?.leaveDeduction || 0));
+      
+      // Get period dates
+      const periodStart = payroll.periodStart ? formatDate(payroll.periodStart) : 'N/A';
+      const periodEnd = payroll.periodEnd ? formatDate(payroll.periodEnd) : 'N/A';
+      
+      // Get month-year info
+      let monthYear = 'N/A';
+      if (payroll.month && payroll.year) {
+        monthYear = `${monthNames[payroll.month - 1]} ${payroll.year}`;
+      } else if (payroll.periodStart) {
+        try {
+          const date = new Date(payroll.periodStart);
+          monthYear = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+        } catch (e) {
+          monthYear = 'N/A';
+        }
+      }
+      
+      return (
+        <div key={payroll._id || `payroll-${index}`} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:bg-gray-100 transition-colors">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="font-medium text-gray-900">
+                {monthYear}
+              </div>
+              <div className="text-xs text-gray-500">
+                {periodStart} - {periodEnd}
+              </div>
+              {payroll._id && (
+                <div className="text-xs text-gray-400 mt-1">
+                  ID: {payroll._id.substring(0, 8)}
+                </div>
+              )}
+            </div>
+            <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+              payroll.status === 'Paid' ? 'bg-green-100 text-green-800' :
+              payroll.status === 'Pending' ? 'bg-amber-100 text-amber-800' :
+              'bg-gray-100 text-gray-800'
+            }`}>
+              {payroll.status || 'Pending'}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <div className="text-gray-600">Basic Pay</div>
+              <div className="font-semibold">৳{basicPay.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-gray-600">Deductions</div>
+              <div className="font-semibold text-red-600">
+                -৳{deductions.toLocaleString()}
+              </div>
+              {/* Show deduction breakdown if available */}
+              {payroll.deductions && (
+                <div className="text-xs text-red-500 mt-1">
+                  {payroll.deductions.lateDeduction > 0 && `Late: ৳${payroll.deductions.lateDeduction.toLocaleString()} `}
+                  {payroll.deductions.absentDeduction > 0 && `Absent: ৳${payroll.deductions.absentDeduction.toLocaleString()} `}
+                  {payroll.deductions.leaveDeduction > 0 && `Leave: ৳${payroll.deductions.leaveDeduction.toLocaleString()}`}
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="text-gray-600">Net Pay</div>
+              <div className="font-semibold text-green-600">
+                ৳{netPayable.toLocaleString()}
+              </div>
+            </div>
+          </div>
+          
+          {/* Show additional info if available */}
+          {payroll.attendance && (
+            <div className="mt-2 text-xs text-gray-500">
+              📅 {payroll.attendance.presentDays || 0}/{payroll.attendance.totalWorkingDays || 23} days
+            </div>
+          )}
+          
+          {payroll.localSave && (
+            <div className="mt-2 text-xs text-yellow-600">
+              ⚠️ Saved locally (offline mode)
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+)}
                 </>
               ) : (
                 <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -3348,12 +3763,25 @@ const Page = () => {
                   'Select an employee to view details'
                 }
               </div>
-              <button
-                onClick={() => setShowEmployeeWiseView(false)}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg font-medium hover:bg-gray-900 transition-colors"
-              >
-                Close
-              </button>
+              <div className="flex gap-2">
+                {selectedEmployee && (
+                  <button
+                    onClick={() => {
+                      generateEmployeePayrollPDF(selectedEmployee, employeePayrolls);
+                    }}
+                    className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-1"
+                  >
+                    <Download size={14} />
+                    Export PDF
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowEmployeeWiseView(false)}
+                  className="px-4 py-2 bg-gray-800 text-white rounded-lg font-medium hover:bg-gray-900 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3362,6 +3790,7 @@ const Page = () => {
   };
 
   return (
+    
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 p-4 md:p-6">
       <ToastContainer position="top-right" autoClose={3000} />
 
@@ -3496,31 +3925,24 @@ const Page = () => {
             </div>
           </div>
 
-          {/* Employees Card */}
+          {/* Deductions Card */}
           <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500 font-medium flex items-center gap-2">
-                  <UsersIcon size={16} />
-                  {isEmployeeView ? 'Payroll Count' : 'Employees'}
+                  <Receipt size={16} />
+                  {isEmployeeView ? 'My Deductions' : 'Total Deductions'}
                 </p>
                 <p className="text-2xl md:text-3xl font-bold text-gray-900 mt-2">
-                  {isEmployeeView ? stats.totalProcessed : stats.totalEmployees}
+                  {formatCurrency(stats.totalDeductions || 0)}
                 </p>
-                <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
-                  {isEmployeeView ? (
-                    <>
-                      <FileText size={12} /> Your payroll records
-                    </>
-                  ) : (
-                    <>
-                      <UserCheck size={12} /> Active employees
-                    </>
-                  )}
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  {isEmployeeView ? 'Your total deductions' : 'All deductions'}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center">
-                {isEmployeeView ? <FileText className="text-white" size={20} /> : <Users className="text-white" size={20} />}
+              <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-orange-600 rounded-xl flex items-center justify-center">
+                <Receipt className="text-white" size={20} />
               </div>
             </div>
           </div>
@@ -3638,6 +4060,10 @@ const Page = () => {
                               <DollarSign size={14} />
                               {formatCurrency(item.totalAmount)}
                             </span>
+                            <span className="flex items-center gap-1 text-red-500">
+                              <Receipt size={14} />
+                              {formatCurrency(item.totalDeductions)} Deductions
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -3682,6 +4108,10 @@ const Page = () => {
                           <div className="flex justify-between text-sm mt-1">
                             <span className="text-gray-600">Amount:</span>
                             <span className="font-bold text-purple-600">{formatCurrency(employee.totalAmount)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mt-1">
+                            <span className="text-gray-600">Deductions:</span>
+                            <span className="font-bold text-red-600">{formatCurrency(employee.totalDeductions)}</span>
                           </div>
                         </div>
                       ))}
@@ -3844,6 +4274,7 @@ const Page = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Employee</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Period</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Basic Pay</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Deductions</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Net Payable</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
@@ -3855,6 +4286,7 @@ const Page = () => {
                     const statusColor = getStatusColor(payroll.status);
                     const netPayable = payroll.summary?.netPayable || payroll.netSalary || 0;
                     const basicPay = payroll.earnings?.basicPay || payroll.basicPay || 0;
+                    const deductions = payroll.deductions?.total || 0;
                     const employee = employees.find(e => e._id === payroll.employee);
                     
                     return (
@@ -3872,7 +4304,7 @@ const Page = () => {
                               </div>
                               {payroll.attendance?.presentDays && (
                                 <div className="text-xs text-green-600 mt-1">
-                                  📅 Present: {payroll.attendance.presentDays}/{payroll.attendance.totalWorkingDays || 30} days
+                                  📅 Present: {payroll.attendance.presentDays}/{payroll.attendance.totalWorkingDays || 23} days
                                 </div>
                               )}
                             </div>
@@ -3902,9 +4334,23 @@ const Page = () => {
                           <div className="text-lg font-bold text-blue-600">
                             {formatCurrency(basicPay)}
                           </div>
-                          {payroll.salaryDetails?.monthlySalary && (
+                          {payroll.monthlySalary && (
                             <div className="text-xs text-gray-400">
-                              Monthly: {formatCurrency(payroll.salaryDetails.monthlySalary)}
+                              Monthly: {formatCurrency(payroll.monthlySalary)}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Deductions Column */}
+                        <td className="px-6 py-4">
+                          <div className="text-lg font-bold text-red-600">
+                            {formatCurrency(deductions)}
+                          </div>
+                          {payroll.deductions && (
+                            <div className="text-xs text-red-500">
+                              {payroll.deductions.lateDeduction > 0 && `Late: ${formatCurrency(payroll.deductions.lateDeduction)} `}
+                              {payroll.deductions.absentDeduction > 0 && `Absent: ${formatCurrency(payroll.deductions.absentDeduction)} `}
+                              {payroll.deductions.leaveDeduction > 0 && `Leave: ${formatCurrency(payroll.deductions.leaveDeduction)}`}
                             </div>
                           )}
                         </td>
@@ -3916,7 +4362,7 @@ const Page = () => {
                           </div>
                           {payroll.autoDeductionsApplied && (
                             <div className="text-xs text-green-500 mt-1">
-                              ✓ Auto deductions
+                              ✓ Auto deductions applied
                             </div>
                           )}
                         </td>
@@ -4110,7 +4556,7 @@ const Page = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Create Payroll</h2>
-                  <p className="text-gray-500 text-sm mt-1">Auto-calculated attendance and deductions</p>
+                  <p className="text-gray-500 text-sm mt-1">Auto-calculated attendance and deductions (23 Days Month)</p>
                 </div>
                 <button
                   onClick={() => setShowCreateModal(false)}
@@ -4126,25 +4572,35 @@ const Page = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Employee *
-                </label>
-                <select
-                  value={createForm.employee}
-                  onChange={(e) => handleEmployeeSelect(e.target.value)}
-                  required
-                  disabled={loading.employees || employees.length === 0}
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
-                >
-                  <option value="">Choose an employee</option>
-                  {employees.map((emp) => {
-                    const salaryData = employeeSalaries[emp._id] || {};
-                    return (
-                      <option key={emp._id} value={emp._id}>
-                        {getEmployeeName(emp)} • 
-                        Salary: {formatCurrency(salaryData.salary || 30000)}
-                      </option>
-                    );
-                  })}
-                </select>
+                </label> 
+<select
+  value={createForm.employee}
+  onChange={(e) => {
+    const employeeId = e.target.value;
+    if (employeeId) {
+      handleEmployeeSelect(employeeId);
+    }
+  }}
+  required
+  disabled={loading.employees || employees.length === 0}
+  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+>
+  <option value="">Choose an employee</option>
+  {employees.map((emp) => {
+    if (!emp || !emp._id) return null;
+    
+    const salaryData = employeeSalaries[emp._id] || {};
+    const employeeName = getEmployeeName(emp);
+    const salary = salaryData.salary || 30000;
+    const designation = salaryData.designation || 'Employee';
+    
+    return (
+      <option key={emp._id} value={emp._id}>
+        {employeeName} • {designation} • Salary: {formatCurrency(salary)}
+      </option>
+    );
+  }).filter(Boolean)}
+</select>
               </div>
 
               {/* Pay Period */}
@@ -4176,7 +4632,7 @@ const Page = () => {
                 </div>
               </div>
 
-              {/* Auto Calculated Attendance */}  
+              {/* Auto Calculated Attendance - 23 Days */}  
               {createForm.employee && createForm.periodStart && (
                 <div className="p-4 bg-green-50 rounded-xl border border-green-200">
                   <h4 className="text-sm font-medium text-green-700 mb-2 flex items-center gap-2">
@@ -4224,7 +4680,7 @@ const Page = () => {
                   <div className="mt-3 text-xs text-gray-500">
                     <p>✓ 23 working days month calculation</p>
                     <p>✓ Auto-loaded from employee attendance records</p>
-                    <p>✓ Late/Absent/Leave days automatically calculated</p>
+                    <p>✓ Late/Absent/Leave days automatically calculated for deductions</p>
                   </div>
                 </div>
               )}
@@ -4306,7 +4762,7 @@ const Page = () => {
                 <div className="p-4 bg-rose-50 rounded-xl border border-rose-100">
                   <h3 className="text-sm font-medium text-rose-700 mb-3 flex items-center gap-2">
                     <AlertCircle size={16} />
-                    Auto Calculated Deductions (Based on 23 Days)
+                    Auto Calculated Deductions (Based on 23 Days Month)
                   </h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -4409,7 +4865,7 @@ const Page = () => {
               {/* Summary */}
               {createForm.employee && (
                 <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-                  <h3 className="text-sm font-medium text-blue-700 mb-3">Salary Summary (BDT)</h3>
+                  <h3 className="text-sm font-medium text-blue-700 mb-3">Salary Summary (BDT) - 23 Days Month</h3>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="text-center p-3 bg-white rounded-lg border border-blue-100">
                       <span className="text-xs text-gray-600">Monthly Salary</span>
@@ -4456,7 +4912,7 @@ const Page = () => {
                   
                   {/* Calculation Formula */}
                   <div className="mt-4 p-3 bg-white rounded-lg border border-blue-200">
-                    <p className="text-sm font-medium text-gray-700">Calculation Formula:</p>
+                    <p className="text-sm font-medium text-gray-700">23 Days Month Calculation Formula:</p>
                     <p className="text-xs text-gray-600 mt-1">
                       Net Payable = Monthly Salary ({formatCurrency(createForm.monthlySalary || 0)}) + 
                       Allowances ({formatCurrency((createForm.earnings.overtime || 0) + (createForm.earnings.bonus || 0) + (createForm.earnings.allowance || 0))}) - 
@@ -4611,6 +5067,7 @@ const Page = () => {
                         <tr className="bg-white border-b">
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Period</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Basic Pay</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Deductions</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Net Payable</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Attendance</th>
@@ -4620,6 +5077,8 @@ const Page = () => {
                       <tbody>
                         {employeePayrolls.map((payroll, index) => {
                           const statusColor = getStatusColor(payroll.status);
+                          const deductions = payroll.deductions?.total || 0;
+                          
                           return (
                             <tr key={payroll._id || index} className="border-b hover:bg-white">
                               <td className="px-4 py-3">
@@ -4636,6 +5095,18 @@ const Page = () => {
                                 </div>
                               </td>
                               <td className="px-4 py-3">
+                                <div className="text-sm font-bold text-red-600">
+                                  {formatCurrency(deductions)}
+                                </div>
+                                {payroll.deductions && (
+                                  <div className="text-xs text-red-500">
+                                    {payroll.deductions.lateDeduction > 0 && `Late: ${formatCurrency(payroll.deductions.lateDeduction)} `}
+                                    {payroll.deductions.absentDeduction > 0 && `Absent: ${formatCurrency(payroll.deductions.absentDeduction)} `}
+                                    {payroll.deductions.leaveDeduction > 0 && `Leave: ${formatCurrency(payroll.deductions.leaveDeduction)}`}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
                                 <div className="text-lg font-bold text-purple-600">
                                   {formatCurrency(payroll.summary?.netPayable || payroll.netSalary || 0)}
                                 </div>
@@ -4649,9 +5120,9 @@ const Page = () => {
                               <td className="px-4 py-3">
                                 {payroll.attendance?.presentDays ? (
                                   <div className="text-sm text-gray-600">
-                                    {payroll.attendance.presentDays}/{payroll.attendance.totalWorkingDays || 30} days
+                                    {payroll.attendance.presentDays}/{payroll.attendance.totalWorkingDays || 23} days
                                     <div className="text-xs text-green-500">
-                                      {Math.round((payroll.attendance.presentDays / (payroll.attendance.totalWorkingDays || 30)) * 100)}%
+                                      {Math.round((payroll.attendance.presentDays / (payroll.attendance.totalWorkingDays || 23)) * 100)}%
                                     </div>
                                   </div>
                                 ) : (
@@ -4769,17 +5240,17 @@ const Page = () => {
                   </p>
                 </div>
                 
+                <div className="bg-gradient-to-r from-red-50 to-rose-50 p-4 rounded-xl border border-red-100">
+                  <p className="text-sm text-gray-600">Total Deductions</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {formatCurrency(monthYearPayrolls.reduce((sum, p) => sum + (p.deductions?.total || 0), 0))}
+                  </p>
+                </div>
+                
                 <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-100">
                   <p className="text-sm text-gray-600">Paid</p>
                   <p className="text-2xl font-bold text-purple-600">
                     {monthYearPayrolls.filter(p => p.status === 'Paid').length}
-                  </p>
-                </div>
-                
-                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-xl border border-yellow-100">
-                  <p className="text-sm text-gray-600">Pending</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {monthYearPayrolls.filter(p => p.status === 'Pending').length}
                   </p>
                 </div>
               </div>
@@ -4792,6 +5263,7 @@ const Page = () => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Employee</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Period</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Basic Pay</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Deductions</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Net Payable</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Attendance</th>
@@ -4802,6 +5274,7 @@ const Page = () => {
                     {monthYearPayrolls.map((payroll, index) => {
                       const statusColor = getStatusColor(payroll.status);
                       const employee = employees.find(e => e._id === payroll.employee);
+                      const deductions = payroll.deductions?.total || 0;
                       
                       return (
                         <tr key={payroll._id || index} className="border-b hover:bg-gray-50">
@@ -4829,6 +5302,18 @@ const Page = () => {
                             </div>
                           </td>
                           <td className="px-4 py-3">
+                            <div className="text-sm font-bold text-red-600">
+                              {formatCurrency(deductions)}
+                            </div>
+                            {payroll.deductions && (
+                              <div className="text-xs text-red-500">
+                                {payroll.deductions.lateDeduction > 0 && `Late: ${formatCurrency(payroll.deductions.lateDeduction)} `}
+                                {payroll.deductions.absentDeduction > 0 && `Absent: ${formatCurrency(payroll.deductions.absentDeduction)} `}
+                                {payroll.deductions.leaveDeduction > 0 && `Leave: ${formatCurrency(payroll.deductions.leaveDeduction)}`}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
                             <div className="text-sm font-bold text-purple-600">
                               {formatCurrency(payroll.summary?.netPayable || payroll.netSalary || 0)}
                             </div>
@@ -4844,7 +5329,7 @@ const Page = () => {
                               <div className="text-xs">
                                 <span className="text-green-600">{payroll.attendance.presentDays} days</span>
                                 <div className="text-gray-400">
-                                  {Math.round((payroll.attendance.presentDays / (payroll.attendance.totalWorkingDays || 30)) * 100)}%
+                                  {Math.round((payroll.attendance.presentDays / (payroll.attendance.totalWorkingDays || 23)) * 100)}%
                                 </div>
                               </div>
                             ) : 'N/A'}
@@ -4917,7 +5402,7 @@ const Page = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Calculate Payroll</h2>
-                  <p className="text-gray-500 text-sm mt-1">Auto-calculate based on attendance (30 days month)</p>
+                  <p className="text-gray-500 text-sm mt-1">Auto-calculate based on attendance (23 days month)</p>
                 </div>
                 <button
                   onClick={() => {
@@ -5001,7 +5486,7 @@ const Page = () => {
                 {calculationResult && (
                   <div className="space-y-6">
                     <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
-                      <h3 className="text-sm font-medium text-green-700 mb-3">Calculation Result</h3>
+                      <h3 className="text-sm font-medium text-green-700 mb-3">Calculation Result (23 Days Month)</h3>
                       
                       <div className="space-y-4">
                         {/* Employee Info */}
@@ -5063,12 +5548,17 @@ const Page = () => {
                             </div>
                             {calculationResult.deductions.lateDeduction > 0 && (
                               <div className="text-xs text-rose-600">
-                                Late: {formatCurrency(calculationResult.deductions.lateDeduction)}
+                                Late: {formatCurrency(calculationResult.deductions.lateDeduction)} ({calculationResult.attendanceBreakdown.lateDays} days)
                               </div>
                             )}
                             {calculationResult.deductions.absentDeduction > 0 && (
                               <div className="text-xs text-rose-600">
-                                Absent: {formatCurrency(calculationResult.deductions.absentDeduction)}
+                                Absent: {formatCurrency(calculationResult.deductions.absentDeduction)} ({calculationResult.attendanceBreakdown.absentDays} days)
+                              </div>
+                            )}
+                            {calculationResult.deductions.leaveDeduction > 0 && (
+                              <div className="text-xs text-rose-600">
+                                Leave: {formatCurrency(calculationResult.deductions.leaveDeduction)} ({calculationResult.attendanceBreakdown.leaves} days)
                               </div>
                             )}
                           </div>
@@ -5158,7 +5648,7 @@ const Page = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Bulk Generate Payrolls</h2>
-                  <p className="text-gray-500 text-sm mt-1">Generate for all employees (30 days month)</p>
+                  <p className="text-gray-500 text-sm mt-1">Generate for all employees (23 days month)</p>
                 </div>
                 <button
                   onClick={() => setShowBulkModal(false)}
@@ -5221,7 +5711,7 @@ const Page = () => {
                     </span>
                   </div>
                   <div className="text-xs text-gray-500 mt-2">
-                    Payrolls will be generated with auto-calculated attendance and deductions
+                    Payrolls will be generated with auto-calculated attendance and deductions (23 days month)
                   </div>
                 </div>
               </div>
@@ -5329,20 +5819,20 @@ const Page = () => {
 
               {/* Salary Details */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Salary Details</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Salary Details (23 Days Month)</h3>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <span className="text-sm text-gray-600">Monthly Salary</span>
                     <p className="text-xl font-bold text-blue-600">
-                      {formatCurrency(selectedPayroll.salaryDetails?.monthlySalary || selectedPayroll.monthlySalary || 30000)}
+                      {formatCurrency(selectedPayroll.monthlySalary || selectedPayroll.salaryDetails?.monthlySalary || 30000)}
                     </p>
                   </div>
                   
                   <div className="p-3 bg-green-50 rounded-lg">
-                    <span className="text-sm text-gray-600">Daily Rate (÷30)</span>
+                    <span className="text-sm text-gray-600">Daily Rate (÷23)</span>
                     <p className="text-xl font-bold text-green-600">
-                      {formatCurrency(selectedPayroll.salaryDetails?.dailyRate || calculateDailyRate(selectedPayroll.salaryDetails?.monthlySalary || 30000))}
+                      {formatCurrency(selectedPayroll.dailyRate || calculateDailyRate(selectedPayroll.monthlySalary || selectedPayroll.salaryDetails?.monthlySalary || 30000))}
                     </p>
                   </div>
                 </div>
@@ -5351,8 +5841,8 @@ const Page = () => {
               {/* Attendance */}
               {selectedPayroll.attendance && (
                 <div className="p-4 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl border border-cyan-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Attendance (30 days month)</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Attendance (23 Days Month)</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     <div className="text-center p-3 bg-white rounded-lg border">
                       <span className="text-xs text-gray-600">Present Days</span>
                       <p className="text-lg font-bold text-green-600">
@@ -5362,20 +5852,32 @@ const Page = () => {
                     <div className="text-center p-3 bg-white rounded-lg border">
                       <span className="text-xs text-gray-600">Working Days</span>
                       <p className="text-lg font-bold text-blue-600">
-                        {selectedPayroll.attendance.totalWorkingDays || 30}
+                        {selectedPayroll.attendance.totalWorkingDays || 23}
                       </p>
                     </div>
                     <div className="text-center p-3 bg-white rounded-lg border">
                       <span className="text-xs text-gray-600">Attendance %</span>
                       <p className="text-lg font-bold text-purple-600">
                         {selectedPayroll.attendance.attendancePercentage || 
-                         Math.round(((selectedPayroll.attendance.presentDays || 0) / (selectedPayroll.attendance.totalWorkingDays || 30)) * 100)}%
+                         Math.round(((selectedPayroll.attendance.presentDays || 0) / (selectedPayroll.attendance.totalWorkingDays || 23)) * 100)}%
+                      </p>
+                    </div>
+                    <div className="text-center p-3 bg-white rounded-lg border">
+                      <span className="text-xs text-gray-600">Late Days</span>
+                      <p className="text-lg font-bold text-yellow-600">
+                        {selectedPayroll.attendance.lateDays || 0}
                       </p>
                     </div>
                     <div className="text-center p-3 bg-white rounded-lg border">
                       <span className="text-xs text-gray-600">Absent Days</span>
                       <p className="text-lg font-bold text-rose-600">
-                        {(selectedPayroll.attendance.totalWorkingDays || 30) - (selectedPayroll.attendance.presentDays || 0)}
+                        {selectedPayroll.attendance.absentDays || 0}
+                      </p>
+                    </div>
+                    <div className="text-center p-3 bg-white rounded-lg border">
+                      <span className="text-xs text-gray-600">Leave Days</span>
+                      <p className="text-lg font-bold text-orange-600">
+                        {selectedPayroll.attendance.leaveDays || 0}
                       </p>
                     </div>
                   </div>
@@ -5434,11 +5936,13 @@ const Page = () => {
               {/* Deductions */}
               {(selectedPayroll.deductions?.total > 0 || selectedPayroll.autoDeductionsApplied) && (
                 <div className="p-4 bg-gradient-to-r from-rose-50 to-orange-50 rounded-xl border border-rose-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Deductions (BDT)</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Deductions (BDT) - 23 Days Calculation</h3>
                   <div className="space-y-2">
                     {selectedPayroll.deductions?.lateDeduction > 0 && (
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Late Deduction:</span>
+                        <span className="text-gray-600">
+                          Late Deduction ({selectedPayroll.attendance?.lateDays || 0} late days):
+                        </span>
                         <span className="font-medium text-rose-600">
                           {formatCurrency(selectedPayroll.deductions.lateDeduction)}
                         </span>
@@ -5446,7 +5950,9 @@ const Page = () => {
                     )}
                     {selectedPayroll.deductions?.absentDeduction > 0 && (
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Absent Deduction:</span>
+                        <span className="text-gray-600">
+                          Absent Deduction ({selectedPayroll.attendance?.absentDays || 0} absent days):
+                        </span>
                         <span className="font-medium text-rose-600">
                           {formatCurrency(selectedPayroll.deductions.absentDeduction)}
                         </span>
@@ -5454,12 +5960,26 @@ const Page = () => {
                     )}
                     {selectedPayroll.deductions?.leaveDeduction > 0 && (
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Leave Deduction:</span>
+                        <span className="text-gray-600">
+                          Leave Deduction ({selectedPayroll.attendance?.leaveDays || 0} leaves):
+                        </span>
                         <span className="font-medium text-rose-600">
                           {formatCurrency(selectedPayroll.deductions.leaveDeduction)}
                         </span>
                       </div>
                     )}
+                    
+                    {/* Show calculation basis */}
+                    {selectedPayroll.dailyRate && (
+                      <div className="mt-3 p-2 bg-rose-100 rounded text-xs">
+                        <span className="font-medium">Calculation Basis:</span>
+                        <div>Daily Rate: {formatCurrency(selectedPayroll.dailyRate)} (Monthly Salary ÷ 23)</div>
+                        {selectedPayroll.deductionRules && (
+                          <div>Rules: {selectedPayroll.deductionRules.lateRule}, {selectedPayroll.deductionRules.absentRule}</div>
+                        )}
+                      </div>
+                    )}
+                    
                     <div className="pt-2 border-t border-rose-200">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-gray-700">Total Deductions:</span>
@@ -5653,7 +6173,7 @@ const Page = () => {
                                 {monthYear.monthName} {monthYear.year}
                               </h4>
                               <p className="text-sm text-gray-500">
-                                {monthYear.payrollCount} payrolls • {formatCurrency(monthYear.totalAmount)}
+                                {monthYear.payrollCount} payrolls • {formatCurrency(monthYear.totalAmount)} • Deductions: {formatCurrency(monthYear.totalDeductions)}
                               </p>
                             </div>
                           </div>
@@ -5679,66 +6199,75 @@ const Page = () => {
                             <tr className="text-xs text-gray-500 border-b">
                               <th className="pb-2 text-left">Period</th>
                               <th className="pb-2 text-left">Basic Pay</th>
+                              <th className="pb-2 text-left">Deductions</th>
                               <th className="pb-2 text-left">Net Payable</th>
                               <th className="pb-2 text-left">Status</th>
                               <th className="pb-2 text-left">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {monthYear.payrolls.map((payroll, pIndex) => (
-                              <tr key={pIndex} className="border-b hover:bg-gray-50 last:border-0">
-                                <td className="py-3">
-                                  <div className="text-sm text-gray-600">
-                                    {formatDate(payroll.periodStart)} - {formatDate(payroll.periodEnd)}
-                                  </div>
-                                </td>
-                                <td className="py-3">
-                                  <div className="text-sm font-medium text-blue-600">
-                                    {formatCurrency(payroll.earnings?.basicPay || payroll.basicPay || 0)}
-                                  </div>
-                                </td>
-                                <td className="py-3">
-                                  <div className="text-sm font-bold text-purple-600">
-                                    {formatCurrency(payroll.summary?.netPayable || payroll.netSalary || 0)}
-                                  </div>
-                                </td>
-                                <td className="py-3">
-                                  {(() => {
-                                    const statusColor = getStatusColor(payroll.status);
-                                    return (
-                                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${statusColor.bg} ${statusColor.text}`}>
-                                        {statusColor.icon}
-                                        <span className="ml-1">{payroll.status}</span>
-                                      </span>
-                                    );
-                                  })()}
-                                </td>
-                                <td className="py-3">
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => {
-                                        setSelectedPayroll(payroll);
-                                        setShowDetailsModal(true);
-                                      }}
-                                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                                      title="View"
-                                    >
-                                      <Eye size={14} />
-                                    </button>
-                                    
-                                    {payroll.status === 'Pending' && (
+                            {monthYear.payrolls.map((payroll, pIndex) => {
+                              const deductions = payroll.deductions?.total || 0;
+                              return (
+                                <tr key={pIndex} className="border-b hover:bg-gray-50 last:border-0">
+                                  <td className="py-3">
+                                    <div className="text-sm text-gray-600">
+                                      {formatDate(payroll.periodStart)} - {formatDate(payroll.periodEnd)}
+                                    </div>
+                                  </td>
+                                  <td className="py-3">
+                                    <div className="text-sm font-medium text-blue-600">
+                                      {formatCurrency(payroll.earnings?.basicPay || payroll.basicPay || 0)}
+                                    </div>
+                                  </td>
+                                  <td className="py-3">
+                                    <div className="text-sm font-bold text-red-600">
+                                      {formatCurrency(deductions)}
+                                    </div>
+                                  </td>
+                                  <td className="py-3">
+                                    <div className="text-sm font-bold text-purple-600">
+                                      {formatCurrency(payroll.summary?.netPayable || payroll.netSalary || 0)}
+                                    </div>
+                                  </td>
+                                  <td className="py-3">
+                                    {(() => {
+                                      const statusColor = getStatusColor(payroll.status);
+                                      return (
+                                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${statusColor.bg} ${statusColor.text}`}>
+                                          {statusColor.icon}
+                                          <span className="ml-1">{payroll.status}</span>
+                                        </span>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="py-3">
+                                    <div className="flex items-center gap-2">
                                       <button
-                                        onClick={() => handleUpdateStatus(payroll._id, 'Paid')}
-                                        className="p-1 text-green-600 hover:bg-green-50 rounded"
-                                        title="Mark Paid"
+                                        onClick={() => {
+                                          setSelectedPayroll(payroll);
+                                          setShowDetailsModal(true);
+                                        }}
+                                        className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                        title="View"
                                       >
-                                        <CheckCircle size={14} />
+                                        <Eye size={14} />
                                       </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
+                                      
+                                      {payroll.status === 'Pending' && (
+                                        <button
+                                          onClick={() => handleUpdateStatus(payroll._id, 'Paid')}
+                                          className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                          title="Mark Paid"
+                                        >
+                                          <CheckCircle size={14} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
