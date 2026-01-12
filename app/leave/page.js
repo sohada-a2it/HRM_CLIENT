@@ -2205,15 +2205,7 @@ const API_BASE_URL = useMemo(() =>
                 {isAdmin ? "Manage employee leave requests" : "Request and track your leaves"}
               </p>
             </div>
-            <div className="flex items-center gap-3 mt-4 md:mt-0">
-              <button
-                onClick={fetchLeaves}
-                disabled={loading}
-                className="px-3 md:px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 shadow-sm hover:shadow"
-              >
-                <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-                <span className="hidden md:inline">Refresh</span>
-              </button>
+            <div className="flex items-center gap-3 mt-4 md:mt-0"> 
               {!isAdmin && (
                 <button
                   onClick={() => setShowRequestModal(true)}
@@ -2223,17 +2215,7 @@ const API_BASE_URL = useMemo(() =>
                   <span className="hidden md:inline">Request Leave</span>
                   <span className="md:hidden">New</span>
                 </button>
-              )}
-              {isAdmin && (
-                <button
-                  onClick={handleExportLeaves}
-                  disabled={exportLoading}
-                  className="px-3 md:px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl disabled:opacity-50"
-                >
-                  <DownloadCloud size={18} />
-                  <span className="hidden md:inline">Export</span>
-                </button>
-              )}
+              )} 
             </div>
           </div>
 
@@ -2597,7 +2579,7 @@ const API_BASE_URL = useMemo(() =>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
           {/* Left Column - Leaves List */}
-<div className={`${viewMode === 'grid' ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
+<div className={`${viewMode === 'grid' ? 'lg:col-span-3' : 'lg:col-span-6'}`}>
   <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 overflow-hidden mb-8">
     <div className="p-4 md:p-6 border-b border-gray-100">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -2954,199 +2936,7 @@ const API_BASE_URL = useMemo(() =>
     )}
   </div>
 </div>
-
-          {/* Right Column - Summary & Actions */}
-          {viewMode === 'list' && (
-            <div className="lg:col-span-1">
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 sticky top-6">
-                <div className="p-4 md:p-6 border-b border-gray-100">
-                  <h2 className="text-lg md:text-xl font-bold text-gray-900">Leave Summary</h2>
-                  <p className="text-gray-500 text-sm mt-1">
-                    {isAdmin ? "Organization overview" : "Your leave balance"}
-                  </p>
-                </div>
-
-                <div className="p-4 md:p-6">
-                  {/* Leave Balance (For Employees) */}
-                  {!isAdmin && leaveBalance && (
-                    <div className="mb-6 md:mb-8">
-                      <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3 md:mb-4">Your Leave Balance</h3>
-                      <div className="space-y-2 md:space-y-3">
-                        {Object.entries(leaveBalance.balance || leaveBalance || {}).map(([type, data]) => (
-                          <div key={type} className="p-2 md:p-3 bg-blue-50 rounded-xl border border-blue-100">
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1 md:gap-2">
-                                {getLeaveTypeIcon(type)}
-                                <span className="text-sm text-gray-700">{type} Leave</span>
-                              </div>
-                              <span className="font-bold text-blue-600 text-sm md:text-base">
-                                {data.remaining}/{data.allowed} days
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-1.5 md:h-2 mt-1 md:mt-2">
-                              <div 
-                                className="bg-blue-600 h-1.5 md:h-2 rounded-full transition-all duration-500"
-                                style={{ width: `${((data.used || 0) / (data.allowed || 1)) * 100}%` }}
-                              ></div>
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                              <span>Used: {data.used || 0} days</span>
-                              <span>Remaining: {data.remaining || 0} days</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Statistics */}
-                  <div className="mb-6 md:mb-8">
-                    <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3 md:mb-4">
-                      {isAdmin ? "Organization Stats" : "Your Leave Stats"}
-                    </h3>
-                    <div className="space-y-2 md:space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 text-sm">Total Requests</span>
-                        <span className="font-semibold text-gray-900">{stats.total}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 text-sm">Pending</span>
-                        <span className="font-semibold text-yellow-600">{stats.pending}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 text-sm">Approved</span>
-                        <span className="font-semibold text-green-600">{stats.approved}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 text-sm">Rejected</span>
-                        <span className="font-semibold text-red-600">{stats.rejected}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 text-sm">Paid Leaves</span>
-                        <span className="font-semibold text-blue-600">{stats.paid}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 text-sm">Unpaid Leaves</span>
-                        <span className="font-semibold text-gray-600">{stats.unpaid}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 text-sm">Half Paid</span>
-                        <span className="font-semibold text-yellow-600">{stats.halfPaid}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quick Actions */}
-                  <div className="pt-4 md:pt-6 border-t border-gray-100">
-                    <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3 md:mb-4">Quick Actions</h3>
-                    <div className="space-y-2">
-                      {!isAdmin && (
-                        <button
-                          onClick={() => setShowRequestModal(true)}
-                          className="w-full flex items-center justify-between p-2 md:p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:border-purple-300 transition-all duration-300"
-                        >
-                          <div className="flex items-center gap-2 md:gap-3">
-                            <div className="p-1.5 md:p-2 bg-white rounded-lg shadow-sm">
-                              <Plus size={14} className="text-purple-600" />
-                            </div>
-                            <span className="text-sm font-medium text-gray-700">Request New Leave</span>
-                          </div>
-                          <ChevronDown size={14} className="text-gray-400 rotate-270" />
-                        </button>
-                      )}
-                      
-                      <button 
-                        onClick={handleExportLeaves}
-                        disabled={exportLoading}
-                        className="w-full flex items-center justify-between p-2 md:p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 hover:border-blue-300 transition-all duration-300 disabled:opacity-50"
-                      >
-                        <div className="flex items-center gap-2 md:gap-3">
-                          <div className="p-1.5 md:p-2 bg-white rounded-lg shadow-sm">
-                            <DownloadCloud size={14} className="text-blue-600" />
-                          </div>
-                          <span className="text-sm font-medium text-gray-700">Export Leave Report</span>
-                        </div>
-                        {exportLoading ? (
-                          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <ChevronDown size={14} className="text-gray-400 rotate-270" />
-                        )}
-                      </button>
-                      
-                      <button 
-                        onClick={() => {
-                          toast.success("Calendar view coming soon!", { icon: '📅' });
-                        }}
-                        className="w-full flex items-center justify-between p-2 md:p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100 hover:border-green-300 transition-all duration-300"
-                      >
-                        <div className="flex items-center gap-2 md:gap-3">
-                          <div className="p-1.5 md:p-2 bg-white rounded-lg shadow-sm">
-                            <CalendarDays size={14} className="text-green-600" />
-                          </div>
-                          <span className="text-sm font-medium text-gray-700">View Leave Calendar</span>
-                        </div>
-                        <ChevronDown size={14} className="text-gray-400 rotate-270" />
-                      </button>
-                      
-                      {isAdmin && (
-                        <button
-                          onClick={() => toast.success("Policy management coming soon!", { icon: '⚙️' })}
-                          className="w-full flex items-center justify-between p-2 md:p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300"
-                        >
-                          <div className="flex items-center gap-2 md:gap-3">
-                            <div className="p-1.5 md:p-2 bg-white rounded-lg shadow-sm">
-                              <Shield size={14} className="text-gray-600" />
-                            </div>
-                            <span className="text-sm font-medium text-gray-700">Manage Leave Policies</span>
-                          </div>
-                          <ChevronDown size={14} className="text-gray-400 rotate-270" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Upcoming Approved Leaves */}
-                  <div className="pt-4 md:pt-6 mt-4 md:mt-6 border-t border-gray-100">
-                    <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3 md:mb-4">Upcoming Approved Leaves</h3>
-                    <div className="space-y-2">
-                      {leaves
-                        .filter(l => l.status === 'Approved' && new Date(l.startDate) > new Date())
-                        .slice(0, 3)
-                        .map(leave => {
-                          const employeeInfo = getEmployeeInfo(leave);
-                          return (
-                            <div key={leave._id} className="p-2 md:p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                              <div className="flex items-center gap-2 mb-1">
-                                {getEmployeeAvatar(leave)}
-                                <div className="flex-1">
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-sm font-medium text-gray-900">
-                                      {isAdmin ? (employeeInfo.name || 'Employee') : "Your Leave"}
-                                    </span>
-                                    <span className="text-xs text-blue-600 font-medium">
-                                      {calculateDays(leave.startDate, leave.endDate)} days
-                                    </span>
-                                  </div>
-                                  <div className="text-xs text-gray-600">
-                                    {formatDate(leave.startDate)} - {formatDate(leave.endDate)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      
-                      {leaves.filter(l => l.status === 'Approved' && new Date(l.startDate) > new Date()).length === 0 && (
-                        <div className="text-center py-3 md:py-4">
-                          <p className="text-gray-500 text-sm">No upcoming approved leaves</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+ 
         </div>
       </div>
     </>

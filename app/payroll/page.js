@@ -20,7 +20,17 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
+const setupJSPDF = () => {
+  try {
+    // Load jsPDF
+    const jsPDF = require('jspdf');
+    require('jspdf-autotable');
+    return jsPDF;
+  } catch (error) {
+    console.error('jsPDF load error:', error);
+    return null;
+  }
+};
 // Helper Functions for PDF Generation
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-BD', {
@@ -192,30 +202,48 @@ const getEmployeeName = (employee) => {
   return 'Unknown Employee';
 };
 
-// ১. Individual Employee Payroll PDF ফাংশন
-const generateEmployeePayrollPDF = (employee, payrolls = []) => {
+// ১. Individual Employee Payroll PDF ফাংশন 
+const generateEmployeePayrollPDF = async (employee, payrolls = []) => {
   try {
-    const doc = new jsPDF({
+   // ✅ Universal solution for Next.js/Turbopack
+    let PDFLib;
+    let autoTableInit;
+    
+    // Try different import methods
+    try {
+      // Method 1: Direct import (works in most cases)
+      PDFLib = (await import('jspdf')).default;
+      autoTableInit = (await import('jspdf-autotable')).default;
+      
+      // Check if autoTable needs to be attached
+      if (typeof autoTableInit === 'function') {
+        try {
+          autoTableInit(PDFLib);
+        } catch (attachError) {
+          console.log('AutoTable auto-attached, no manual attach needed');
+        }
+      }
+    } catch (importError) {
+      // Method 2: Alternative import pattern
+      const { default: jsPDF } = await import('jspdf');
+      PDFLib = jsPDF;
+      await import('jspdf-autotable');
+    }
+    
+    // Create document
+    const doc = new PDFLib({
       orientation: "portrait",
       unit: "mm",
       format: "a4"
     });
     
     // Colors
-    const primaryColor = [79, 70, 229]; // Purple
-    const secondaryColor = [236, 72, 153]; // Pink
+    const primaryColor = [79, 70, 229];
+    const secondaryColor = [236, 72, 153];
     
     // Header
     doc.setFillColor(...primaryColor);
     doc.rect(0, 0, 210, 40, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("A2IT HRM SYSTEM", 105, 20, { align: "center" });
-    
-    doc.setFontSize(14);
-    doc.text("Employee Payroll Details", 105, 30, { align: "center" });
     
     // Date
     doc.setFontSize(10);
@@ -263,26 +291,26 @@ const generateEmployeePayrollPDF = (employee, payrolls = []) => {
       
       // Summary Table
       doc.autoTable({
-        startY: finalY,
-        margin: { left: 20, right: 20 },
-        head: [['Summary', 'Count', 'Amount']],
-        body: [
-          ['Total Payrolls', totalPayrolls, ''],
-          ['Paid Payrolls', totalPaid, ''],
-          ['Pending Payrolls', totalPending, ''],
-          ['Total Amount Paid', '', formatCurrency(totalAmount)],
-          ['Average per Payroll', '', formatCurrency(avgAmount)]
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: secondaryColor, textColor: 255 },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        styles: { fontSize: 10, cellPadding: 5 },
-        columnStyles: {
-          0: { cellWidth: 80 },
-          1: { cellWidth: 40, halign: 'center' },
-          2: { cellWidth: 50, halign: 'right' }
-        }
-      });
+      startY: finalY,
+      margin: { left: 20, right: 20 },
+      head: [['Summary', 'Count', 'Amount']],
+      body: [
+        ['Total Payrolls', totalPayrolls, ''],
+        ['Paid Payrolls', totalPaid, ''],
+        ['Pending Payrolls', totalPending, ''],
+        ['Total Amount Paid', '', formatCurrency(totalAmount)],
+        ['Average per Payroll', '', formatCurrency(avgAmount)]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: secondaryColor, textColor: 255 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      styles: { fontSize: 10, cellPadding: 5 },
+      columnStyles: {
+        0: { cellWidth: 80 },
+        1: { cellWidth: 40, halign: 'center' },
+        2: { cellWidth: 50, halign: 'right' }
+      }
+    });
       
       finalY = doc.lastAutoTable.finalY + 15;
       
@@ -400,6 +428,12 @@ const generateEmployeePayrollPDF = (employee, payrolls = []) => {
 // ২. Single Payroll PDF ফাংশন (Payroll Slip)
 const generateSinglePayrollPDF = (payroll, employee) => {
   try {
+    const jsPDF = setupJSPDF();
+    if (!jsPDF) {
+      toast.error('PDF library not loaded');
+      return;
+    }
+    
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -461,26 +495,27 @@ const generateSinglePayrollPDF = (payroll, employee) => {
     
     // Earnings Table
     const earningsY = 120;
-    doc.autoTable({
-      startY: earningsY,
-      margin: { left: 20, right: 20 },
-      head: [['Earnings', 'Amount (BDT)']],
-      body: [
-        ['Basic Salary', formatCurrency(payroll.earnings?.basicPay || payroll.basicPay || 0)],
-        ['Overtime', formatCurrency(payroll.earnings?.overtime || 0)],
-        ['Bonus', formatCurrency(payroll.earnings?.bonus || 0)],
-        ['Allowance', formatCurrency(payroll.earnings?.allowance || 0)],
-        ['', ''],
-        ['Total Earnings', formatCurrency(payroll.earnings?.total || (payroll.earnings?.basicPay || 0))]
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: primaryColor, textColor: 255 },
-      styles: { fontSize: 10, cellPadding: 5 },
-      columnStyles: {
-        0: { cellWidth: 120, fontStyle: 'bold' },
-        1: { cellWidth: 50, halign: 'right', fontStyle: 'bold' }
-      }
-    });
+// উপরের কোডে এইভাবে কল করুন
+doc.autoTable({
+  startY: 120,
+  margin: { left: 20, right: 20 },
+  head: [['Earnings', 'Amount (BDT)']],
+  body: [
+    ['Basic Salary', formatCurrency(payroll.earnings?.basicPay || payroll.basicPay || 0)],
+    ['Overtime', formatCurrency(payroll.earnings?.overtime || 0)],
+    ['Bonus', formatCurrency(payroll.earnings?.bonus || 0)],
+    ['Allowance', formatCurrency(payroll.earnings?.allowance || 0)],
+    ['', ''],
+    ['Total Earnings', formatCurrency(payroll.earnings?.total || (payroll.earnings?.basicPay || 0))]
+  ],
+  theme: 'grid',
+  headStyles: { fillColor: primaryColor, textColor: 255 },
+  styles: { fontSize: 10, cellPadding: 5 },
+  columnStyles: {
+    0: { cellWidth: 120, fontStyle: 'bold' },
+    1: { cellWidth: 50, halign: 'right', fontStyle: 'bold' }
+  }
+});
     
     // Deductions Table - Detailed
     const deductionsY = doc.lastAutoTable.finalY + 10;
@@ -982,8 +1017,21 @@ const generateEmployeeSalaryStatementPDF = (employee, payrolls = [], selectedMon
 };
 
 // ৫. Bulk All Employees PDF (একসাথে সব এমপ্লয়ির PDF)
-const generateAllEmployeesPDF = (employees, payrolls) => {
+const generateAllEmployeesPDF = async (employees, payrolls) => {
   try {
+    // ✅ Dynamically import both libraries
+    const jsPDFModule = await import('jspdf');
+    const jsPDF = jsPDFModule.default;
+    
+    const autoTableModule = await import('jspdf-autotable');
+    
+    // ✅ Explicitly apply the autoTable plugin
+    // Different versions may attach differently
+    if (typeof autoTableModule.default === 'function') {
+      autoTableModule.default(jsPDF);
+    }
+
+    // Create the PDF document
     const doc = new jsPDF({
       orientation: "landscape",
       unit: "mm",
@@ -1042,7 +1090,7 @@ const generateAllEmployeesPDF = (employees, payrolls) => {
     const totalAmount = payrolls.reduce((sum, p) => sum + (p.summary?.netPayable || p.netSalary || 0), 0);
     const totalDeductions = payrolls.reduce((sum, p) => sum + (p.deductions?.total || 0), 0);
     
-    // Employee Table
+    // ✅ Employee Table - Now should work
     doc.autoTable({
       startY: 50,
       margin: { left: 20, right: 20 },
@@ -1099,7 +1147,15 @@ const generateAllEmployeesPDF = (employees, payrolls) => {
     
   } catch (error) {
     console.error('All employees PDF error:', error);
-    toast.error('Failed to generate all employees report');
+    
+    // Show more specific error message
+    if (error.message.includes('autoTable')) {
+      toast.error('PDF table plugin failed to load. Please check dependencies.');
+    } else if (error.message.includes('jsPDF')) {
+      toast.error('PDF library failed to load. Please refresh and try again.');
+    } else {
+      toast.error('Failed to generate all employees report: ' + error.message);
+    }
   }
 };
 
@@ -3765,15 +3821,15 @@ employeePayrolls.length === 0 ? (
               </div>
               <div className="flex gap-2">
                 {selectedEmployee && (
-                  <button
-                    onClick={() => {
-                      generateEmployeePayrollPDF(selectedEmployee, employeePayrolls);
-                    }}
-                    className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-1"
-                  >
-                    <Download size={14} />
-                    Export PDF
-                  </button>
+                 <button
+  onClick={async () => {
+    await generateEmployeePayrollPDF(selectedEmployee, employeePayrolls);
+  }}
+  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-1"
+>
+  <Download size={14} />
+  Export PDF
+</button>
                 )}
                 <button
                   onClick={() => setShowEmployeeWiseView(false)}
@@ -3851,13 +3907,15 @@ employeePayrolls.length === 0 ? (
             
             {/* PDF Export Button */}
             {isAdmin && (
-              <button
-                onClick={() => generateAllEmployeesPDF(employees, payrolls)}
-                className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl hover:opacity-90 flex items-center gap-2 text-sm font-medium"
-              >
-                <DownloadCloud size={18} />
-                Export All PDF
-              </button>
+<button
+  onClick={async () => {
+    await generateAllEmployeesPDF(employees, payrolls);
+  }}
+  className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl hover:opacity-90 flex items-center gap-2 text-sm font-medium"
+>
+  <DownloadCloud size={18} />
+  Export All PDF
+</button>
             )}
           </div>
         </div>
@@ -4405,20 +4463,18 @@ employeePayrolls.length === 0 ? (
                             </button>
 
                             {/* PDF Generate Button */}
-                            <button
-                              onClick={() => {
-                                const employee = employees.find(e => e._id === (payroll.employee || payroll.employeeId));
-                                if (employee) {
-                                  generateSinglePayrollPDF(payroll, employee);
-                                } else {
-                                  generateSinglePayrollPDF(payroll, {});
-                                }
-                              }}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Download PDF"
-                            >
-                              <Download size={16} />
-                            </button>
+                          <button
+  onClick={async () => {
+    const employee = employees.find(e => e._id === (payroll.employee || payroll.employeeId));
+    if (employee) {
+      await generateSinglePayrollPDF(payroll, employee);
+    }
+  }}
+  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+  title="Download PDF"
+>
+  <Download size={16} />
+</button>
 
                             {/* Employee can accept pending payrolls */}
                             {isEmployeeView && payroll.status === 'Pending' && (
