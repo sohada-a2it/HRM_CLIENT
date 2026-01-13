@@ -275,10 +275,10 @@ export default function Sidebar() {
     { name: "Holiday", icon: <Award size={20} />, path: "/holiday", roles: ['admin', 'employee'] },
     { name: "Salary Rule", icon: <CreditCard size={20} />, path: "/salaryRule", roles: ['admin', 'employee'] },
     { name: "Payroll", icon: <Wallet size={20} />, path: "/payroll", roles: ['admin', 'employee'] },
-{ name: "Audit Logs", icon: <Shield size={20} />, path: "/audit", roles: ['admin','employee']},
-{ name: "Session Logs", icon: <Activity size={20} />, path: "/session", roles: ['admin','employee']},
-{ name: "Office Schedule", icon: <Calendar size={20} />, path: "/officeSchedule", roles: ['admin','employee']},
-  ];
+    { name: "Audit Logs", icon: <Shield size={20} />, path: "/audit", roles: ['admin','employee']},
+    { name: "Session Logs", icon: <Activity size={20} />, path: "/session", roles: ['admin','employee']},
+    { name: "Office Schedule", icon: <Calendar size={20} />, path: "/officeSchedule", roles: ['admin','employee']},
+      ];
 
   // Admin-only menus
   const adminMenus = [

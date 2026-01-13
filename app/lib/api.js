@@ -573,7 +573,7 @@ export const getEmployeeShiftHistory = async (employeeId) => {
     const token = getToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.get(`/shift/admin/shift-history/${employeeId}`);
+    const response = await api.get(`/admin/shift-history/${employeeId}`);
     return response.data;
   } catch (error) {
     console.error('Get shift history error:', error);

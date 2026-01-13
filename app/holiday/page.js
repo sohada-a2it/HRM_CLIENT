@@ -230,7 +230,7 @@ const handleAddHoliday = async (e) => {
       return;
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/addHoliday`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -1130,51 +1130,7 @@ const handleDeleteHoliday = async () => {
                       <span className="font-semibold text-gray-600">{stats.past}</span>
                     </div>
                   </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="pt-6 mt-6 border-t border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-                  <div className="space-y-2">
-                    {/* Admin only - Add New Holiday */}
-                    {isAdmin && (
-                      <button
-                        onClick={() => setShowAddModal(true)}
-                        className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:border-purple-300 transition-all duration-300"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-white rounded-lg shadow-sm">
-                            <Plus size={16} className="text-purple-600" />
-                          </div>
-                          <span className="text-sm font-medium text-gray-700">Add New Holiday</span>
-                        </div>
-                        <ChevronDown size={16} className="text-gray-400 rotate-270" />
-                      </button>
-                    )}
-                    
-                    {/* Export Calendar - Available for all */}
-                    <button className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 hover:border-blue-300 transition-all duration-300">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white rounded-lg shadow-sm">
-                          <Download size={16} className="text-blue-600" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-700">Export Calendar</span>
-                      </div>
-                      <ChevronDown size={16} className="text-gray-400 rotate-270" />
-                    </button>
-                    
-                    {/* View Full Calendar - Available for all */}
-                    <button className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100 hover:border-green-300 transition-all duration-300">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white rounded-lg shadow-sm">
-                          <CalendarDays size={16} className="text-green-600" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-700">View Full Calendar</span>
-                      </div>
-                      <ChevronDown size={16} className="text-gray-400 rotate-270" />
-                    </button>
-                  </div>
-                </div>
+                </div> 
               </div>
             </div>
           </div>

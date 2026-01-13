@@ -878,7 +878,98 @@ const formatDayMessage = (dateString) => {
       date: new Date().toDateString()
     };
   });
+// Page component-এর ভিতরে এই functions যোগ করুন:
 
+// Get Late Statistics with Early
+const getLateEarlyStatistics = async () => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      toast.error("Authentication required");
+      return;
+    }
+
+    const endpoint = isAdmin 
+      ? `${process.env.NEXT_PUBLIC_API_URL}/admin/late-early-statistics`
+      : `${process.env.NEXT_PUBLIC_API_URL}/late-early-statistics`;
+
+    const query = new URLSearchParams({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      ...(isAdmin && userId && { employeeId: userId })
+    }).toString();
+
+    const response = await fetch(`${endpoint}?${query}`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const stats = data.statistics;
+      
+      // Show detailed statistics in modal
+      setLateEarlyStats(stats);
+      setShowLateEarlyModal(true);
+      
+      return stats;
+    }
+  } catch (err) {
+    console.error("Get late/early statistics error:", err);
+    toast.error("Failed to load statistics");
+  }
+};
+
+// Format minutes to hours and minutes
+const formatMinutesToHours = (minutes) => {
+  if (!minutes || minutes === 0) return "0m";
+  
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  
+  if (hours === 0) return `${mins}m`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+};
+
+// Calculate working hours with overtime
+const calculateWorkingHours = (clockIn, clockOut, shiftStart, shiftEnd) => {
+  if (!clockIn || !clockOut) return { total: 0, regular: 0, overtime: 0 };
+  
+  const clockInTime = new Date(`2000-01-01T${clockIn}:00`);
+  const clockOutTime = new Date(`2000-01-01T${clockOut}:00`);
+  const shiftStartTime = new Date(`2000-01-01T${shiftStart}:00`);
+  const shiftEndTime = new Date(`2000-01-01T${shiftEnd}:00`);
+  
+  const totalHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
+  
+  // Regular hours (within shift)
+  const actualStart = clockInTime > shiftStartTime ? clockInTime : shiftStartTime;
+  const actualEnd = clockOutTime < shiftEndTime ? clockOutTime : shiftEndTime;
+  
+  let regularHours = 0;
+  if (actualStart < actualEnd) {
+    regularHours = (actualEnd - actualStart) / (1000 * 60 * 60);
+  }
+  
+  // Overtime hours
+  let overtimeHours = 0;
+  if (clockInTime < shiftStartTime) {
+    overtimeHours += (shiftStartTime - clockInTime) / (1000 * 60 * 60);
+  }
+  if (clockOutTime > shiftEndTime) {
+    overtimeHours += (clockOutTime - shiftEndTime) / (1000 * 60 * 60);
+  }
+  
+  return {
+    total: parseFloat(totalHours.toFixed(2)),
+    regular: parseFloat(regularHours.toFixed(2)),
+    overtime: parseFloat(overtimeHours.toFixed(2))
+  };
+};
   // ===================== LOCAL STORAGE EFFECTS =====================
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -932,8 +1023,7 @@ const formatDayMessage = (dateString) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showAdminActionsMenu, showEmployeeSelector]);
-
-  // ===================== HELPER FUNCTIONS =====================
+ 
   // ===================== HELPER FUNCTIONS =====================
 
 // Late arrival detection function
@@ -4021,27 +4111,7 @@ const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
               <span>Download Bulk PDF</span>
             </button>
             
-            <div className="border-t border-gray-200 my-1"></div>
-                        <button
-                          onClick={() => {
-                            openManualAttendanceModal();
-                            setShowAdminActionsMenu(false);
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition-colors"
-                        >
-                          <Plus size={18} />
-                          <span>Manual Attendance</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            openBulkAttendanceModal();
-                            setShowAdminActionsMenu(false);
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition-colors"
-                        >
-                          <FileSpreadsheet size={18} />
-                          <span>Bulk Attendance</span>
-                        </button>
+            <div className="border-t border-gray-200 my-1"></div>  
                         <button
                           onClick={() => {
                             handleViewLateStatistics();
@@ -4093,27 +4163,7 @@ const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
   <FileText size={18} />
   <span>Export Employee PDF</span>
 </button>
-                        <div className="border-t border-gray-200 my-1"></div>
-                        <button
-                          onClick={() => {
-                            handleExportData('json');
-                            setShowAdminActionsMenu(false);
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition-colors"
-                        >
-                          <Download size={18} />
-                          <span>Export JSON</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleExportData('csv');
-                            setShowAdminActionsMenu(false);
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition-colors"
-                        >
-                          <Download size={18} />
-                          <span>Export CSV</span>
-                        </button>
+                        <div className="border-t border-gray-200 my-1"></div>  
                       </div>
                     </div>
                   )}
@@ -4462,15 +4512,7 @@ const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
   >
     <FileSpreadsheet size={18} />
     Bulk Attendance
-  </button>
-  {/* PDF Download Button for Admin */}
-  <button
-    onClick={handleDownloadBulkPDF}
-    className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-  >
-    <Download size={18} />
-    Download PDF Report
-  </button>
+  </button> 
 </div>
               
             </div>
@@ -4505,15 +4547,7 @@ const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
   >
     <Filter size={18} />
     Apply Filter
-  </button>
-  {/* PDF Download Button for Selected Employee */}
-  <button
-    onClick={handleDownloadEmployeePDF}
-    className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-  >
-    <Download size={18} />
-    Download PDF
-  </button>
+  </button> 
 </div>
               </div>
               
@@ -4798,7 +4832,7 @@ const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
           )}
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div>
@@ -4856,12 +4890,12 @@ const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Main Content */}
-<div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+<div className="grid grid-cols-1 lg:grid-cols-6">
   {/* Attendance Records Card */}
-  <div className="lg:col-span-3">
+  <div className="lg:col-span-6">
     <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 h-full">
       <div className="p-6 border-b border-gray-100">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -5077,7 +5111,7 @@ const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
                                   </>
                                 )}
                               </div>
-                            </td>
+                            </td>             
                           </tr>
                         );
                       })}
@@ -5287,110 +5321,8 @@ const getArrivalStatus = (clockInTime, shiftStartTime = "09:00") => {
         )}
       </div>
     </div>
-  </div>
-
-  {/* Summary Sidebar */}
-  <div className="lg:col-span-1">
-    <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 h-full sticky top-6">
-      <div className="p-6 border-b border-gray-100">
-        <h2 className="text-xl font-bold text-gray-900">Attendance Summary</h2>
-        <p className="text-gray-500 text-sm mt-1">Selected period overview</p>
-      </div>
-
-      <div className="p-6">
-        {summary ? (
-          <div className="space-y-6">
-            {/* Summary Grid */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium mb-1">Present Days</div>
-                <div className="text-2xl font-bold text-green-600">{summary.daysPresent || 0}</div>
-                <div className="text-xs text-gray-400 mt-1">Working days</div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium mb-1">Absent Days</div>
-                <div className="text-2xl font-bold text-red-600">{summary.daysAbsent || 0}</div>
-                <div className="text-xs text-gray-400 mt-1">Missed days</div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium mb-1">Leave Days</div>
-                <div className="text-2xl font-bold text-blue-600">{summary.daysLeave || 0}</div>
-                <div className="text-xs text-gray-400 mt-1">Approved leave</div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium mb-1">Late Arrivals</div>
-                <div className="text-2xl font-bold text-yellow-600">{summary.lateArrivals || 0}</div>
-                <div className="text-xs text-gray-400 mt-1">Late entries</div>
-              </div>
-            </div>
-
-            {/* Total Hours */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
-              <div className="flex justify-between items-center mb-2">
-                <div className="text-sm font-medium text-purple-800">Total Hours</div>
-                <Clock className="text-purple-500" size={18} />
-              </div>
-              <div className="text-3xl font-bold text-purple-700">{summary.totalHours?.toFixed(2) || "0.00"}</div>
-              <div className="text-xs text-purple-600 mt-1">
-                Average {summary.averageHours?.toFixed(2) || "0.00"} hrs/day
-              </div>
-            </div>
-
-            {/* Attendance Rate */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <div className="text-sm font-medium text-gray-700">Attendance Rate</div>
-                <div className="text-lg font-bold text-purple-700">{summary.attendanceRate?.toFixed(1) || "0.0"}%</div>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all duration-500" 
-                  style={{ width: `${Math.min(summary.attendanceRate || 0, 100)}%` }}
-                ></div>
-              </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>0%</span>
-                <span>50%</span>
-                <span>100%</span>
-              </div>
-            </div>
-
-            {/* Additional Stats */}
-            <div className="space-y-3 pt-4 border-t border-gray-100">
-              {isAdmin && (
-                <>
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm text-gray-600">Total Employees</div>
-                    <div className="font-medium text-gray-900">{summary.totalEmployees || employees.length || 0}</div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm text-gray-600">Present Today</div>
-                    <div className="font-medium text-green-600">{summary.presentToday || 0}</div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm text-gray-600">Absent Today</div>
-                    <div className="font-medium text-red-600">{summary.absentToday || 0}</div>
-                  </div>
-                </>
-              )}
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-gray-600">Holidays/Off</div>
-                <div className="font-medium text-purple-600">{summary.daysHoliday || 0}</div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No summary data available</p>
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
+  </div> 
+  
 </div>
         </div>
       </div>
