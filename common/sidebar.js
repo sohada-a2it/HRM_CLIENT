@@ -41,17 +41,24 @@ import {
   Mail,
   Phone,
   UserCheck,
-  ChevronLeft, // Add this import
-  LogIn
+  ChevronLeft,
+  LogIn,
+  Building2,  // Add this
+  Utensils,   // Add this
+  Car,        // Add this
+  MoreHorizontal,  // Add this
+  Cloud,      // Add this
+  User
 } from "lucide-react";
 import Link from "next/link";
 
 export default function Sidebar() {
   const [open, setOpen] = useState(true);
-  const [collapsed, setCollapsed] = useState(false); // New state for collapsed mode
+  const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [openSubmenus, setOpenSubmenus] = useState({}); // State for tracking open submenus
   const sidebarRef = useRef(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -76,7 +83,7 @@ export default function Sidebar() {
       
       if (mobile) {
         setOpen(false);
-        setCollapsed(false); // Reset collapsed on mobile
+        setCollapsed(false);
       } else {
         setOpen(true);
       }
@@ -103,38 +110,42 @@ export default function Sidebar() {
     }
   }, [collapsed, isMobile]);
 
-  // Toggle between full, collapsed, and hidden (mobile)
+  // Toggle sidebar function
   const toggleSidebar = () => {
     if (isMobile) {
-      // On mobile: just toggle open/close
       setOpen(!open);
     } else {
-      // On desktop: toggle between full and collapsed
       if (!collapsed) {
-        // If not collapsed, collapse it
         setCollapsed(true);
       } else {
-        // If collapsed, expand it
         setCollapsed(false);
         setOpen(true);
       }
     }
   };
 
-  // Calculate sidebar width based on state
+  // Toggle submenu function
+  const toggleSubmenu = (menuName) => {
+    setOpenSubmenus(prev => ({
+      ...prev,
+      [menuName]: !prev[menuName]
+    }));
+  };
+
+  // Get sidebar width
   const getSidebarWidth = () => {
     if (isMobile) {
       return open ? 'w-80' : 'w-0';
     }
     
     if (collapsed) {
-      return 'w-20'; // Collapsed width
+      return 'w-20';
     }
     
     return open ? 'w-64' : 'w-0';
   };
 
-  // Fetch user data (keep your existing code)
+  // Fetch user data
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -278,19 +289,98 @@ export default function Sidebar() {
     { name: "Audit Logs", icon: <Shield size={20} />, path: "/audit", roles: ['admin','employee']},
     { name: "Session Logs", icon: <Activity size={20} />, path: "/session", roles: ['admin','employee']},
     { name: "Office Schedule", icon: <Calendar size={20} />, path: "/officeSchedule", roles: ['admin','employee']},
-      ];
+  ];
+
+  // Cost Details Submenus
+  const costDetailsSubmenus = [
+    { 
+      name: "Dashboard", 
+      icon: <Home size={18} />, 
+      href: "/dashboard",
+      roles: ['admin'] // Adjust roles as needed
+    },
+    { 
+      name: "Dashboard", 
+      icon: <Home size={18} />, 
+      href: "/dashboard",
+      roles: [ 'moderator'] // Adjust roles as needed
+    },
+    { 
+      name: "Employee", 
+      icon: <User size={18} />, 
+      href: "/employee",
+      roles: ['admin'] // Adjust roles as needed
+    },
+    { 
+      name: "House Rent", 
+      icon: <Building2 size={18} />, 
+      href: "/officeRent",
+      roles: ['admin', 'moderator', 'employee'] // Adjust roles as needed
+    },
+    { 
+      name: "Utility Bills", 
+      icon: <DollarSign size={18} />, 
+      href: "/dashboard/expenses",
+      roles: ['admin', 'moderator', 'employee']
+    },
+    { 
+      name: "Office Supplies", 
+      icon: <Briefcase size={18} />, 
+      href: "/dashboard/supplies",
+      roles: ['admin', 'moderator', 'employee']
+    },
+    { 
+      name: "Software Subscriptions", 
+      icon: <Cloud size={18} />, 
+      href: "/dashboard/subscriptions",
+      roles: ['admin'] // Only admin can see
+    }, 
+    { 
+      name: "Food Cost", 
+      icon: <Utensils size={18} />, 
+      href: "/dashboard/foodCost",
+      roles: ['admin', 'moderator', 'employee']
+    },
+    { 
+      name: "Transport", 
+      icon: <Car size={18} />, 
+      href: "/dashboard/transport",
+      roles: ['admin', 'moderator', 'employee']
+    },
+    { 
+      name: "Miscellaneous Expenses", 
+      icon: <MoreHorizontal size={18} />, 
+      href: "/dashboard/extra",
+      roles: ['admin', 'moderator', 'employee']
+    }
+  ];
 
   // Admin-only menus
   const adminMenus = [
     { name: "User Roles", icon: <Shield size={20} />, path: "/user-roles", roles: ['admin'], adminOnly: true }, 
   ];
 
-  // Combine menus based on user role
+  // Combine menus based on user role with Cost Details as a parent menu
   const getFilteredMenus = () => {
+    let menus = [...baseMenus];
+    
+    // Add Cost Details as a menu item with submenus
+    menus.push({
+      name: "Cost Details",
+      icon: <DollarSign size={20} />,
+      path: "#",
+      roles: ['admin', 'employee'],
+      hasSubmenu: true,
+      submenus: costDetailsSubmenus.filter(submenu => 
+        submenu.roles.includes(userData.role)
+      )
+    });
+    
     if (isAdmin) {
-      return [...baseMenus, ...adminMenus];
+      menus = [...menus, ...adminMenus];
     }
-    return baseMenus;
+    
+    return menus;
   };
 
   const filteredMenus = getFilteredMenus();
@@ -411,6 +501,16 @@ export default function Sidebar() {
     return <ChevronLeft size={24} />;
   };
 
+  // Check if a path is active
+  const isActive = (path) => {
+    return pathname === path;
+  };
+
+  // Check if any submenu item is active
+  const isSubmenuActive = (submenus) => {
+    return submenus.some(submenu => isActive(submenu.href));
+  };
+
   return (
     <>
       {/* Mobile Menu Button (when sidebar is closed on mobile) */}
@@ -521,136 +621,292 @@ export default function Sidebar() {
             {/* Navigation Menu */}
             <div className="space-y-1">
               {filteredMenus.map((menu, index) => {
-                const isActive = pathname === menu.path;
+                const menuIsActive = isActive(menu.path);
                 const isAdminMenu = menu.adminOnly;
+                const hasSubmenu = menu.hasSubmenu;
+                const submenuIsOpen = openSubmenus[menu.name] || false;
+                const anySubmenuActive = hasSubmenu && isSubmenuActive(menu.submenus || []);
                 
                 if (collapsed) {
                   // Collapsed view - only show icons
                   return (
-                    <Link 
-                      href={menu.path} 
-                      key={index}
-                      className={isAdminMenu && !isAdmin ? 'pointer-events-none' : ''}
-                      onClick={handleLinkClick}
-                    >
-                      <div
-                        className={`group relative flex items-center justify-center rounded-xl p-3 transition-all duration-200 mb-1 ${
-                          isActive
-                            ? "bg-gradient-to-r from-purple-600/30 to-pink-600/20"
-                            : "hover:bg-purple-800/40"
-                        } ${
-                          isAdminMenu && !isAdmin 
-                            ? 'opacity-50 cursor-not-allowed' 
-                            : 'cursor-pointer'
-                        }`}
-                        title={menu.name}
-                      >
-                        {/* Active Indicator */}
-                        {isActive && (
-                          <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-1 h-4 bg-purple-400 rounded-r-full"></div>
-                        )}
-                        
-                        <div className={`p-2 rounded-lg ${
-                          isActive 
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
-                            : isAdminMenu && !isAdmin
-                              ? 'bg-purple-900/30 text-purple-400'
-                              : 'bg-purple-900/50 text-purple-200 group-hover:bg-purple-700 group-hover:text-white'
-                        }`}>
-                          {menu.icon}
+                    <div key={index}>
+                      {hasSubmenu ? (
+                        <div className="mb-1">
+                          <button
+                            onClick={() => toggleSubmenu(menu.name)}
+                            className={`group relative flex items-center justify-center rounded-xl p-3 w-full transition-all duration-200 ${
+                              menuIsActive || anySubmenuActive
+                                ? "bg-gradient-to-r from-purple-600/30 to-pink-600/20"
+                                : "hover:bg-purple-800/40"
+                            }`}
+                            title={menu.name}
+                          >
+                            {/* Active Indicator */}
+                            {(menuIsActive || anySubmenuActive) && (
+                              <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-1 h-4 bg-purple-400 rounded-r-full"></div>
+                            )}
+                            
+                            <div className={`p-2 rounded-lg ${
+                              menuIsActive || anySubmenuActive
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
+                                : 'bg-purple-900/50 text-purple-200 group-hover:bg-purple-700 group-hover:text-white'
+                            }`}>
+                              {menu.icon}
+                            </div>
+                            
+                            {/* Tooltip for collapsed mode */}
+                            {collapsed && (
+                              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                {menu.name}
+                                {isAdminMenu && <span className="ml-1 text-yellow-300">(Admin)</span>}
+                              </div>
+                            )}
+                          </button>
+                          
+                          {/* Submenu items in collapsed mode (show on hover) */}
+                          {hasSubmenu && submenuIsOpen && (
+                            <div className="ml-2 mt-1 space-y-1">
+                              {menu.submenus?.map((submenu, subIndex) => (
+                                <Link
+                                  href={submenu.href}
+                                  key={subIndex}
+                                  onClick={handleLinkClick}
+                                  className="group relative flex items-center justify-center p-2 rounded-lg hover:bg-purple-800/40 transition-all duration-200"
+                                  title={submenu.name}
+                                >
+                                  <div className={`p-1.5 rounded-lg ${
+                                    isActive(submenu.href)
+                                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                      : 'bg-purple-900/30 text-purple-300 group-hover:bg-purple-700 group-hover:text-white'
+                                  }`}>
+                                    {submenu.icon}
+                                  </div>
+                                </Link>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        
-                        {/* Tooltip for collapsed mode */}
-                        {collapsed && (
-                          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                            {menu.name}
-                            {isAdminMenu && <span className="ml-1 text-yellow-300">(Admin)</span>}
+                      ) : (
+                        <Link 
+                          href={menu.path} 
+                          key={index}
+                          className={isAdminMenu && !isAdmin ? 'pointer-events-none' : ''}
+                          onClick={handleLinkClick}
+                        >
+                          <div
+                            className={`group relative flex items-center justify-center rounded-xl p-3 transition-all duration-200 mb-1 ${
+                              menuIsActive
+                                ? "bg-gradient-to-r from-purple-600/30 to-pink-600/20"
+                                : "hover:bg-purple-800/40"
+                            } ${
+                              isAdminMenu && !isAdmin 
+                                ? 'opacity-50 cursor-not-allowed' 
+                                : 'cursor-pointer'
+                            }`}
+                            title={menu.name}
+                          >
+                            {/* Active Indicator */}
+                            {menuIsActive && (
+                              <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-1 h-4 bg-purple-400 rounded-r-full"></div>
+                            )}
+                            
+                            <div className={`p-2 rounded-lg ${
+                              menuIsActive 
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
+                                : isAdminMenu && !isAdmin
+                                  ? 'bg-purple-900/30 text-purple-400'
+                                  : 'bg-purple-900/50 text-purple-200 group-hover:bg-purple-700 group-hover:text-white'
+                            }`}>
+                              {menu.icon}
+                            </div>
+                            
+                            {/* Tooltip for collapsed mode */}
+                            {collapsed && (
+                              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                {menu.name}
+                                {isAdminMenu && <span className="ml-1 text-yellow-300">(Admin)</span>}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </Link>
+                        </Link>
+                      )}
+                    </div>
                   );
                 } else {
                   // Full view - show icons and text
                   return (
-                    <Link 
-                      href={menu.path} 
-                      key={index}
-                      className={isAdminMenu && !isAdmin ? 'pointer-events-none' : ''}
-                      onClick={handleLinkClick}
-                    >
-                      <div
-                        className={`group relative flex items-center gap-3 rounded-xl px-3 py-3 transition-all duration-200 mb-1 ${
-                          isActive
-                            ? "bg-gradient-to-r from-purple-600/30 to-pink-600/20 border-l-4 border-purple-400"
-                            : "hover:bg-purple-800/40 hover:border-l-4 hover:border-purple-600"
-                        } ${
-                          isAdminMenu && !isAdmin 
-                            ? 'opacity-50 cursor-not-allowed' 
-                            : 'cursor-pointer'
-                        }`}
-                      >
-                        {/* Active Indicator */}
-                        {isActive && (
-                          <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-6 bg-purple-400 rounded-r-full"></div>
-                        )}
-                        
-                        {/* Admin Lock Icon for admin-only menus */}
-                        {isAdminMenu && isAdmin && (
-                          <div className="absolute -top-1 -right-1 z-10">
-                            <div className="w-5 h-5 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full flex items-center justify-center">
-                              <Lock size={10} className="text-white" />
-                            </div>
-                          </div>
-                        )}
-                        
-                        <div className={`p-2 rounded-lg ${
-                          isActive 
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
-                            : isAdminMenu && !isAdmin
-                              ? 'bg-purple-900/30 text-purple-400'
-                              : 'bg-purple-900/50 text-purple-200 group-hover:bg-purple-700 group-hover:text-white'
-                        }`}>
-                          {menu.icon}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm font-medium ${
-                              isActive ? 'text-white' : 
-                              isAdminMenu && !isAdmin 
-                                ? 'text-purple-400' 
-                                : 'text-purple-100 group-hover:text-white'
-                            }`}>
-                              {menu.name}
-                            </span>
-                            
-                            {/* Admin badge for admin-only menus */}
-                            {isAdminMenu && (
-                              <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-amber-900/30 to-yellow-900/20 text-amber-300 rounded">
-                                Admin
-                              </span>
+                    <div key={index}>
+                      {hasSubmenu ? (
+                        <div className="mb-1">
+                          <button
+                            onClick={() => toggleSubmenu(menu.name)}
+                            className={`group relative flex items-center justify-between w-full rounded-xl px-3 py-3 transition-all duration-200 ${
+                              menuIsActive || anySubmenuActive || submenuIsOpen
+                                ? "bg-gradient-to-r from-purple-600/30 to-pink-600/20 border-l-4 border-purple-400"
+                                : "hover:bg-purple-800/40 hover:border-l-4 hover:border-purple-600"
+                            }`}
+                          >
+                            {/* Active Indicator */}
+                            {(menuIsActive || anySubmenuActive) && (
+                              <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-6 bg-purple-400 rounded-r-full"></div>
                             )}
-                          </div>
+                            
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${
+                                menuIsActive || anySubmenuActive || submenuIsOpen
+                                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
+                                  : 'bg-purple-900/50 text-purple-200 group-hover:bg-purple-700 group-hover:text-white'
+                              }`}>
+                                {menu.icon}
+                              </div>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-medium ${
+                                    menuIsActive || anySubmenuActive || submenuIsOpen 
+                                      ? 'text-white' 
+                                      : 'text-purple-100 group-hover:text-white'
+                                  }`}>
+                                    {menu.name}
+                                  </span>
+                                </div>
+                                
+                                {(menuIsActive || anySubmenuActive) && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <div className="w-1 h-1 bg-purple-300 rounded-full animate-pulse"></div>
+                                    <span className="text-xs text-purple-300">Active</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Submenu Arrow */}
+                            <ChevronRight 
+                              size={16} 
+                              className={`transform transition-transform duration-200 ${
+                                submenuIsOpen ? 'rotate-90' : ''
+                              } ${menuIsActive || anySubmenuActive ? 'text-purple-300' : 'text-purple-400'}`}
+                            />
+                          </button>
                           
-                          {isActive && (
-                            <div className="flex items-center gap-1 mt-1">
-                              <div className="w-1 h-1 bg-purple-300 rounded-full animate-pulse"></div>
-                              <span className="text-xs text-purple-300">Active</span>
+                          {/* Submenu items */}
+                          {submenuIsOpen && (
+                            <div className="ml-6 mt-1 space-y-1 border-l border-purple-700/50 pl-2">
+                              {menu.submenus?.map((submenu, subIndex) => (
+                                <Link
+                                  href={submenu.href}
+                                  key={subIndex}
+                                  onClick={handleLinkClick}
+                                  className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all duration-200 ${
+                                    isActive(submenu.href)
+                                      ? "bg-gradient-to-r from-purple-600/20 to-pink-600/10 border-l-2 border-purple-400"
+                                      : "hover:bg-purple-800/30"
+                                  }`}
+                                >
+                                  <div className={`p-1.5 rounded-lg ${
+                                    isActive(submenu.href)
+                                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                      : 'bg-purple-900/30 text-purple-300 group-hover:bg-purple-700 group-hover:text-white'
+                                  }`}>
+                                    {submenu.icon}
+                                  </div>
+                                  <span className={`text-sm ${
+                                    isActive(submenu.href)
+                                      ? 'text-white font-medium'
+                                      : 'text-purple-200'
+                                  }`}>
+                                    {submenu.name}
+                                  </span>
+                                  {isActive(submenu.href) && (
+                                    <div className="ml-auto w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                                  )}
+                                </Link>
+                              ))}
                             </div>
                           )}
                         </div>
-                        
-                        {/* Hover Arrow */}
-                        {!isAdminMenu || (isAdminMenu && isAdmin) && (
-                          <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${
-                            isActive ? 'text-purple-300' : 'text-purple-400'
-                          }`}>
-                            <ChevronRight size={16} />
+                      ) : (
+                        <Link 
+                          href={menu.path} 
+                          key={index}
+                          className={isAdminMenu && !isAdmin ? 'pointer-events-none' : ''}
+                          onClick={handleLinkClick}
+                        >
+                          <div
+                            className={`group relative flex items-center gap-3 rounded-xl px-3 py-3 transition-all duration-200 mb-1 ${
+                              menuIsActive
+                                ? "bg-gradient-to-r from-purple-600/30 to-pink-600/20 border-l-4 border-purple-400"
+                                : "hover:bg-purple-800/40 hover:border-l-4 hover:border-purple-600"
+                            } ${
+                              isAdminMenu && !isAdmin 
+                                ? 'opacity-50 cursor-not-allowed' 
+                                : 'cursor-pointer'
+                            }`}
+                          >
+                            {/* Active Indicator */}
+                            {menuIsActive && (
+                              <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-6 bg-purple-400 rounded-r-full"></div>
+                            )}
+                            
+                            {/* Admin Lock Icon for admin-only menus */}
+                            {isAdminMenu && isAdmin && (
+                              <div className="absolute -top-1 -right-1 z-10">
+                                <div className="w-5 h-5 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full flex items-center justify-center">
+                                  <Lock size={10} className="text-white" />
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div className={`p-2 rounded-lg ${
+                              menuIsActive 
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
+                                : isAdminMenu && !isAdmin
+                                  ? 'bg-purple-900/30 text-purple-400'
+                                  : 'bg-purple-900/50 text-purple-200 group-hover:bg-purple-700 group-hover:text-white'
+                            }`}>
+                              {menu.icon}
+                            </div>
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-medium ${
+                                  menuIsActive ? 'text-white' : 
+                                  isAdminMenu && !isAdmin 
+                                    ? 'text-purple-400' 
+                                    : 'text-purple-100 group-hover:text-white'
+                                }`}>
+                                  {menu.name}
+                                </span>
+                                
+                                {/* Admin badge for admin-only menus */}
+                                {isAdminMenu && (
+                                  <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-amber-900/30 to-yellow-900/20 text-amber-300 rounded">
+                                    Admin
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {menuIsActive && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <div className="w-1 h-1 bg-purple-300 rounded-full animate-pulse"></div>
+                                  <span className="text-xs text-purple-300">Active</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Hover Arrow */}
+                            {!isAdminMenu || (isAdminMenu && isAdmin) && (
+                              <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${
+                                menuIsActive ? 'text-purple-300' : 'text-purple-400'
+                              }`}>
+                                <ChevronRight size={16} />
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </Link>
+                        </Link>
+                      )}
+                    </div>
                   );
                 }
               })}
@@ -735,7 +991,7 @@ export default function Sidebar() {
                 className="p-2 bg-purple-800/80 backdrop-blur-sm rounded-lg text-purple-200 hover:text-white hover:bg-purple-700 transition-all shadow-lg"
               >
                 <ChevronUp size={18} />
-              </button>
+            </button>
             )}
             <button
               onClick={scrollToBottom}
