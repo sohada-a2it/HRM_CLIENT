@@ -9,7 +9,6 @@ const UnifiedLogin = () => {
   const router = useRouter();
   
   // State for form fields
-  const [userType, setUserType] = useState("employee"); // "employee" or "admin"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -104,71 +103,200 @@ const UnifiedLogin = () => {
     });
 
     try {
-      let endpoint, tokenKey, dataKey;
+      // Single endpoint call - unified login
+      console.log("🔄 Attempting unified login...");
+      const response = await api.post("/unified-login", { email, password });
       
-      if (userType === "employee") {
-        endpoint = "/users/userLogin";
-        tokenKey = "employeeToken";
-        dataKey = "employeeData";
-      } else {
-        endpoint = "/admin/login";
-        tokenKey = "adminToken";
-        dataKey = "adminData";
+      const { data } = response;
+      console.log("✅ Login successful:", { 
+        email: data.email, 
+        role: data.role,
+        data: data // Log full response for debugging
+      });
+      
+      if (!data.success) {
+        throw new Error(data.message || "Login failed");
       }
-
-      const { data } = await api.post(endpoint, { email, password });
       
       if (isLocalStorageAvailable()) {
-        localStorage.setItem(tokenKey, data.token);
-        localStorage.setItem(dataKey, JSON.stringify({
-          email: data.email,
-          name: data.name,
-          loginTime: new Date().toISOString(),
-          role: data.role || userType
-        }));
+        // Store token based on user role
+        let tokenKey, dataKey;
         
+        // Determine storage keys based on role
+        switch(data.role) {
+          case 'employee':
+            tokenKey = "employeeToken";
+            dataKey = "employeeData";
+            break;
+          case 'admin':
+          case 'superAdmin':
+            tokenKey = "adminToken";
+            dataKey = "adminData";
+            break;
+          case 'moderator':
+            tokenKey = "moderatorToken";
+            dataKey = "moderatorData";
+            break;
+          default:
+            tokenKey = "userToken";
+            dataKey = "userData";
+        }
+        
+        // Store token
+        localStorage.setItem(tokenKey, data.token);
+        
+        // Prepare user data object with ALL properties from backend
+        const userData = {
+          // Basic info
+          _id: data._id,
+          id: data._id || data.id,
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          fullName: data.fullName || `${data.firstName} ${data.lastName}`,
+          role: data.role,
+          
+          // Profile fields
+          phone: data.phone,
+          picture: data.picture,
+          department: data.department,
+          designation: data.designation,
+          employeeId: data.employeeId,
+          
+          // Account status
+          status: data.status,
+          isActive: data.isActive,
+          
+          // Meta
+          lastLogin: data.lastLogin,
+          loginCount: data.loginCount || 0,
+          
+          // Token and session
+          token: data.token,
+          sessionId: data.sessionId,
+          
+          // Common permissions/fields
+          permissions: data.permissions || [],
+          
+          // Login metadata
+          loginTime: new Date().toISOString()
+        };
+
+        // Add role-specific properties
+        if (data.role === 'admin' || data.role === 'superAdmin') {
+          userData.adminLevel = data.adminLevel;
+          userData.companyName = data.companyName;
+          userData.adminPosition = data.adminPosition;
+          userData.isSuperAdmin = data.isSuperAdmin || false;
+          userData.canManageUsers = data.canManageUsers || false;
+          userData.canManagePayroll = data.canManagePayroll || false;
+        } 
+        
+        if (data.role === 'moderator') {
+          userData.moderatorLevel = data.moderatorLevel;
+          userData.moderatorScope = data.moderatorScope || [];
+          userData.canModerateUsers = data.canModerateUsers || false;
+          userData.canModerateContent = data.canModerateContent || true;
+          userData.canViewReports = data.canViewReports || true;
+          userData.canManageReports = data.canManageReports || false;
+          userData.moderationLimits = data.moderationLimits || {
+            dailyActions: 50,
+            warningLimit: 3,
+            canBanUsers: false,
+            canDeleteContent: true,
+            canEditContent: true,
+            canWarnUsers: true
+          };
+        }
+
+        // Store in localStorage
+        localStorage.setItem(dataKey, JSON.stringify(userData));
+        localStorage.setItem("currentUserRole", data.role);
+        
+        // Set cache expiry (1 hour)
         const expiration = Date.now() + 60 * 60 * 1000;
         localStorage.setItem("cacheExpiry", expiration.toString());
+        
+        console.log("💾 User data saved to localStorage:", {
+          tokenKey,
+          dataKey,
+          role: data.role,
+          userData: userData // Log stored data for debugging
+        });
       }
 
-      // Show success toast
-      toast.success(
-        userType === "employee" 
-          ? `Welcome back, ${data.name || 'Employee'}!` 
-          : `Welcome Admin ${data.name || ''}!`,
-        {
-          id: loadingToast,
-          duration: 3000,
-          position: "top-right",
-          icon: '🎉',
-          style: {
-            background: '#10B981',
-            color: 'white',
-            fontWeight: '500',
-          },
-        }
-      );
+      // Show success toast with role-specific message
+      let welcomeMessage;
+      let icon = '🎉';
+      let roleColor = '#10B981';
+      
+      switch(data.role) {
+        case 'employee':
+          welcomeMessage = `Welcome back, ${data.firstName || data.fullName || 'Employee'}!`;
+          icon = '👨‍💼';
+          roleColor = '#3B82F6';
+          break;
+        case 'admin':
+          welcomeMessage = `Welcome Admin ${data.firstName || data.fullName || ''}!`;
+          icon = '👑';
+          roleColor = '#8B5CF6';
+          break;
+        case 'superAdmin':
+          welcomeMessage = `Welcome Super Admin ${data.firstName || data.fullName || ''}!`;
+          icon = '⚡';
+          roleColor = '#EF4444';
+          break;
+        case 'moderator':
+          welcomeMessage = `Welcome Moderator ${data.firstName || data.fullName || ''}!`;
+          icon = '🛡️';
+          roleColor = '#10B981';
+          break;
+        default:
+          welcomeMessage = `Welcome, ${data.firstName || data.fullName || 'User'}!`;
+          roleColor = '#6B7280';
+      }
 
+      toast.success(welcomeMessage, {
+        id: loadingToast,
+        duration: 3000,
+        position: "top-right",
+        icon: icon,
+        style: {
+          background: roleColor,
+          color: 'white',
+          fontWeight: '500',
+        },
+      });
+
+      // Brief delay before redirect
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Redirect based on user type and role
-      // if (userType === "employee") {
-      //   if (data.role === "employee") {
-      //     router.push("/employee-dashboard");
-      //   } else if (data.role === "staff") {
-      //     router.push("/staff-dashboard");
-      //   } else if (data.role === "manager") {
-      //     router.push("/manager-dashboard");
-      //   } else {
-      //     router.push("/employee-dashboard");
-      //   }
-      // } else {
-        // Admin login
-      //   router.push("/dashboard");
-      // }
-      router.push("/profile");
+      console.log("🚀 Redirecting based on role:", data.role);
+      
+      // Redirect based on user role
+      switch(data.role) {
+        case 'employee':
+          router.push("/employee-dashboard");
+          break;
+        case 'admin':
+        case 'superAdmin':
+          router.push("/dashboard");
+          break;
+        case 'moderator':
+          router.push("/moderator-dashboard");
+          break;
+        default:
+          router.push("/profile");
+      }
+      
     } catch (err) {
-      const errorMsg = err.response?.data?.message || "Login failed. Please check your credentials.";
+      console.error("❌ Login error:", {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+      
+      const errorMsg = err.response?.data?.message || err.message || "Login failed. Please check your credentials.";
       
       // Show error toast
       toast.error(errorMsg, {
@@ -242,81 +370,54 @@ const UnifiedLogin = () => {
         }}
       />
 
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-purple-50 to-white p-4 overflow-hidden relative">
+      {/* Rest of your JSX remains exactly the same */}
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-blue-50 to-white p-4 overflow-hidden relative">
         {/* Background effects */}
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-white opacity-80" />
-        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-200 rounded-full blur-3xl opacity-30" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-100 rounded-full blur-3xl opacity-40" />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-white opacity-80" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-200 rounded-full blur-3xl opacity-30" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-40" />
 
         {/* Login Card */}
         <div className="relative w-full max-w-md">
-          <div ref={formRef} className="bg-white rounded-2xl shadow-xl border border-purple-100 overflow-hidden">
-            {/* Top accent line - dynamic color based on user type */}
-            <div className={`h-1 bg-gradient-to-r ${userType === "employee" ? "from-purple-400 to-purple-600" : "from-purple-400 to-purple-600"}`} />
+          <div ref={formRef} className="bg-white rounded-2xl shadow-xl border border-blue-100 overflow-hidden">
+            {/* Top accent line */}
+            <div className="h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-green-500" />
 
             <div className="p-6 md:p-8">
-              {/* User Type Selection */}
-              <div className="flex rounded-lg bg-purple-50 p-1 mb-6">
-                <button
-                  type="button"
-                  onClick={() => setUserType("employee")}
-                  className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all duration-300 ${userType === "employee" 
-                    ? "bg-white text-purple-700 shadow-sm" 
-                    : "text-purple-600 hover:text-purple-700 hover:bg-purple-100"}`}
-                >
-                  <div className="flex items-center justify-center space-x-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <span>Employee</span>
-                  </div>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setUserType("admin")}
-                  className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all duration-300 ${userType === "admin" 
-                    ? "bg-white text-indigo-700 shadow-sm" 
-                    : "text-indigo-600 hover:text-indigo-700 hover:bg-purple-100"}`}
-                >
-                  <div className="flex items-center justify-center space-x-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    <span>Admin</span>
-                  </div>
-                </button>
-              </div>
-
               {/* Header */}
-              <div className="text-center mb-6">
-                <div className={`inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br ${userType === "employee" 
-                  ? "from-purple-500 to-purple-600" 
-                  : "from-indigo-500 to-purple-600"} rounded-full mb-3 shadow-lg`}>
-                  {userType === "employee" ? (
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  )}
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">
-                  {userType === "employee" ? "Employee Portal" : "Admin Portal"}
-                </h2>
-                <p className="text-gray-500 text-xs mt-0.5">Log in to your account</p>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  A2it HRM Login Portal
+                </h2> 
+                <div className="flex items-center justify-center space-x-2 mt-3">
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="text-xs text-gray-500">Employee</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <span className="text-xs text-gray-500">Admin</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-xs text-gray-500">Moderator</span>
+                  </div>
+                </div>
               </div>
 
-              {/* General Error - Keeping as fallback */}
+              {/* General Error */}
               {errors.general && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg animate-fadeIn">
                   <div className="flex items-center">
                     <svg className="w-4 h-4 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
-                    <span className="text-red-700 text-xs font-medium">{errors.general}</span>
+                    <span className="text-red-700 text-sm font-medium">{errors.general}</span>
                   </div>
                 </div>
               )}
@@ -336,7 +437,7 @@ const UnifiedLogin = () => {
                       className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all duration-300 text-sm text-gray-800 placeholder-transparent ${
                         errors.email 
                           ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-200' 
-                          : 'border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200'
+                          : 'border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
                       }`}
                       placeholder="Email Address"
                     />
@@ -345,7 +446,7 @@ const UnifiedLogin = () => {
                     <label 
                       className={`absolute left-4 pointer-events-none transition-all duration-300 transform origin-left ${
                         isFocused.email || email
-                          ? 'top-0 -translate-y-1/2 px-1 text-[10px] text-purple-600 font-medium bg-white'
+                          ? 'top-0 -translate-y-1/2 px-1 text-[10px] text-blue-600 font-medium bg-white'
                           : 'top-1/2 -translate-y-1/2 text-gray-400 text-sm'
                       }`}
                     >
@@ -377,7 +478,7 @@ const UnifiedLogin = () => {
                       className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all duration-300 text-sm text-gray-800 placeholder-transparent ${
                         errors.password 
                           ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-200' 
-                          : 'border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200'
+                          : 'border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
                       }`}
                       placeholder="Password"
                     />
@@ -386,7 +487,7 @@ const UnifiedLogin = () => {
                     <label 
                       className={`absolute left-4 pointer-events-none transition-all duration-300 transform origin-left ${
                         isFocused.password || password
-                          ? 'top-0 -translate-y-1/2 px-1 text-[10px] text-purple-600 font-medium bg-white'
+                          ? 'top-0 -translate-y-1/2 px-1 text-[10px] text-blue-600 font-medium bg-white'
                           : 'top-1/2 -translate-y-1/2 text-gray-400 text-sm'
                       }`}
                     >
@@ -397,7 +498,7 @@ const UnifiedLogin = () => {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-purple-600 transition-colors duration-200 p-1"
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors duration-200 p-1"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? (
@@ -428,9 +529,7 @@ const UnifiedLogin = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className={`w-full py-3 ${userType === "employee" 
-                    ? "bg-gradient-to-r from-purple-500 to-purple-600" 
-                    : "bg-gradient-to-r from-indigo-500 to-purple-600"} text-white text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0`}
+                  className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
                 >
                   <div className="flex items-center justify-center">
                     {loading ? (
@@ -443,11 +542,11 @@ const UnifiedLogin = () => {
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                         </svg>
-                        <span className="text-sm">Log In as {userType === "employee" ? "Employee" : "Admin"}</span>
+                        <span className="text-sm">Login to Your Account</span>
                       </>
                     )}
                   </div>
-                </button>
+                </button> 
               </form>
 
               {/* Security Note */}
@@ -455,7 +554,7 @@ const UnifiedLogin = () => {
                 <div className="flex flex-col items-center space-y-2 text-gray-500 text-xs">
                   <div className="flex items-center space-x-3">
                     <span className="flex items-center space-x-1.5">
-                      <div className={`w-1.5 h-1.5 ${userType === "employee" ? "bg-purple-400" : "bg-indigo-400"} rounded-full animate-pulse`} />
+                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
                       <span>Secure Connection</span>
                     </span>
                     <span className="text-gray-300">•</span>

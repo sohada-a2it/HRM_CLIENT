@@ -2709,8 +2709,9 @@ const handleSubmit = async (e) => {
                         onChange={handleChange}
                         className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
                       >
-                        <option value="employee">Employee</option>
                         <option value="admin">Admin</option>
+                        <option value="employee">Employee</option>
+                        <option value="employee">Moderator</option>
                       </select>
                       <select
                         name="status"
