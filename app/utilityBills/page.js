@@ -81,8 +81,8 @@ const Toast = ({ message, type = 'success', onClose }) => {
   );
 };
 
-// Delete Confirmation Toast Component
-const DeleteConfirmationToast = ({ 
+// Delete Confirmation Modal
+const DeleteConfirmationModal = ({ 
   itemName, 
   itemType = "bill", 
   onConfirm, 
@@ -115,15 +115,15 @@ const DeleteConfirmationToast = ({
   if (!isVisible) return null;
 
   return (
-    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md">
-      <div className="bg-white border border-purple-200 rounded-xl shadow-lg p-4 animate-slide-in">
-        <div className="flex items-start justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+        <div className="flex items-start justify-between mb-4">
           <div className="flex items-start space-x-3">
             <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
               <AlertCircle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Delete {itemType.charAt(0).toUpperCase() + itemType.slice(1)}?</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Delete {itemType.charAt(0).toUpperCase() + itemType.slice(1)}?</h3>
               <p className="text-sm text-gray-600 mt-1">
                 Are you sure you want to delete <span className="font-medium">{itemName}</span>? 
                 This action cannot be undone.
@@ -134,10 +134,10 @@ const DeleteConfirmationToast = ({
             onClick={handleCancel}
             className="text-gray-400 hover:text-gray-600"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
-        <div className="flex justify-end space-x-3 mt-4">
+        <div className="flex justify-end space-x-3">
           <button
             onClick={handleCancel}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
@@ -149,7 +149,7 @@ const DeleteConfirmationToast = ({
             className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center"
           >
             <Trash2 className="w-4 h-4 mr-2" />
-            Delete {itemType.charAt(0).toUpperCase() + itemType.slice(1)}
+            Delete
           </button>
         </div>
       </div>
@@ -260,15 +260,8 @@ const API_URL = useMemo(() =>
   // Initialize form and fetch data after authentication
   useEffect(() => {
     if (user && activeToken && !authLoading) {
-      // Start with one empty bill row
-      setBills([{ 
-        name: "", 
-        amount: "", 
-        date: getTodayDate(), 
-        paymentMethod: "", 
-        note: "",
-        isFixed: false 
-      }]);
+      // Start with EMPTY bill rows - no pre-filled form
+      setBills([]);
       
       // Fetch data
       fetchAllData();
@@ -278,7 +271,6 @@ const API_URL = useMemo(() =>
   // **UPDATED: শুধুমাত্র adminToken বা moderatorToken থাকলেই access পাবে**
   const checkAuthentication = () => {
     try {
-      // শুধুমাত্র এই দুইটি token চেক করব
       const adminToken = localStorage.getItem('adminToken');
       const moderatorToken = localStorage.getItem('moderatorToken');
       
@@ -286,11 +278,9 @@ const API_URL = useMemo(() =>
       let userInfo = null;
       let userRole = '';
       
-      // **শুধুমাত্র admin বা moderator token থাকলেই access**
       if (adminToken) {
         activeToken = adminToken;
         userRole = 'admin';
-        // admin data খুঁজে বের করি
         const adminData = localStorage.getItem('adminData');
         if (adminData) {
           try {
@@ -304,7 +294,6 @@ const API_URL = useMemo(() =>
       else if (moderatorToken) {
         activeToken = moderatorToken;
         userRole = 'moderator';
-        // moderator data খুঁজে বের করি
         const moderatorData = localStorage.getItem('moderatorData');
         if (moderatorData) {
           try {
@@ -316,7 +305,6 @@ const API_URL = useMemo(() =>
         }
       }
       
-      // যদি admin বা moderator token না থাকে
       if (!activeToken) {
         console.log("Access denied: Only admin or moderator tokens are allowed");
         showToast('Access denied. This page is only for administrators and moderators.', 'error');
@@ -324,7 +312,6 @@ const API_URL = useMemo(() =>
         return;
       }
       
-      // যদি user info না থাকে, basic info create করি
       if (!userInfo) {
         userInfo = {
           name: userRole === 'admin' ? "Administrator" : "Moderator",
@@ -336,7 +323,6 @@ const API_URL = useMemo(() =>
         };
       }
       
-      // Set user and token state
       setUser(userInfo);
       setActiveToken(activeToken);
       setAuthLoading(false);
@@ -383,9 +369,8 @@ const API_URL = useMemo(() =>
       setLoading(true);
 
       // Fetch all bills
-      const billsResponse = await fetch(`${API_URL}`, {
-        headers: getAuthHeaders(),
-        credentials: 'include'
+      const billsResponse = await fetch(`${API_URL}/bills`, {
+        headers: getAuthHeaders(), 
       });
       
       if (billsResponse.status === 401 || billsResponse.status === 403) {
@@ -401,12 +386,13 @@ const API_URL = useMemo(() =>
       
       if (billsData.success) {
         setAllBills(billsData.data);
+      } else {
+        throw new Error(billsData.message || 'Failed to load bills');
       }
 
       // Fetch bills by month
-      const monthResponse = await fetch(`${API_URL}/group/by-month`, {
-        headers: getAuthHeaders(),
-        credentials: 'include'
+      const monthResponse = await fetch(`${API_URL}/bills/group/by-month`, {
+        headers: getAuthHeaders(), 
       });
       
       if (monthResponse.ok) {
@@ -417,9 +403,8 @@ const API_URL = useMemo(() =>
       }
 
       // Fetch bill types
-      const typesResponse = await fetch(`${API_URL}/types/all`, {
-        headers: getAuthHeaders(),
-        credentials: 'include'
+      const typesResponse = await fetch(`${API_URL}/bills/types/all`, {
+        headers: getAuthHeaders(), 
       });
       
       if (typesResponse.ok) {
@@ -430,9 +415,8 @@ const API_URL = useMemo(() =>
       }
 
       // Fetch statistics
-      const statsResponse = await fetch(`${API_URL}/stats/summary`, {
-        headers: getAuthHeaders(),
-        credentials: 'include'
+      const statsResponse = await fetch(`${API_URL}/bills/stats/summary`, {
+        headers: getAuthHeaders(), 
       });
       
       if (statsResponse.ok) {
@@ -466,10 +450,9 @@ const API_URL = useMemo(() =>
     
     try {
       const response = await fetch(
-        `${API_URL}/month/${billDate.getFullYear()}/${billDate.getMonth() + 1}`,
+        `${API_URL}/bills/month/${billDate.getFullYear()}/${billDate.getMonth() + 1}`,
         {
-          headers: getAuthHeaders(),
-          credentials: 'include'
+          headers: getAuthHeaders(), 
         }
       );
       
@@ -536,57 +519,56 @@ const API_URL = useMemo(() =>
         checkBillDuplicate(updatedBills[index].name, value, index);
       }
     }
-  };
+  }; 
 
-  const addBillField = () => {
-    const newBill = { 
-      name: "", 
-      amount: "", 
-      date: getTodayDate(), 
-      paymentMethod: "", 
-      note: "",
-      isFixed: false 
-    };
-    setBills([...bills, newBill]);
-  };
-
-  const removeBillField = (index) => {
-    if (bills.length <= 1) {
-      showToast("You need at least one bill field. Clear the form instead.", "warning");
-      return;
+const removeBillField = (index) => {
+  // যদি মাত্র একটি ফিল্ড থাকে
+  if (bills.length === 1) {
+    // পুরো ফর্ম ক্লিয়ার করি
+    clearForm();
+    return;
+  }
+  
+  // যদি একাধিক ফিল্ড থাকে
+  const newDuplicateChecks = { ...duplicateChecks };
+  
+  // ডিলিট হওয়া ফিল্ডের ডুপ্লিকেট চেক রিমুভ করি
+  delete newDuplicateChecks[index];
+  
+  // অন্যান্য ফিল্ডের indexes ঠিক করি (যেগুলো ডিলিট হওয়া ফিল্ডের পরে আছে)
+  const updatedDuplicateChecks = {};
+  Object.keys(newDuplicateChecks).forEach(key => {
+    const keyNum = parseInt(key);
+    if (keyNum > index) {
+      updatedDuplicateChecks[keyNum - 1] = newDuplicateChecks[key];
+    } else {
+      updatedDuplicateChecks[keyNum] = newDuplicateChecks[key];
     }
-    
-    const newDuplicateChecks = { ...duplicateChecks };
-    delete newDuplicateChecks[index];
-    setDuplicateChecks(newDuplicateChecks);
-    
-    setBills(bills.filter((_, i) => i !== index));
-    showToast("Bill field removed", "info");
-  };
+  });
+  
+  setDuplicateChecks(updatedDuplicateChecks);
+  
+  // ফিল্ড ডিলিট করি
+  setBills(bills.filter((_, i) => i !== index));
+  
+  showToast("Bill field removed", "info");
+};
 
-  const clearForm = (showConfirmation = true) => {
-    const clearAction = () => {
-      setBills([{ 
-        name: "", 
-        amount: "", 
-        date: getTodayDate(), 
-        paymentMethod: "", 
-        note: "",
-        isFixed: false 
-      }]);
-      setDuplicateChecks({});
-    };
-    
-    if (!showConfirmation || bills.length === 0) {
-      clearAction();
-      return;
-    }
-    
-    showDeleteConfirmation(null, "all bill entries", "form", clearAction);
+  // FIXED: Clear form function
+  const clearForm = () => {
+    setBills([]);
+    setDuplicateChecks({});
+    showToast("Form cleared", "success");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (bills.length === 0) {
+      showToast("Please add at least one bill to save", "error");
+      return;
+    }
+    
     setLoading(true);
     
     try {
@@ -655,8 +637,7 @@ const API_URL = useMemo(() =>
       // Send to backend
       const response = await fetch(`${API_URL}/newBills`, {
         method: 'POST',
-        headers: getAuthHeaders(),
-        credentials: 'include',
+        headers: getAuthHeaders(), 
         body: JSON.stringify(formattedBills)
       });
       
@@ -682,7 +663,7 @@ const API_URL = useMemo(() =>
         }
         
         // Clear form after successful save
-        clearForm(false);
+        clearForm();
         
         // Refresh data
         fetchAllData();
@@ -773,8 +754,7 @@ const API_URL = useMemo(() =>
     try {
       const response = await fetch(`${API_URL}/newBills/${editingBillId}`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
-        credentials: 'include',
+        headers: getAuthHeaders(), 
         body: JSON.stringify({
           name: editBillForm.name,
           amount: parseFloat(editBillForm.amount),
@@ -830,8 +810,7 @@ const API_URL = useMemo(() =>
       setLoading(true);
       const response = await fetch(`${API_URL}/deleteBills/${billId}`, {
         method: 'DELETE',
-        headers: getAuthHeaders(),
-        credentials: 'include'
+        headers: getAuthHeaders(), 
       });
       
       if (response.status === 401 || response.status === 403) {
@@ -863,9 +842,8 @@ const API_URL = useMemo(() =>
       
       // Get bills for this specific month
       const [year, month] = monthData.month.split('-');
-      const response = await fetch(`${API_URL}/month/${year}/${month}`, {
-        headers: getAuthHeaders(),
-        credentials: 'include'
+      const response = await fetch(`${API_URL}/bills/month/${year}/${month}`, {
+        headers: getAuthHeaders(), 
       });
       
       if (response.status === 401 || response.status === 403) {
@@ -972,10 +950,9 @@ const API_URL = useMemo(() =>
       }
       
       // Send update request
-      const updateResponse = await fetch(`${API_URL}/update/month-bulk`, {
+      const updateResponse = await fetch(`${API_URL}/bills/update/month-bulk`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
-        credentials: 'include',
+        headers: getAuthHeaders(), 
         body: JSON.stringify({
           monthYear: editingMonth,
           bills: billsToSave
@@ -1036,23 +1013,19 @@ const API_URL = useMemo(() =>
     }
 
     try {
-      // Create new PDF document
       const doc = new jsPDF();
-      
-      // Title
       const pageWidth = doc.internal.pageSize.getWidth();
+      
       doc.setFontSize(20);
       doc.setTextColor(40);
       doc.setFont("helvetica", "bold");
       doc.text("Utility Bills Report", pageWidth / 2, 20, { align: "center" });
       
-      // Report Info
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
       doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
       
-      // Filter information
       let filterInfo = "All Bills";
       if (filterYear !== "all" && filterMonth !== "all") {
         filterInfo = `${monthNames[parseInt(filterMonth) - 1]} ${filterYear}`;
@@ -1064,12 +1037,10 @@ const API_URL = useMemo(() =>
       doc.text(`Report Type: ${filterInfo}`, 14, 36);
       doc.text(`Total Records: ${filteredBills.length}`, 14, 42);
       
-      // Add user info
       if (user) {
         doc.text(`Generated by: ${user.name} (${user.role})`, 14, 48);
       }
       
-      // Prepare table data - Using BDT instead of ৳ symbol for compatibility
       const tableData = filteredBills.map(bill => [
         bill.name,
         new Date(bill.date).toLocaleDateString(),
@@ -1079,13 +1050,12 @@ const API_URL = useMemo(() =>
         bill.note || "-"
       ]);
       
-      // Add table using autoTable
       autoTable(doc, {
         startY: user ? 55 : 50,
         head: [['Bill Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Month', 'Note']],
         body: tableData,
         headStyles: {
-          fillColor: [128, 90, 213], // Purple color
+          fillColor: [128, 90, 213],
           textColor: 255,
           fontStyle: 'bold'
         },
@@ -1102,7 +1072,6 @@ const API_URL = useMemo(() =>
           5: { cellWidth: 35 }
         },
         didDrawPage: function (data) {
-          // Footer
           const pageCount = doc.internal.getNumberOfPages();
           doc.setFontSize(10);
           doc.setTextColor(150);
@@ -1115,11 +1084,9 @@ const API_URL = useMemo(() =>
         }
       });
       
-      // Calculate totals
       const totalAmount = calculateFilteredTotal();
       const lastY = doc.lastAutoTable.finalY + 10;
       
-      // Add summary section - Using BDT
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(40);
@@ -1130,7 +1097,6 @@ const API_URL = useMemo(() =>
       doc.text(`Total Bills: ${filteredBills.length}`, 14, lastY + 8);
       doc.text(`Total Amount: BDT ${totalAmount.toFixed(2)}`, 14, lastY + 16);
       
-      // Add generated date at bottom
       doc.setFontSize(9);
       doc.setTextColor(100);
       doc.text(
@@ -1140,16 +1106,12 @@ const API_URL = useMemo(() =>
         { align: "center" }
       );
       
-      // Generate filename with timestamp
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
       const isFilterActive = filterYear !== "all" || filterMonth !== "all";
       const filterSuffix = isFilterActive ? '_filtered' : '';
       const filename = `utility_bills_${timestamp}${filterSuffix}.pdf`;
       
-      // Save the PDF
       doc.save(filename);
-      
-      // Show success message
       showToast(`PDF downloaded successfully: ${filename}`, "success");
       
     } catch (error) {
@@ -1263,10 +1225,8 @@ const API_URL = useMemo(() =>
       // Apply month filter (when month is selected)
       if (filterMonth !== "all" && filterMonth !== "all") {
         if (filterMonth.includes('-')) {
-          // Month-year format (YYYY-MM)
           return monthYear === filterMonth;
         } else {
-          // Just month number
           return (date.getMonth() + 1).toString() === filterMonth;
         }
       }
@@ -1280,19 +1240,54 @@ const API_URL = useMemo(() =>
     return filteredBills.reduce((total, bill) => total + bill.amount, 0);
   };
 
-  // Quick add common bill types
-  const quickAddBill = (billName) => {
-    const newBill = {
-      name: billName,
-      amount: "",
-      date: getTodayDate(),
-      paymentMethod: "",
-      note: "",
-      isFixed: true
-    };
-    setBills([...bills, newBill]);
-    showToast(`Added "${billName}" to form`, "success");
+  // Quick add common bill types 
+// Quick add common bill types with auto-focus on amount field
+const quickAddBill = (billName) => {
+  const newBill = {
+    name: billName,
+    amount: "",
+    date: getTodayDate(),
+    paymentMethod: "",
+    note: "",
+    isFixed: true
   };
+  
+  const newBills = [...bills, newBill];
+  setBills(newBills);
+  
+  // Amount field এ auto-focus দিতে
+  setTimeout(() => {
+    const lastIndex = newBills.length - 1;
+    const amountInput = document.querySelector(`input[data-index="${lastIndex}"][data-field="amount"]`);
+    if (amountInput) {
+      amountInput.focus();
+      amountInput.select();
+    }
+  }, 100);
+  
+  showToast(`Added "${billName}" to form. Please enter amount.`, "success");
+};
+
+// এবং addBillField ফাংশনটি এইভাবে আপডেট করুন:
+const addBillField = () => {
+  const newBill = { 
+    name: "", 
+    amount: "", 
+    date: getTodayDate(), 
+    paymentMethod: "", 
+    note: "",
+    isFixed: false 
+  };
+  setBills([...bills, newBill]);
+  showToast("New bill field added", "success");
+  
+  // নতুন ফর্ম যোগ করার পর সেটিতে focus দিতে
+  setTimeout(() => {
+    const lastIndex = bills.length;
+    const input = document.querySelector(`input[data-index="${lastIndex}"]`);
+    if (input) input.focus();
+  }, 100);
+};
 
   // Show loading while auth is being checked
   if (authLoading) {
@@ -1311,14 +1306,14 @@ const API_URL = useMemo(() =>
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 p-4 md:p-6 overflow-hidden">
       <div className="max-w-7xl mx-auto">
         {/* Toast Notifications */}
         {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
         
-        {/* Delete Confirmation Toast */}
+        {/* Delete Confirmation Modal */}
         {deleteConfirmation && (
-          <DeleteConfirmationToast 
+          <DeleteConfirmationModal 
             itemName={deleteConfirmation.itemName}
             itemType={deleteConfirmation.itemType}
             onConfirm={() => handleDeleteBillConfirm(deleteConfirmation.billId)}
@@ -1328,7 +1323,7 @@ const API_URL = useMemo(() =>
 
         {/* Header with User Info */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-800">Utility Bills Management</h1>
               <p className="text-gray-600 mt-2">Track and manage your monthly utility expenses</p>
@@ -1337,20 +1332,13 @@ const API_URL = useMemo(() =>
               <div className="text-right">
                 <p className="text-sm text-gray-600">Logged in as: <span className="font-semibold">{user.name}</span></p>
                 <p className="text-xs text-gray-500">Role: <span className="font-medium capitalize">{user.role}</span></p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm flex items-center"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </button>
+              </div> 
             </div>
           </div>
 
           {/* User Info Banner */}
           <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg p-4 shadow-lg">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
               <div className="flex items-center space-x-4">
                 <div className="px-3 py-1 bg-white/20 text-white rounded-full text-sm font-medium">
                   Bills Management
@@ -1394,17 +1382,17 @@ const API_URL = useMemo(() =>
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex space-x-4 mb-8">
+        <div className="flex flex-wrap gap-2 mb-8">
           <button
             onClick={() => setActiveView("form")}
-            className={`px-6 py-3 rounded-lg font-medium flex items-center transition-all ${activeView === "form" ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-gray-100 shadow'}`}
+            className={`px-4 py-2 rounded-lg font-medium flex items-center transition-all ${activeView === "form" ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-gray-100 shadow'}`}
           >
             <Plus className="w-5 h-5 mr-2" />
             Add Bills
           </button>
           <button
             onClick={() => setActiveView("table")}
-            className={`px-6 py-3 rounded-lg font-medium flex items-center transition-all ${activeView === "table" ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-gray-100 shadow'}`}
+            className={`px-4 py-2 rounded-lg font-medium flex items-center transition-all ${activeView === "table" ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-gray-100 shadow'}`}
           >
             <FileText className="w-5 h-5 mr-2" />
             View Bills
@@ -1412,10 +1400,10 @@ const API_URL = useMemo(() =>
           <button
             onClick={fetchAllData}
             disabled={loading}
-            className="px-6 py-3 bg-white text-gray-700 rounded-lg font-medium hover:bg-gray-100 shadow disabled:opacity-50 flex items-center transition-all"
+            className="px-4 py-2 bg-white text-gray-700 rounded-lg font-medium hover:bg-gray-100 shadow disabled:opacity-50 flex items-center transition-all"
           >
             <RefreshCw className={`w-5 h-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Refreshing...' : 'Refresh Data'}
+            Refresh
           </button>
         </div>
 
@@ -1431,7 +1419,7 @@ const API_URL = useMemo(() =>
                     key={index}
                     type="button"
                     onClick={() => quickAddBill(billType)}
-                    className="px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors shadow-sm"
+                    className="px-3 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors shadow-sm text-sm"
                   >
                     + {billType}
                   </button>
@@ -1443,155 +1431,169 @@ const API_URL = useMemo(() =>
             </div>
 
             {/* Form Section */}
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-purple-100">
-              <div className="flex justify-between items-center mb-6">
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-purple-100 max-h-[70vh] overflow-y-auto">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h2 className="text-2xl font-bold text-gray-800">Add Bills</h2>
                 <div className="flex space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => clearForm(true)}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 flex items-center shadow-sm"
-                  >
-                    <XCircle className="w-5 h-5 mr-2" />
-                    Clear Form
-                  </button>
+                  {bills.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearForm}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 flex items-center shadow-sm"
+                    >
+                      <XCircle className="w-5 h-5 mr-2" />
+                      Clear Form
+                    </button>
+                  )}
                 </div>
               </div>
               
               <form onSubmit={handleSubmit}>
-                {/* Form Header */}
-                {bills.length > 0 && (
-                  <div className="grid grid-cols-13 gap-3 text-sm font-medium text-gray-500 mb-4">
-                    <div className="col-span-3">Bill Name *</div>
-                    <div className="col-span-2">Amount (BDT) *</div>
-                    <div className="col-span-2">Date *</div>
-                    <div className="col-span-2">Payment Method *</div>
-                    <div className="col-span-3">Note (Optional)</div>
-                    <div className="col-span-1 text-center">Action</div>
+                {/* Empty State */}
+                {bills.length === 0 && (
+                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg mb-6">
+                    <Plus className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-700 mb-2">No bills added yet</h3>
+                    <p className="text-gray-500 mb-6">Click "Add Bill" or use the quick add buttons above to get started</p>
+                    <button
+                      type="button"
+                      onClick={addBillField}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-md hover:from-purple-700 hover:to-indigo-700 flex items-center mx-auto"
+                    >
+                      <Plus className="w-5 h-5 mr-2" />
+                      Add Your First Bill
+                    </button>
                   </div>
                 )}
 
-                {/* Bill Rows */}
-                {bills.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No bills added yet. Use "Quick Add" buttons or "Add Bill" button to start.
-                  </div>
-                ) : (
-                  bills.map((bill, index) => {
-                    const billDate = new Date(bill.date);
-                    const monthYear = `${billDate.getFullYear()}-${String(billDate.getMonth() + 1).padStart(2, '0')}`;
+                {/* Form Header - Only show when there are bills */}
+                {bills.length > 0 && (
+                  <div className="mb-4">
+                    <div className="grid grid-cols-12 gap-3 text-sm font-medium text-gray-500 mb-2">
+                      <div className="col-span-4">Bill Name *</div>
+                      <div className="col-span-2">Amount (BDT) *</div>
+                      <div className="col-span-2">Date *</div>
+                      <div className="col-span-2">Payment Method *</div>
+                      <div className="col-span-1">Action</div>
+                    </div>
                     
-                    return (
-                      <div key={index} className="grid grid-cols-13 gap-3 items-center mb-4">
-                        {/* Bill Name */}
-                        <div className="col-span-3">
-                          <input
-                            type="text"
-                            value={bill.name}
-                            onChange={(e) => updateBillField(index, "name", e.target.value)}
-                            onBlur={(e) => {
-                              updateBillField(index, "name", e.target.value);
-                              checkBillDuplicate(e.target.value, bill.date, index);
-                            }}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                              duplicateChecks[index] ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                            }`}
-                            placeholder="Enter bill name"
-                            list="bill-suggestions"
-                            required
-                          />
-                          <datalist id="bill-suggestions">
-                            {commonBillTypes.map((type, i) => (
-                              <option key={i} value={type} />
-                            ))}
-                          </datalist>
-                          {duplicateChecks[index] && (
-                            <p className="text-xs text-red-600 mt-1">
-                              ⚠️ This bill already exists in {getMonthName(monthYear)}
-                            </p>
-                          )}
-                        </div>
+                    {/* Bill Rows */}
+                    {bills.map((bill, index) => {
+  const billDate = new Date(bill.date);
+  const monthYear = `${billDate.getFullYear()}-${String(billDate.getMonth() + 1).padStart(2, '0')}`;
+  
+  return (
+    <div key={index} className="grid grid-cols-12 gap-3 items-center mb-3">
+      {/* Bill Name */}
+      <div className="col-span-4">
+        <input
+          type="text"
+          value={bill.name}
+          data-index={index}  
+          onChange={(e) => updateBillField(index, "name", e.target.value)}
+          onBlur={(e) => {
+            updateBillField(index, "name", e.target.value);
+            checkBillDuplicate(e.target.value, bill.date, index);
+          }}
+          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
+            duplicateChecks[index] ? 'border-red-500 bg-red-50' : 'border-gray-300'
+          }`}
+          placeholder="Enter bill name"
+          list="bill-suggestions"
+          required
+        />
+                            <datalist id="bill-suggestions">
+                              {commonBillTypes.map((type, i) => (
+                                <option key={i} value={type} />
+                              ))}
+                            </datalist>
+                            {duplicateChecks[index] && (
+                              <p className="text-xs text-red-600 mt-1">
+                                ⚠️ Already exists in {getMonthName(monthYear)}
+                              </p>
+                            )}
+                          </div>
 
-                        {/* Amount */}
-                        <div className="col-span-2">
-                          <input
-                            type="number"
-                            placeholder="0.00"
-                            value={bill.amount}
-                            onChange={(e) => updateBillField(index, "amount", e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            min="0"
-                            step="0.01"
-                            required
-                          />
-                        </div>
+                          {/* Amount */}
+                          <div className="col-span-2">
+                            <input
+                              type="number"
+                              placeholder="0.00"
+                              value={bill.amount}
+                              onChange={(e) => updateBillField(index, "amount", e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              min="0"
+                              step="0.01"
+                              required
+                            />
+                          </div>
 
-                        {/* Date */}
-                        <div className="col-span-2">
-                          <input
-                            type="date"
-                            value={bill.date}
-                            max={getTodayDate()}
-                            onChange={(e) => {
-                              updateBillField(index, "date", e.target.value);
-                              checkBillDuplicate(bill.name, e.target.value, index);
-                            }}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                              duplicateChecks[index] ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                            }`}
-                            required
-                          />
-                        </div>
+                          {/* Date */}
+                          <div className="col-span-2">
+                            <input
+                              type="date"
+                              value={bill.date}
+                              max={getTodayDate()}
+                              onChange={(e) => {
+                                updateBillField(index, "date", e.target.value);
+                                checkBillDuplicate(bill.name, e.target.value, index);
+                              }}
+                              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
+                                duplicateChecks[index] ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                              }`}
+                              required
+                            />
+                          </div>
 
-                        {/* Payment Method */}
-                        <div className="col-span-2">
-                          <select
-                            value={bill.paymentMethod}
-                            onChange={(e) => updateBillField(index, "paymentMethod", e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            required
-                          >
-                            <option value="">Select Method *</option>
-                            <option value="cash">Cash</option>
-                            <option value="bank_transfer">Bank Transfer</option>
-                            <option value="credit_card">Credit Card</option>
-                            <option value="debit_card">Debit Card</option>
-                            <option value="online">Online Payment</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </div>
+                          {/* Payment Method */}
+                          <div className="col-span-2">
+                            <select
+                              value={bill.paymentMethod}
+                              onChange={(e) => updateBillField(index, "paymentMethod", e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              required
+                            >
+                              <option value="">Select Method</option>
+                              <option value="cash">Cash</option>
+                              <option value="bank_transfer">Bank Transfer</option>
+                              <option value="credit_card">Credit Card</option>
+                              <option value="debit_card">Debit Card</option>
+                              <option value="online">Online Payment</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
 
-                        {/* Note Field (Optional) */}
-                        <div className="col-span-3">
-                          <input
-                            type="text"
-                            value={bill.note || ""}
-                            onChange={(e) => updateBillField(index, "note", e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Optional note (e.g., 'Paid late', 'Discount applied')"
-                          />
-                        </div>
+                          {/* Remove Button */}
+                          <div className="col-span-1">
+                            <button
+                              type="button"
+                              onClick={() => removeBillField(index)}
+                              className="w-full py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 flex items-center justify-center shadow-sm"
+                              title="Remove this bill"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
 
-                        {/* Remove Button */}
-                        <div className="col-span-1">
-                          <button
-                            type="button"
-                            onClick={() => removeBillField(index)}
-                            className="w-full py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 flex items-center justify-center shadow-sm"
-                            disabled={bills.length <= 1}
-                            title={bills.length <= 1 ? "You need at least one bill" : "Remove this bill"}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Note Field (Optional) - Below the row */}
+                          <div className="col-span-12 mt-2">
+                            <input
+                              type="text"
+                              value={bill.note || ""}
+                              onChange={(e) => updateBillField(index, "note", e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              placeholder="Optional note (e.g., 'Paid late', 'Discount applied')"
+                            />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </div>
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex flex-col md:flex-row md:space-x-4 space-y-4 md:space-y-0 mt-6">
-                  <div className="flex space-x-4">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-6 pt-6 border-t">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={addBillField}
@@ -1599,61 +1601,51 @@ const API_URL = useMemo(() =>
                     >
                       <Plus className="w-5 h-5 mr-2" />
                       Add Another Bill
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => {
-                        quickAddBill("Electricity Bill");
-                        quickAddBill("Water Bill");
-                        quickAddBill("Internet Bill");
-                        quickAddBill("Gas Bill");
-                      }}
-                      className="px-4 py-2 border-2 border-dashed border-green-300 text-green-600 rounded-md hover:bg-green-50 flex items-center shadow-sm"
-                    >
-                      <Plus className="w-5 h-5 mr-2" />
-                      Add Common Bills
-                    </button>
+                    </button> 
                   </div>
                   
-                  <button
-                    type="submit"
-                    disabled={loading || bills.length === 0 || Object.values(duplicateChecks).some(check => check)}
-                    className={`flex-1 py-2 rounded-md transition-colors flex items-center justify-center shadow-lg ${
-                      loading || bills.length === 0 || Object.values(duplicateChecks).some(check => check)
-                        ? 'bg-purple-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
-                    } text-white`}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      `Save ${bills.length} Bill(s)`
-                    )}
-                  </button>
+                  {bills.length > 0 && (
+                    <button
+                      type="submit"
+                      disabled={loading || Object.values(duplicateChecks).some(check => check)}
+                      className={`px-6 py-2 rounded-md transition-colors flex items-center justify-center shadow-lg ${
+                        loading || Object.values(duplicateChecks).some(check => check)
+                          ? 'bg-purple-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
+                      } text-white`}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        `Save ${bills.filter(b => b.name && b.amount && b.paymentMethod).length} Bill(s)`
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 {/* Form Status */}
-                <div className="mt-4 text-sm text-gray-600">
-                  <div className="flex items-center justify-between">
-                    <span>Total bills in form: <strong>{bills.length}</strong></span>
-                    <div className="flex items-center space-x-4">
-                      <span className={`${
-                        Object.values(duplicateChecks).some(check => check) 
-                          ? 'text-red-600' 
-                          : 'text-purple-600'
-                      }`}>
-                        {Object.values(duplicateChecks).filter(check => check).length} duplicate(s) detected
-                      </span>
-                      <span className="text-green-600">
-                        {bills.filter(b => b.name && b.amount && b.paymentMethod).length} ready to save
-                      </span>
+                {bills.length > 0 && (
+                  <div className="mt-4 text-sm text-gray-600">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span>Total bills in form: <strong>{bills.length}</strong></span>
+                      <div className="flex items-center space-x-4">
+                        <span className={`${
+                          Object.values(duplicateChecks).some(check => check) 
+                            ? 'text-red-600' 
+                            : 'text-purple-600'
+                        }`}>
+                          {Object.values(duplicateChecks).filter(check => check).length} duplicate(s)
+                        </span>
+                        <span className="text-green-600">
+                          {bills.filter(b => b.name && b.amount && b.paymentMethod).length} ready to save
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </form>
             </div>
           </div>
@@ -1665,7 +1657,7 @@ const API_URL = useMemo(() =>
             {/* Edit Month Form - Only shown when editing */}
             {isEditMode && editingMonth && (
               <div id="edit-form" className="bg-white rounded-xl shadow-lg p-6 border-2 border-purple-300">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                   <h2 className="text-2xl font-bold text-gray-800">
                     <Edit className="w-6 h-6 inline mr-2" />
                     Editing: {getMonthName(editingMonth)}
@@ -1707,19 +1699,9 @@ const API_URL = useMemo(() =>
                   </div>
                 </div>
 
-                {/* Edit Form Header */}
-                <div className="grid grid-cols-13 gap-3 text-sm font-medium text-gray-500 mb-4">
-                  <div className="col-span-3">Bill Name</div>
-                  <div className="col-span-2">Amount (BDT)</div>
-                  <div className="col-span-2">Date</div>
-                  <div className="col-span-2">Payment Method</div>
-                  <div className="col-span-3">Note (Optional)</div>
-                  <div className="col-span-1">Action</div>
-                </div>
-
                 {/* Edit Bill Rows */}
                 {editFormData.map((bill, index) => (
-                  <div key={index} className="grid grid-cols-13 gap-3 items-center mb-4">
+                  <div key={index} className="grid grid-cols-12 gap-3 items-center mb-3">
                     {/* Bill Name */}
                     <div className="col-span-3">
                       <input
@@ -1772,17 +1754,6 @@ const API_URL = useMemo(() =>
                       </select>
                     </div>
 
-                    {/* Note Field (Optional) */}
-                    <div className="col-span-3">
-                      <input
-                        type="text"
-                        value={bill.note || ""}
-                        onChange={(e) => handleEditChange(index, "note", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        placeholder="Optional note"
-                      />
-                    </div>
-
                     {/* Remove Button */}
                     <div className="col-span-1">
                       <button
@@ -1793,6 +1764,17 @@ const API_URL = useMemo(() =>
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                    </div>
+
+                    {/* Note Field */}
+                    <div className="col-span-12 mt-2">
+                      <input
+                        type="text"
+                        value={bill.note || ""}
+                        onChange={(e) => handleEditChange(index, "note", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="Optional note"
+                      />
                     </div>
                   </div>
                 ))}
@@ -1828,9 +1810,9 @@ const API_URL = useMemo(() =>
                   </button>
                 </div>
 
-                <div className="grid grid-cols-12 gap-3 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   {/* Bill Name */}
-                  <div className="col-span-3">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Bill Name *
                     </label>
@@ -1845,7 +1827,7 @@ const API_URL = useMemo(() =>
                   </div>
 
                   {/* Amount */}
-                  <div className="col-span-2">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Amount (BDT) *
                     </label>
@@ -1862,7 +1844,7 @@ const API_URL = useMemo(() =>
                   </div>
 
                   {/* Date */}
-                  <div className="col-span-2">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Date *
                     </label>
@@ -1877,7 +1859,7 @@ const API_URL = useMemo(() =>
                   </div>
 
                   {/* Payment Method */}
-                  <div className="col-span-2">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Method *
                     </label>
@@ -1897,8 +1879,8 @@ const API_URL = useMemo(() =>
                     </select>
                   </div>
 
-                  {/* Note Field (Optional) */}
-                  <div className="col-span-2">
+                  {/* Note Field */}
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Note (Optional)
                     </label>
@@ -1910,44 +1892,43 @@ const API_URL = useMemo(() =>
                       placeholder="Optional note"
                     />
                   </div>
-
-                  {/* Action Buttons */}
-                  <div className="col-span-1 flex items-end">
-                    <button
-                      onClick={handleUpdateBill}
-                      disabled={loading}
-                      className={`w-full py-2 rounded-md transition-colors flex items-center justify-center shadow-lg ${
-                        loading
-                          ? 'bg-purple-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
-                      } text-white`}
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Updating...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-5 h-5 mr-2" />
-                          Update
-                        </>
-                      )}
-                    </button>
-                  </div>
                 </div>
 
-                <div className="text-sm text-gray-600 mt-4">
-                  <p className="text-red-600 font-medium">
-                    ⚠️ Note: The bill name must be unique for this month. If you change the date to a different month, the bill name must not already exist in that month.
-                  </p>
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={handleCancelEditBill}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateBill}
+                    disabled={loading}
+                    className={`px-4 py-2 rounded-md transition-colors flex items-center justify-center shadow-lg ${
+                      loading
+                        ? 'bg-purple-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
+                    } text-white`}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                        Update
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}
 
             {/* Detailed Bills Table */}
             <div className="bg-white rounded-xl shadow-lg p-6 border border-purple-100">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h2 className="text-2xl font-bold text-gray-800">
                   {filterYear !== "all" || filterMonth !== "all" ? 'Filtered Bills' : 'All Bills'}
                   {(filterYear !== "all" || filterMonth !== "all") && (
@@ -2067,25 +2048,25 @@ const API_URL = useMemo(() =>
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-purple-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
                         Bill Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
                         Amount (BDT)
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
                         Month
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
                         Payment Method
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
                         Note
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -2097,22 +2078,22 @@ const API_URL = useMemo(() =>
                       
                       return (
                         <tr key={bill._id} className="hover:bg-purple-50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                             {bill.name}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
                             {formatCurrency(bill.amount)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                             {formatDate(bill.date)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                             {getMonthName(billMonthYear)}
                             <div className="text-xs text-gray-400">
                               {monthNames[billDate.getMonth()]} {billDate.getFullYear()}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                             <span className={`px-2 py-1 text-xs rounded-full ${
                               bill.paymentMethod === 'cash' ? 'bg-yellow-100 text-yellow-800' :
                               bill.paymentMethod === 'bank_transfer' ? 'bg-blue-100 text-blue-800' :
@@ -2122,12 +2103,12 @@ const API_URL = useMemo(() =>
                               {bill.paymentMethod.replace('_', ' ').toUpperCase()}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 max-w-xs">
                             <div className="truncate" title={bill.note || "No note"}>
                               {bill.note || "-"}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                             <div className="flex space-x-2">
                               <button
                                 onClick={() => handleEditBill(bill)}
@@ -2155,13 +2136,13 @@ const API_URL = useMemo(() =>
                   {/* Table Footer with Total */}
                   <tfoot className="bg-purple-50">
                     <tr>
-                      <td colSpan="1" className="px-6 py-4 text-sm font-semibold text-gray-900">
+                      <td colSpan="1" className="px-4 py-3 text-sm font-semibold text-gray-900">
                         {filterYear !== "all" || filterMonth !== "all" ? "Filtered Total" : "Total"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
                         {formatCurrency(calculateFilteredTotal())}
                       </td>
-                      <td colSpan="5" className="px-6 py-4 text-sm text-gray-500">
+                      <td colSpan="5" className="px-4 py-3 text-sm text-gray-500">
                         {filterYear !== "all" && filterMonth !== "all" && (
                           <div className="text-xs text-gray-600">
                             Filtered by: Year {filterYear}, Month {monthNames[parseInt(filterMonth) - 1]}

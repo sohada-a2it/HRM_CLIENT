@@ -9,7 +9,9 @@ import {
   UserCheck, UserX, TrendingUp, Users, X, CheckCircle, AlertCircle,
   Image, Camera, Upload, Loader2, Lock, ChevronLeft, ChevronRight,
   ArrowLeft, ArrowRight, Send, Clock, CalendarDays, History,
-  Layers, Target, UsersRound, FileClock, BarChart3, Info
+  Layers, Target, UsersRound, FileClock, BarChart3, Info,
+  Banknote, Briefcase, FileText, UserPen, Award, Settings,
+  ShieldCheck, ClipboardList
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -52,6 +54,8 @@ export default function UserRolesPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [profilePreview, setProfilePreview] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  
   // Shift Management States
   const [showShiftManagement, setShowShiftManagement] = useState(false);
   const [selectedEmployeeForShift, setSelectedEmployeeForShift] = useState(null);
@@ -83,18 +87,61 @@ export default function UserRolesPage() {
   const [showResetPasswordPage, setShowResetPasswordPage] = useState(false);
   const [selectedUserForReset, setSelectedUserForReset] = useState(null);
   
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    role: "employee",
-    salary: "",
-    status: "active",
-    department: "IT",
-    phone: "",
-    joiningDate: new Date().toISOString().split('T')[0],
-    profilePicture: null
+const [form, setForm] = useState({
+  firstName: "",
+  lastName: "",
+  email: "",
+  password: "",
+  role: "employee",
+  salary: "",
+  status: "active",
+  department: "IT",
+  phone: "",
+  joiningDate: new Date().toISOString().split('T')[0],
+  profilePicture: null,
+  employeeId: "", // Optional - খালি রাখলে auto generate হবে
+  designation: "",
+  salaryType: "monthly",
+  basicSalary: "",
+  rate: "",
+  contractType: "permanent",
+  useCustomId: false // নতুন state: custom ID ব্যবহার করবে কিনা
+});
+
+  // Advanced form state
+  const [advancedForm, setAdvancedForm] = useState({
+    // Employee & Moderator specific
+    contractType: 'permanent',
+    bankDetails: {
+      bankName: '',
+      accountNumber: '',
+      accountHolderName: '',
+      branchName: '',
+      routingNumber: ''
+    },
+    
+    // Admin specific
+    companyName: '',
+    adminPosition: '',
+    adminLevel: 'admin',
+    permissions: [],
+    isSuperAdmin: false,
+    canManageUsers: true,
+    canManagePayroll: true,
+    
+    // Employee specific
+    managerId: '',
+    attendanceId: '',
+    preferredShift: '',
+    
+    // Moderator specific
+    moderatorLevel: 'junior',
+    moderatorScope: ['content'],
+    canModerateUsers: false,
+    canModerateContent: true,
+    canViewReports: true,
+    canManageReports: false,
+    moderationLimits: null
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -174,6 +221,27 @@ export default function UserRolesPage() {
     fetchDefaultShiftTime();
   }, []);
 
+  // Handle advanced form changes
+  const handleAdvancedChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      setAdvancedForm(prev => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          [child]: value
+        }
+      }));
+    } else {
+      setAdvancedForm(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }));
+    }
+  };
+
   // API Configuration setup
   const setupAxios = () => {
     const token = localStorage.getItem('adminToken') || localStorage.getItem('userToken');
@@ -218,7 +286,6 @@ export default function UserRolesPage() {
   // Fetch default shift time
   const fetchDefaultShiftTime = async () => {
     try {
-      // Default shift time from admin profile or system settings
       setDefaultShiftTime({
         start: '09:00',
         end: '18:00'
@@ -292,7 +359,8 @@ const handleSubmit = async (e) => {
   );
 
   try {
-    const payload = {
+    // Base payload
+    let payload = {
       firstName: form.firstName,
       lastName: form.lastName,
       email: form.email,
@@ -301,6 +369,11 @@ const handleSubmit = async (e) => {
       department: form.department,
       phone: form.phone,
       joiningDate: form.joiningDate || new Date().toISOString().split('T')[0],
+      salaryType: form.salaryType || "monthly",
+      rate: Number(form.rate) || Number(form.salary) || 0,
+      basicSalary: Number(form.basicSalary) || Number(form.salary) || 0,
+      salary: Number(form.salary) || 0,
+      contractType: form.contractType || 'permanent'
     };
 
     // Only include password for new users
@@ -308,10 +381,15 @@ const handleSubmit = async (e) => {
       payload.password = form.password;
     }
 
-    // Include salary/rate if provided
-    if (form.salary) {
-      payload.salaryType = "monthly";
-      payload.rate = Number(form.salary);
+    // Only include employeeId if manually provided and not empty
+    if (form.employeeId && form.employeeId.trim() !== '') {
+      payload.employeeId = form.employeeId.trim();
+    }
+    // Otherwise backend will auto-generate
+
+    // Include designation if provided
+    if (form.designation && form.designation.trim() !== '') {
+      payload.designation = form.designation.trim();
     }
 
     // Include shift timing
@@ -322,7 +400,118 @@ const handleSubmit = async (e) => {
       }
     };
 
-    console.log('📝 User payload:', payload);
+    // ============ ROLE-SPECIFIC FIELDS ============
+    
+    // Employee & Moderator specific fields
+    if (form.role === 'employee' || form.role === 'moderator') {
+      payload.contractType = advancedForm.contractType || 'permanent';
+      
+      // Add bank details if provided
+      if (advancedForm.bankDetails.bankName) {
+        payload.bankDetails = advancedForm.bankDetails;
+      }
+
+      // Add salary structure
+      if (payload.salary > 0) {
+        payload.salaryStructure = {
+          basicSalary: payload.basicSalary || payload.salary || 0,
+          grossSalary: payload.salary || 0
+        };
+      }
+    }
+
+    // Employee specific fields
+    if (form.role === 'employee') {
+      if (advancedForm.managerId) {
+        payload.managerId = advancedForm.managerId;
+      }
+      
+      if (form.employeeId) {
+        payload.attendanceId = form.employeeId;
+      }
+      
+      if (advancedForm.preferredShift) {
+        payload.preferredShift = advancedForm.preferredShift;
+      }
+    }
+
+    // Admin specific fields
+    if (form.role === 'admin' || form.role === 'superAdmin') {
+      payload.companyName = advancedForm.companyName || 'Default Company';
+      payload.adminPosition = advancedForm.adminPosition || 
+        (form.role === 'superAdmin' ? 'Super Administrator' : 'Administrator');
+      payload.adminLevel = advancedForm.adminLevel || 
+        (form.role === 'superAdmin' ? 'super' : 'admin');
+      payload.isSuperAdmin = advancedForm.isSuperAdmin || (form.role === 'superAdmin');
+      payload.canManageUsers = advancedForm.canManageUsers !== undefined ? advancedForm.canManageUsers : true;
+      payload.canManagePayroll = advancedForm.canManagePayroll !== undefined ? advancedForm.canManagePayroll : true;
+      
+      // Set default permissions based on role
+      if (form.role === 'superAdmin') {
+        payload.permissions = [
+          'user:read', 'user:create', 'user:update', 'user:delete',
+          'report:view', 'report:generate', 'settings:manage',
+          'system:admin', 'audit:view', 'database:manage', 'backup:manage'
+        ];
+      } else {
+        payload.permissions = [
+          'user:read', 'user:create', 'user:update', 'user:delete',
+          'report:view', 'report:generate', 'settings:manage'
+        ];
+      }
+    }
+
+    // Moderator specific fields
+    if (form.role === 'moderator') {
+      payload.moderatorLevel = advancedForm.moderatorLevel || 'junior';
+      payload.moderatorScope = advancedForm.moderatorScope || ['content'];
+      payload.canModerateUsers = advancedForm.canModerateUsers !== undefined ? advancedForm.canModerateUsers : false;
+      payload.canModerateContent = advancedForm.canModerateContent !== undefined ? advancedForm.canModerateContent : true;
+      payload.canViewReports = advancedForm.canViewReports !== undefined ? advancedForm.canViewReports : true;
+      payload.canManageReports = advancedForm.canManageReports !== undefined ? advancedForm.canManageReports : false;
+      
+      // Set default permissions based on moderator level
+      const moderatorLevel = advancedForm.moderatorLevel || 'junior';
+      if (moderatorLevel === 'trainee') {
+        payload.permissions = ['content:view', 'report:view'];
+      } else if (moderatorLevel === 'junior') {
+        payload.permissions = ['content:view', 'content:edit', 'report:view', 'users:warn'];
+      } else {
+        payload.permissions = ['content:view', 'content:edit', 'content:delete', 'user:view', 'user:warn', 'user:suspend', 'report:view', 'report:generate'];
+      }
+      
+      // Set moderation limits
+      if (moderatorLevel === 'trainee') {
+        payload.moderationLimits = {
+          dailyActions: 30,
+          warningLimit: 1,
+          canBanUsers: false,
+          canDeleteContent: false,
+          canEditContent: false,
+          canWarnUsers: true
+        };
+      } else if (moderatorLevel === 'junior') {
+        payload.moderationLimits = {
+          dailyActions: 100,
+          warningLimit: 3,
+          canBanUsers: false,
+          canDeleteContent: true,
+          canEditContent: true,
+          canWarnUsers: true
+        };
+      } else {
+        payload.moderationLimits = {
+          dailyActions: 200,
+          warningLimit: 5,
+          canBanUsers: true,
+          canDeleteContent: true,
+          canEditContent: true,
+          canWarnUsers: true
+        };
+      }
+    }
+
+    console.log('📝 User creation payload:', payload);
 
     let res;
     if (isEditMode) {
@@ -338,7 +527,7 @@ const handleSubmit = async (e) => {
       
       const successMessage = isEditMode 
         ? `✅ User "${form.firstName} ${form.lastName}" updated!`
-        : `✅ User "${form.firstName} ${form.lastName}" created!`;
+        : `✅ User "${form.firstName} ${form.lastName}" created with ID: ${res.user?.employeeId || 'Generated'}`;
       
       toast.success(successMessage, {
         duration: 4000,
@@ -354,7 +543,8 @@ const handleSubmit = async (e) => {
           try {
             await sendWelcomeEmailToUser({
               ...form,
-              _id: res.user._id
+              _id: res.user._id,
+              employeeId: res.user.employeeId
             }, form.password);
           } catch (e) {
             console.log('Email optional - user created anyway');
@@ -383,6 +573,8 @@ const handleSubmit = async (e) => {
       errorMessage = 'User with this email already exists';
     } else if (errorMessage.includes('400') || errorMessage.includes('validation')) {
       errorMessage = 'Invalid data provided';
+    } else if (errorMessage.includes('employeeId')) {
+      errorMessage = 'Employee ID already exists';
     }
     
     toast.error(`❌ ${errorMessage}`, {
@@ -406,10 +598,46 @@ const handleSubmit = async (e) => {
       department: "IT",
       phone: "",
       joiningDate: new Date().toISOString().split('T')[0],
-      profilePicture: null
+      profilePicture: null,
+      employeeId: "",
+      designation: "",
+      salaryType: "monthly",
+      basicSalary: "",
+      rate: "",
+      contractType: "permanent"
     });
+    
+    setAdvancedForm({
+      contractType: 'permanent',
+      bankDetails: {
+        bankName: '',
+        accountNumber: '',
+        accountHolderName: '',
+        branchName: '',
+        routingNumber: ''
+      },
+      companyName: '',
+      adminPosition: '',
+      adminLevel: 'admin',
+      permissions: [],
+      isSuperAdmin: false,
+      canManageUsers: true,
+      canManagePayroll: true,
+      managerId: '',
+      attendanceId: '',
+      preferredShift: '',
+      moderatorLevel: 'junior',
+      moderatorScope: ['content'],
+      canModerateUsers: false,
+      canModerateContent: true,
+      canViewReports: true,
+      canManageReports: false,
+      moderationLimits: null
+    });
+    
     setIsEditMode(false);
     setCurrentUserId(null);
+    setShowAdvanced(false);
     
     toast.success("Form reset successfully!", {
       duration: 2000,
@@ -419,21 +647,60 @@ const handleSubmit = async (e) => {
   const handleEdit = (user) => {
     setIsEditMode(true);
     setCurrentUserId(user._id);
+    
+    // Set basic form
     setForm({
       firstName: user.firstName || "",
       lastName: user.lastName || "",
       email: user.email || "",
-      password: "", // Don't show existing password (it's hashed anyway)
+      password: "", // Don't show existing password
       role: user.role || "employee",
-      salary: user.rate || "",
+      salary: user.salary || user.rate || "",
       status: user.status || "active",
       department: user.department || "IT",
       phone: user.phone || "",
       joiningDate: user.joiningDate || new Date().toISOString().split('T')[0],
-      profilePicture: user.profilePicture || user.picture || null
+      profilePicture: user.profilePicture || user.picture || null,
+      employeeId: user.employeeId || "",
+      designation: user.designation || "",
+      salaryType: user.salaryType || "monthly",
+      basicSalary: user.basicSalary || user.salary || "",
+      rate: user.rate || user.salary || "",
+      contractType: user.contractType || "permanent"
     });
+    
+    // Set advanced form
+    setAdvancedForm({
+      contractType: user.contractType || 'permanent',
+      bankDetails: user.bankDetails || {
+        bankName: '',
+        accountNumber: '',
+        accountHolderName: '',
+        branchName: '',
+        routingNumber: ''
+      },
+      companyName: user.companyName || '',
+      adminPosition: user.adminPosition || '',
+      adminLevel: user.adminLevel || 'admin',
+      permissions: user.permissions || [],
+      isSuperAdmin: user.isSuperAdmin || false,
+      canManageUsers: user.canManageUsers !== undefined ? user.canManageUsers : true,
+      canManagePayroll: user.canManagePayroll !== undefined ? user.canManagePayroll : true,
+      managerId: user.managerId || '',
+      attendanceId: user.attendanceId || '',
+      preferredShift: user.preferredShift || '',
+      moderatorLevel: user.moderatorLevel || 'junior',
+      moderatorScope: user.moderatorScope || ['content'],
+      canModerateUsers: user.canModerateUsers !== undefined ? user.canModerateUsers : false,
+      canModerateContent: user.canModerateContent !== undefined ? user.canModerateContent : true,
+      canViewReports: user.canViewReports !== undefined ? user.canViewReports : true,
+      canManageReports: user.canManageReports !== undefined ? user.canManageReports : false,
+      moderationLimits: user.moderationLimits || null
+    });
+    
     setSelectedFile(null);
     setProfilePreview(null);
+    setShowAdvanced(true);
     
     toast("Edit mode activated. Scroll to form.", {
       icon: '✏️',
@@ -2133,8 +2400,9 @@ const handleSubmit = async (e) => {
   const stats = {
     total: users.length,
     active: users.filter(u => u.status === "active").length,
-    admins: users.filter(u => u.role === "admin").length,
+    admins: users.filter(u => u.role === "admin" || u.role === "superAdmin").length,
     employees: users.filter(u => u.role === "employee").length,
+    moderators: users.filter(u => u.role === "moderator").length,
     totalSalary: users.reduce((sum, user) => sum + (user.rate || 0), 0),
     customShifts: users.filter(u => getCurrentShift(u).type === 'assigned').length
   };
@@ -2355,6 +2623,7 @@ const handleSubmit = async (e) => {
                         <option value="all">All Roles</option>
                         <option value="admin">Admin</option>
                         <option value="employee">Employee</option>
+                        <option value="moderator">Moderator</option>
                       </select>
                       <select
                         value={selectedStatus}
@@ -2475,14 +2744,15 @@ const handleSubmit = async (e) => {
                                   <div className="space-y-2">
                                     <div className="flex items-center">
                                       <div className={`p-1.5 rounded ${
-                                        user.role === 'admin' 
+                                        user.role === 'admin' || user.role === 'superAdmin'
                                           ? 'bg-purple-100 text-purple-800' 
-                                          : user.role === 'manager'
+                                          : user.role === 'moderator'
                                           ? 'bg-blue-100 text-blue-800'
                                           : 'bg-green-100 text-green-800'
                                       }`}>
                                         {user.role === 'admin' && <Shield size={12} />}
-                                        {user.role === 'manager' && <UserCog size={12} />}
+                                        {user.role === 'superAdmin' && <ShieldCheck size={12} />}
+                                        {user.role === 'moderator' && <UserCog size={12} />}
                                         {user.role === 'employee' && <Users size={12} />}
                                       </div>
                                       <span className="ml-2 text-xs font-medium capitalize">{user.role}</span>
@@ -2709,9 +2979,10 @@ const handleSubmit = async (e) => {
                         onChange={handleChange}
                         className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
                       >
-                        <option value="admin">Admin</option>
                         <option value="employee">Employee</option>
-                        <option value="employee">Moderator</option>
+                        <option value="admin">Admin</option>
+                        <option value="moderator">Moderator</option>
+                        <option value="superAdmin">Super Admin</option>
                       </select>
                       <select
                         name="status"
@@ -2749,6 +3020,29 @@ const handleSubmit = async (e) => {
                         <option value="Marketing">Marketing</option>
                         <option value="Sales">Sales</option>
                       </select>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+  <div>
+    <input
+      name="employeeId"
+      value={form.employeeId}
+      onChange={handleChange}
+      placeholder="Custom ID (Optional)"
+      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
+    />
+    <p className="text-xs text-gray-500 mt-1">
+      Leave empty for auto-generated ID
+    </p>
+  </div>
+  <input
+    name="designation"
+    value={form.designation}
+    onChange={handleChange}
+    placeholder="Designation"
+    className="px-3 py-1 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
+  />
+</div>
+                      
                       <input
                         name="salary"
                         type="number"
@@ -2760,7 +3054,191 @@ const handleSubmit = async (e) => {
                       />
                     </div>
                   </div>
+                  
+                  {/* Contract Type for Employee & Moderator */}
+                  {(form.role === 'employee' || form.role === 'moderator') && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Contract Type
+                      </label>
+                      <select
+                        name="contractType"
+                        value={form.contractType}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
+                      >
+                        <option value="permanent">Permanent</option>
+                        <option value="contractual">Contractual</option>
+                        <option value="probation">Probation</option>
+                        <option value="intern">Intern</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
+
+                {/* Advanced Settings Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center justify-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium py-1"
+                >
+                  {showAdvanced ? 'Hide Advanced Settings' : 'Show Advanced Settings'}
+                  <ChevronDown size={12} className={showAdvanced ? 'transform rotate-180' : ''} />
+                </button>
+
+                {/* Advanced Settings Section */}
+                {showAdvanced && (
+                  <div className="space-y-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-gray-900">Advanced Settings</h3>
+                      <span className="text-xs text-gray-500 capitalize">{form.role} Options</span>
+                    </div>
+
+                    {/* Bank Details - for Employee & Moderator */}
+                    {(form.role === 'employee' || form.role === 'moderator') && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-medium text-gray-700">
+                            Bank Details
+                          </label>
+                          <span className="text-xs text-gray-500">Optional</span>
+                        </div>
+                        <input
+                          name="bankDetails.bankName"
+                          value={advancedForm.bankDetails.bankName}
+                          onChange={handleAdvancedChange}
+                          placeholder="Bank Name"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                        />
+                        <input
+                          name="bankDetails.accountNumber"
+                          value={advancedForm.bankDetails.accountNumber}
+                          onChange={handleAdvancedChange}
+                          placeholder="Account Number"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                        />
+                        <input
+                          name="bankDetails.accountHolderName"
+                          value={advancedForm.bankDetails.accountHolderName}
+                          onChange={handleAdvancedChange}
+                          placeholder="Account Holder Name"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                        />
+                      </div>
+                    )}
+
+                    {/* Manager ID - for Employee */}
+                    {form.role === 'employee' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Manager ID (Optional)
+                        </label>
+                        <input
+                          name="managerId"
+                          value={advancedForm.managerId}
+                          onChange={handleAdvancedChange}
+                          placeholder="Enter manager's employee ID"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                        />
+                      </div>
+                    )}
+
+                    {/* Admin specific fields */}
+                    {(form.role === 'admin' || form.role === 'superAdmin') && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Company Name
+                          </label>
+                          <input
+                            name="companyName"
+                            value={advancedForm.companyName}
+                            onChange={handleAdvancedChange}
+                            placeholder="Company Name"
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Admin Position
+                          </label>
+                          <input
+                            name="adminPosition"
+                            value={advancedForm.adminPosition}
+                            onChange={handleAdvancedChange}
+                            placeholder="e.g., HR Administrator"
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                          />
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="canManageUsers"
+                              checked={advancedForm.canManageUsers}
+                              onChange={handleAdvancedChange}
+                              className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            />
+                            <span className="ml-2 text-xs text-gray-700">Can Manage Users</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="canManagePayroll"
+                              checked={advancedForm.canManagePayroll}
+                              onChange={handleAdvancedChange}
+                              className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            />
+                            <span className="ml-2 text-xs text-gray-700">Can Manage Payroll</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Moderator specific fields */}
+                    {form.role === 'moderator' && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Moderator Level
+                          </label>
+                          <select
+                            name="moderatorLevel"
+                            value={advancedForm.moderatorLevel}
+                            onChange={handleAdvancedChange}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                          >
+                            <option value="trainee">Trainee</option>
+                            <option value="junior">Junior</option>
+                            <option value="senior">Senior</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="canModerateUsers"
+                              checked={advancedForm.canModerateUsers}
+                              onChange={handleAdvancedChange}
+                              className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            />
+                            <span className="ml-2 text-xs text-gray-700">Can Moderate Users</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="canModerateContent"
+                              checked={advancedForm.canModerateContent}
+                              onChange={handleAdvancedChange}
+                              className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            />
+                            <span className="ml-2 text-xs text-gray-700">Can Moderate Content</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Shift Information for New Users */}
                 {!isEditMode && (

@@ -433,7 +433,7 @@ useEffect(() => {
     { 
       name: "Office Supplies", 
       icon: <Briefcase size={18} />, 
-      href: "/cost/supplies",
+      href: "/officeSupplies",
       roles: ['admin', 'moderator',  ],
       showForAll: true
     },
@@ -447,7 +447,7 @@ useEffect(() => {
     { 
       name: "Food Cost", 
       icon: <Utensils size={18} />, 
-      href: "/cost/food",
+      href: "/foodCost",
       roles: ['admin', 'moderator', ],
       showForAll: true
     },
