@@ -406,15 +406,13 @@ useEffect(() => {
       name: "Cost Dashboard", 
       icon: <PieChart size={18} />, 
       href: "/dashboard/cost",
-      roles: ['admin', 'moderator'],
-      permissions: ['view_reports']
+      roles: ['admin', 'moderator'], 
     },
     { 
       name: "Employee Costs", 
       icon: <User size={18} />, 
       href: "/cost/employees",
-      roles: ['admin', 'moderator'],
-      permissions: ['view_reports']
+      roles: ['admin', 'moderator'], 
     },
     { 
       name: "Office Rent", 
@@ -440,9 +438,8 @@ useEffect(() => {
     { 
       name: "Software Subscriptions", 
       icon: <Cloud size={18} />, 
-      href: "/cost/subscriptions",
-      roles: ['admin', 'moderator'],
-      permissions: ['view_reports']
+      href: "/subscriptions",
+      roles: ['admin', 'moderator'], 
     },
     { 
       name: "Food Cost", 
@@ -454,14 +451,14 @@ useEffect(() => {
     { 
       name: "Transport", 
       icon: <Car size={18} />, 
-      href: "/cost/transport",
+      href: "/transport",
       roles: ['admin', 'moderator', ],
       showForAll: true
     },
     { 
       name: "Miscellaneous", 
       icon: <MoreHorizontal size={18} />, 
-      href: "/cost/misc",
+      href: "/miscellaneous",
       roles: ['admin', 'moderator', ],
       showForAll: true
     }

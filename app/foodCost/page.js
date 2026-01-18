@@ -4,6 +4,27 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+} from 'chart.js';
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+);
 
 // Toast Component
 const Toast = ({ message, type = 'success', onClose }) => {
@@ -55,6 +76,22 @@ const Toast = ({ message, type = 'success', onClose }) => {
   );
 };
 
+// Statistics Card Component
+const StatsCard = ({ title, value, icon, color, subtitle }) => (
+  <div className={`p-6 rounded-2xl ${color} border border-opacity-20 shadow-sm`}>
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-600">{title}</p>
+        <p className="text-2xl font-bold text-gray-800 mt-2">{value}</p>
+        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+      </div>
+      <div className="text-3xl opacity-80">
+        {icon}
+      </div>
+    </div>
+  </div>
+);
+
 export default function FoodCost() {
   const router = useRouter();
   const formRef = useRef(null);
@@ -67,14 +104,18 @@ export default function FoodCost() {
   // Toast state
   const [toast, setToast] = useState(null);
   
+  // Form state
   const [formData, setFormData] = useState({
     date: "",
     cost: "",
     note: ""
   });
 
+  // Data states
   const [foodCosts, setFoodCosts] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [editingId, setEditingId] = useState(null);
   
@@ -83,6 +124,12 @@ export default function FoodCost() {
   const [filterMonth, setFilterMonth] = useState("all");
   const [years, setYears] = useState([]);
   const [months, setMonths] = useState([]);
+  
+  // View state
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'stats'
+  
+  // Chart data state
+  const [monthlyData, setMonthlyData] = useState(null);
 
   const API_URL = useMemo(() => 
     `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}`, 
@@ -92,6 +139,12 @@ export default function FoodCost() {
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Month short names for chart
+  const monthShortNames = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
   ];
 
   // Show toast function
@@ -113,6 +166,8 @@ export default function FoodCost() {
   useEffect(() => {
     if (user && activeToken && !authLoading) {
       fetchFoodCosts();
+      fetchStats();
+      
       // Extract years and months from foodCosts data
       const extractedYears = [...new Set(foodCosts.map(cost => new Date(cost.date).getFullYear()))];
       setYears(extractedYears.sort((a, b) => b - a));
@@ -133,6 +188,15 @@ export default function FoodCost() {
       setMonths([]);
     }
   }, [filterYear, foodCosts]);
+
+  // Fetch monthly data when year filter changes
+  useEffect(() => {
+    if (filterYear !== "all" && viewMode === 'stats') {
+      fetchMonthlyData(filterYear);
+    } else {
+      setMonthlyData(null);
+    }
+  }, [filterYear, viewMode]);
 
   // **UPDATED: শুধুমাত্র adminToken বা moderatorToken থাকলেই access পাবে**
   const checkAuthentication = () => {
@@ -274,6 +338,80 @@ export default function FoodCost() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // **NEW: Fetch statistics**
+  const fetchStats = async () => {
+    try {
+      setStatsLoading(true);
+      const response = await fetch(`${API_URL}/food-costs/stats`, {
+        headers: getAuthHeaders(), 
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setStats(data.data);
+      } else {
+        console.error('Failed to load stats:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  // **NEW: Fetch monthly data for specific year**
+  const fetchMonthlyData = async (year) => {
+    try {
+      const monthlyPromises = [];
+      
+      // Fetch data for all months of the selected year
+      for (let month = 1; month <= 12; month++) {
+        monthlyPromises.push(
+          fetch(`${API_URL}/food-costs/month/${year}/${month}`, {
+            headers: getAuthHeaders(),
+          })
+        );
+      }
+      
+      const responses = await Promise.all(monthlyPromises);
+      const monthlyResults = await Promise.all(
+        responses.map(response => response.json())
+      );
+      
+      // Process monthly data
+      const monthlyCosts = monthlyResults.map((result, index) => {
+        if (result.success && result.data.length > 0) {
+          const total = result.data.reduce((sum, cost) => sum + cost.cost, 0);
+          return {
+            month: index + 1,
+            monthName: monthShortNames[index],
+            total,
+            count: result.data.length,
+            average: total / result.data.length
+          };
+        } else {
+          return {
+            month: index + 1,
+            monthName: monthShortNames[index],
+            total: 0,
+            count: 0,
+            average: 0
+          };
+        }
+      });
+      
+      setMonthlyData(monthlyCosts);
+      
+    } catch (error) {
+      console.error('Error fetching monthly data:', error);
     }
   };
 
@@ -545,10 +683,10 @@ export default function FoodCost() {
       
       if (editingId) {
         // ✅ Food cost এর জন্য সঠিক endpoint ব্যবহার করুন
-        url = `${API_URL}/food-costs/${editingId}`;
+        url = `${API_URL}/update-food-costs/${editingId}`;
         method = "PUT";
       } else {
-        url = `${API_URL}/food-costs`;
+        url = `${API_URL}/add-food-costs`;
         method = "POST";
       }
       
@@ -581,6 +719,7 @@ export default function FoodCost() {
         
         // Refresh data
         await fetchFoodCosts();
+        await fetchStats();
         
         // Clear any existing messages
         setMessage({ type: '', text: '' });
@@ -623,7 +762,7 @@ export default function FoodCost() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/food-costs/${id}`, {
+      const response = await fetch(`${API_URL}/delete-food-costs/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(), 
       });
@@ -636,6 +775,7 @@ export default function FoodCost() {
           cancelEdit();
         }
         fetchFoodCosts();
+        fetchStats();
       } else {
         showToast(data.message || data.error, 'error');
       }
@@ -702,6 +842,14 @@ export default function FoodCost() {
     return new Intl.NumberFormat('en-BD', {
       style: 'currency',
       currency: 'BDT',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
+  // Format currency without symbol
+  const formatCurrencyNumber = (amount) => {
+    return new Intl.NumberFormat('en-BD', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount);
@@ -785,6 +933,270 @@ export default function FoodCost() {
     } : null;
   })() : null;
 
+  // Monthly Chart Component
+  const MonthlyChart = () => {
+    if (!monthlyData) return null;
+    
+    const hasData = monthlyData.some(month => month.total > 0);
+    if (!hasData) {
+      return (
+        <div className="p-8 text-center bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+          <div className="text-gray-400 mb-3">
+            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-700 mb-2">No Data Available</h3>
+          <p className="text-gray-500">No food cost records found for {filterYear}</p>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-bold text-gray-800">Monthly Distribution - {filterYear}</h3>
+          <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm font-medium rounded-full">
+            Total: {formatCurrency(monthlyData.reduce((sum, month) => sum + month.total, 0))}
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {monthlyData.map((month) => (
+            <div 
+              key={month.month} 
+              className={`p-4 rounded-xl border ${
+                month.total > 0 
+                  ? 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200' 
+                  : 'bg-gray-50 border-gray-200'
+              }`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="font-bold text-gray-800">{month.monthName}</span>
+                <span className="text-xs px-2 py-1 rounded-full bg-opacity-20 bg-purple-500 text-purple-700">
+                  {month.count} days
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-purple-600 mb-1">
+                {formatCurrency(month.total)}
+              </div>
+              {month.count > 0 && (
+                <div className="text-xs text-gray-500">
+                  Avg: {formatCurrency(month.average)}/day
+                </div>
+              )}
+              {month.total > 0 && (
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
+                      style={{ 
+                        width: `${(month.total / monthlyData.reduce((max, m) => Math.max(max, m.total), 0)) * 100}%` 
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
+          <h4 className="text-sm font-medium text-blue-900 mb-2">Year Summary</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-xs text-blue-600">Total Months</p>
+              <p className="text-lg font-bold text-blue-700">
+                {monthlyData.filter(m => m.total > 0).length}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-blue-600">Total Days</p>
+              <p className="text-lg font-bold text-blue-700">
+                {monthlyData.reduce((sum, month) => sum + month.count, 0)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-blue-600">Year Total</p>
+              <p className="text-lg font-bold text-blue-700">
+                {formatCurrency(monthlyData.reduce((sum, month) => sum + month.total, 0))}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-blue-600">Monthly Avg</p>
+              <p className="text-lg font-bold text-blue-700">
+                {formatCurrency(
+                  monthlyData.filter(m => m.total > 0).length > 0 
+                    ? monthlyData.reduce((sum, month) => sum + month.total, 0) / monthlyData.filter(m => m.total > 0).length 
+                    : 0
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Statistics View
+  const StatisticsView = () => (
+    <div className="space-y-6">
+      {/* Overall Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard
+          title="Total Records"
+          value={stats?.totalRecords || foodCosts.length}
+          icon="📊"
+          color="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200"
+          subtitle="All food cost entries"
+        />
+        
+        <StatsCard
+          title="Total Amount"
+          value={formatCurrency(stats?.totalAmount || calculateFilteredTotal())}
+          icon="💰"
+          color="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200"
+          subtitle="Cumulative food cost"
+        />
+        
+        <StatsCard
+          title="Average Daily"
+          value={formatCurrency(stats?.averageDaily || calculateAverageDailyCost())}
+          icon="📈"
+          color="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200"
+          subtitle="Per day average"
+        />
+        
+        <StatsCard
+          title="Active Months"
+          value={stats?.activeMonths || years.length}
+          icon="📅"
+          color="bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200"
+          subtitle="Months with records"
+        />
+      </div>
+      
+      {/* Monthly Analysis Section */}
+      <div className="bg-white rounded-2xl shadow-xl p-6 border border-purple-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">Monthly Analysis</h3>
+            <p className="text-sm text-gray-500">Breakdown of food costs by month</p>
+          </div>
+          <div className="mt-4 md:mt-0">
+            <select
+              value={filterYear}
+              onChange={handleYearChange}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+            >
+              <option value="all">All Years</option>
+              {years.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        
+        {filterYear === "all" ? (
+          <div className="text-center py-12">
+            <div className="w-20 h-20 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h4 className="text-lg font-medium text-gray-700 mb-2">Select a Year</h4>
+            <p className="text-gray-500">Please select a specific year to view monthly analysis</p>
+          </div>
+        ) : statsLoading ? (
+          <div className="text-center py-12">
+            <div className="inline-flex flex-col items-center">
+              <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-gray-600">Loading monthly data...</p>
+            </div>
+          </div>
+        ) : (
+          <MonthlyChart />
+        )}
+      </div>
+      
+      {/* Additional Stats */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Yearly Comparison</h4>
+            {stats.yearlyComparison && stats.yearlyComparison.length > 0 ? (
+              <div className="space-y-3">
+                {stats.yearlyComparison.map((yearData, index) => (
+                  <div key={yearData.year} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{yearData.year}</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-gray-800">
+                        {formatCurrency(yearData.total)}
+                      </span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                        {yearData.count} days
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">No yearly data available</p>
+            )}
+          </div>
+          
+          <div className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border border-blue-200">
+            <h4 className="text-sm font-medium text-blue-700 mb-3">Record Details</h4>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-blue-600">Earliest Record</span>
+                <span className="font-bold text-blue-800">
+                  {stats.earliestDate ? formatDate(stats.earliestDate) : 'N/A'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-blue-600">Latest Record</span>
+                <span className="font-bold text-blue-800">
+                  {stats.latestDate ? formatDate(stats.latestDate) : 'N/A'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-blue-600">Total Days Tracked</span>
+                <span className="font-bold text-blue-800">
+                  {stats.totalDays || foodCosts.length}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-200">
+            <h4 className="text-sm font-medium text-green-700 mb-3">Cost Analysis</h4>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-green-600">Highest Daily Cost</span>
+                <span className="font-bold text-green-800">
+                  {stats.highestCost ? formatCurrency(stats.highestCost.amount) : 'N/A'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-green-600">Lowest Daily Cost</span>
+                <span className="font-bold text-green-800">
+                  {stats.lowestCost ? formatCurrency(stats.lowestCost.amount) : 'N/A'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-green-600">Most Active Month</span>
+                <span className="font-bold text-green-800">
+                  {stats.mostActiveMonth || 'N/A'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // Show loading while auth is being checked
   if (authLoading) {
     return (
@@ -839,10 +1251,32 @@ export default function FoodCost() {
               <p className="text-sm text-purple-100">Logged in as: <span className="font-semibold text-white">{user.name}</span></p>
               <p className="text-xs text-purple-200">Role: <span className="font-medium capitalize text-white">{user.role}</span></p>
             </div>
-            <div className="mt-3 md:mt-0">
+            <div className="mt-3 md:mt-0 flex items-center space-x-3">
               <span className="px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-medium">
                 Food Cost Management
               </span>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'table' 
+                      ? 'bg-white text-purple-600' 
+                      : 'bg-white/20 text-white hover:bg-white/30'
+                  }`}
+                >
+                  Table View
+                </button>
+                <button
+                  onClick={() => setViewMode('stats')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'stats' 
+                      ? 'bg-white text-purple-600' 
+                      : 'bg-white/20 text-white hover:bg-white/30'
+                  }`}
+                >
+                  Statistics
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1013,307 +1447,312 @@ export default function FoodCost() {
             </form>
           </div>
 
-          {/* Right: Food Cost Records */}
+          {/* Right: Food Cost Records or Statistics */}
           <div className="bg-white rounded-2xl shadow-xl p-6 border border-purple-100">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {filterYear !== "all" || filterMonth !== "all" ? 'Filtered Food Costs' : 'All Food Costs'}
-                  <span className="text-lg font-normal text-purple-600 ml-2">
-                    ({filteredFoodCosts.length} records)
-                  </span>
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Total Amount: <span className="font-bold text-purple-600">{formatCurrency(calculateFilteredTotal())}</span>
-                  <span className="ml-4">Average Daily: <span className="font-bold text-green-600">{formatCurrency(calculateAverageDailyCost())}</span></span>
-                </p>
-              </div>
-              <div className="flex items-center space-x-2 mt-4 md:mt-0">
-                {/* PDF Download Button */}
-                {filteredFoodCosts.length > 0 && (
-                  <button
-                    onClick={generatePDF}
-                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all flex items-center shadow-lg hover:shadow-xl"
-                    title="Download PDF Report"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                    PDF Report
-                  </button>
-                )}
-                
-                <button
-                  onClick={() => {
-                    fetchFoodCosts();
-                  }}
-                  disabled={loading}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:from-purple-200 hover:to-pink-200 text-sm font-medium shadow-sm"
-                >
-                  Refresh
-                </button>
-              </div>
-            </div>
-
-            {/* Sort Indicator */}
-            <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl flex items-center">
-              <svg className="w-5 h-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4"></path>
-              </svg>
-              <p className="text-sm text-purple-800">
-                <strong>Sorted by:</strong> Date (Newest to Oldest)
-              </p>
-            </div>
-
-            {/* Filter Section */}
-            <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-gray-50 rounded-xl border border-purple-100">
-              <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
-                <div className="flex flex-wrap gap-4">
-                  {/* Year Filter */}
+            {viewMode === 'table' ? (
+              <>
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
                   <div>
-                    <label htmlFor="yearFilter" className="block text-sm font-medium text-gray-700 mb-1">
-                      Year
-                    </label>
-                    <select
-                      id="yearFilter"
-                      value={filterYear}
-                      onChange={handleYearChange}
-                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm bg-white"
-                    >
-                      <option value="all">All Years</option>
-                      {years.map(year => (
-                        <option key={year} value={year}>{year}</option>
-                      ))}
-                    </select>
+                    <h2 className="text-2xl font-bold text-gray-800">
+                      {filterYear !== "all" || filterMonth !== "all" ? 'Filtered Food Costs' : 'All Food Costs'}
+                      <span className="text-lg font-normal text-purple-600 ml-2">
+                        ({filteredFoodCosts.length} records)
+                      </span>
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Total Amount: <span className="font-bold text-purple-600">{formatCurrency(calculateFilteredTotal())}</span>
+                      <span className="ml-4">Average Daily: <span className="font-bold text-green-600">{formatCurrency(calculateAverageDailyCost())}</span></span>
+                    </p>
                   </div>
-
-                  {/* Month Filter */}
-                  <div>
-                    <label htmlFor="monthFilter" className="block text-sm font-medium text-gray-700 mb-1">
-                      Month
-                    </label>
-                    <select
-                      id="monthFilter"
-                      value={filterMonth}
-                      onChange={handleMonthChange}
-                      disabled={filterYear === "all"}
-                      className={`w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm ${
-                        filterYear === "all" ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
-                      }`}
+                  <div className="flex items-center space-x-2 mt-4 md:mt-0">
+                    {/* PDF Download Button */}
+                    {filteredFoodCosts.length > 0 && (
+                      <button
+                        onClick={generatePDF}
+                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all flex items-center shadow-lg hover:shadow-xl"
+                        title="Download PDF Report"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        PDF Report
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={() => {
+                        fetchFoodCosts();
+                      }}
+                      disabled={loading}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:from-purple-200 hover:to-pink-200 text-sm font-medium shadow-sm"
                     >
-                      <option value="all">All Months</option>
-                      {months.map(month => (
-                        <option key={month} value={month}>
-                          {monthNames[month - 1]}
-                        </option>
-                      ))}
-                    </select>
+                      Refresh
+                    </button>
                   </div>
+                </div>
 
-                  {/* Active Filters Display */}
-                  {(filterYear !== "all" || filterMonth !== "all") && (
-                    <div className="flex items-center space-x-2">
-                      <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-100 to-pink-100 px-3 py-1 rounded-full border border-purple-200">
-                        <span className="text-sm text-purple-700">
-                          {filterYear !== "all" && `Year: ${filterYear}`}
-                          {filterYear !== "all" && filterMonth !== "all" && ", "}
-                          {filterMonth !== "all" && `Month: ${monthNames[parseInt(filterMonth) - 1]}`}
-                        </span>
-                        <button
-                          onClick={() => resetFilters()}
-                          className="text-purple-500 hover:text-purple-700 text-sm"
+                {/* Sort Indicator */}
+                <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl flex items-center">
+                  <svg className="w-5 h-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4"></path>
+                  </svg>
+                  <p className="text-sm text-purple-800">
+                    <strong>Sorted by:</strong> Date (Newest to Oldest)
+                  </p>
+                </div>
+
+                {/* Filter Section */}
+                <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-gray-50 rounded-xl border border-purple-100">
+                  <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
+                    <div className="flex flex-wrap gap-4">
+                      {/* Year Filter */}
+                      <div>
+                        <label htmlFor="yearFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                          Year
+                        </label>
+                        <select
+                          id="yearFilter"
+                          value={filterYear}
+                          onChange={handleYearChange}
+                          className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm bg-white"
                         >
-                          ✕
+                          <option value="all">All Years</option>
+                          {years.map(year => (
+                            <option key={year} value={year}>{year}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Month Filter */}
+                      <div>
+                        <label htmlFor="monthFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                          Month
+                        </label>
+                        <select
+                          id="monthFilter"
+                          value={filterMonth}
+                          onChange={handleMonthChange}
+                          disabled={filterYear === "all"}
+                          className={`w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm ${
+                            filterYear === "all" ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+                          }`}
+                        >
+                          <option value="all">All Months</option>
+                          {months.map(month => (
+                            <option key={month} value={month}>
+                              {monthNames[month - 1]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Active Filters Display */}
+                      {(filterYear !== "all" || filterMonth !== "all") && (
+                        <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-100 to-pink-100 px-3 py-1 rounded-full border border-purple-200">
+                            <span className="text-sm text-purple-700">
+                              {filterYear !== "all" && `Year: ${filterYear}`}
+                              {filterYear !== "all" && filterMonth !== "all" && ", "}
+                              {filterMonth !== "all" && `Month: ${monthNames[parseInt(filterMonth) - 1]}`}
+                            </span>
+                            <button
+                              onClick={() => resetFilters()}
+                              className="text-purple-500 hover:text-purple-700 text-sm"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reset Filters Button */}
+                      {(filterYear !== "all" || filterMonth !== "all") && (
+                        <div className="flex items-end">
+                          <button
+                            onClick={resetFilters}
+                            className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors shadow-sm"
+                          >
+                            Reset Filters
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Results Count */}
+                    <div className="md:ml-auto text-right">
+                      <span className="text-sm text-gray-600">
+                        Showing {filteredFoodCosts.length} of {foodCosts.length} record(s)
+                      </span>
+                      {filterYear !== "all" || filterMonth !== "all" ? (
+                        <div className="text-sm font-medium text-green-600 mt-1">
+                          Filtered Total: {formatCurrency(calculateFilteredTotal())}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Duplicate Warning Notice */}
+                {existingDayWarning && !editingId && (
+                  <div className="mb-4 p-3 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl">
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-red-600 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-sm text-red-800">
+                        <strong>Duplicate Day Detected:</strong> You cannot add another food cost record for {new Date(existingDayWarning.date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}. 
+                        Please edit the existing record below.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {loading ? (
+                  <div className="text-center py-12">
+                    <div className="inline-flex flex-col items-center">
+                      <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                      <p className="text-gray-600">Loading food cost records...</p>
+                    </div>
+                  </div>
+                ) : filteredFoodCosts.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-20 h-20 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full flex items-center justify-center mb-4">
+                        <svg className="w-10 h-10 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-700 mb-2">
+                        {filterYear === "all" && filterMonth === "all" 
+                          ? "No food cost records yet"
+                          : "No food cost records found"
+                        }
+                      </h3>
+                      <p className="text-gray-500">
+                        {filterYear === "all" && filterMonth === "all" 
+                          ? "Add your first food cost record using the form!"
+                          : "Try changing your filter criteria."
+                        }
+                      </p>
+                      {(filterYear !== "all" || filterMonth !== "all") && (
+                        <button
+                          onClick={resetFilters}
+                          className="mt-4 px-4 py-2 text-sm bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:from-purple-200 hover:to-pink-200"
+                        >
+                          Reset Filters
                         </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto rounded-xl border border-gray-200">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gradient-to-r from-purple-50 to-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Date
+                              <div className="text-xs font-normal text-purple-400 mt-1">Month-Year</div>
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Amount
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Note
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-100">
+                          {filteredFoodCosts.map((cost, index) => {
+                            const costDate = new Date(cost.date);
+                            const monthYear = `${monthNames[costDate.getMonth()]} ${costDate.getFullYear()}`;
+                            
+                            return (
+                              <tr key={cost._id} className={`hover:bg-purple-50 transition-colors ${editingId === cost._id ? 'bg-gradient-to-r from-blue-50 to-purple-50' : ''}`}>
+                                <td className="px-4 py-3">
+                                  <div className="font-medium text-gray-900">
+                                    {formatDate(cost.date)}
+                                  </div>
+                                  <div className="text-xs text-purple-600 font-medium">
+                                    {monthYear}
+                                  </div>
+                                  {index === 0 && (
+                                    <div className="inline-block mt-1 px-2 py-0.5 bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 text-xs font-medium rounded">
+                                      Newest
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="font-bold text-purple-700">
+                                    {formatCurrency(cost.cost)}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="text-sm text-gray-600 max-w-xs truncate" title={cost.note}>
+                                    {cost.note || <span className="text-gray-400 italic">No note</span>}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex space-x-2">
+                                    <button
+                                      onClick={() => fetchFoodCostForEdit(cost._id)}
+                                      className="px-3 py-1.5 text-sm bg-gradient-to-r from-blue-50 to-purple-50 text-purple-700 rounded-lg hover:from-blue-100 hover:to-purple-100 transition-colors border border-purple-200 hover:border-purple-300 hover:shadow-md"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(cost._id)}
+                                      className="px-3 py-1.5 text-sm bg-gradient-to-r from-red-50 to-pink-50 text-red-700 rounded-lg hover:from-red-100 hover:to-pink-100 transition-colors border border-red-200 hover:border-red-300 hover:shadow-md"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Summary Stats */}
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                        <h4 className="text-sm font-medium text-purple-900 mb-2">
+                          {filterYear !== "all" || filterMonth !== "all" ? "Filtered Total" : "Total Amount"}
+                        </h4>
+                        <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                          {formatCurrency(calculateFilteredTotal())}
+                        </p>
+                        <div className="text-xs text-purple-500 mt-1">
+                          {filteredFoodCosts.length} record(s)
+                        </div>
+                      </div>
+                      <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
+                        <h4 className="text-sm font-medium text-blue-900 mb-2">
+                          Average Daily Cost
+                        </h4>
+                        <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                          {formatCurrency(calculateAverageDailyCost())}
+                        </p>
+                        <div className="text-xs text-blue-500 mt-1">
+                          Based on {filteredFoodCosts.length} day(s)
+                        </div>
                       </div>
                     </div>
-                  )}
-
-                  {/* Reset Filters Button */}
-                  {(filterYear !== "all" || filterMonth !== "all") && (
-                    <div className="flex items-end">
-                      <button
-                        onClick={resetFilters}
-                        className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors shadow-sm"
-                      >
-                        Reset Filters
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Results Count */}
-                <div className="md:ml-auto text-right">
-                  <span className="text-sm text-gray-600">
-                    Showing {filteredFoodCosts.length} of {foodCosts.length} record(s)
-                  </span>
-                  {filterYear !== "all" || filterMonth !== "all" ? (
-                    <div className="text-sm font-medium text-green-600 mt-1">
-                      Filtered Total: {formatCurrency(calculateFilteredTotal())}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            {/* Duplicate Warning Notice */}
-            {existingDayWarning && !editingId && (
-              <div className="mb-4 p-3 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl">
-                <div className="flex items-center">
-                  <svg className="w-5 h-5 text-red-600 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-sm text-red-800">
-                    <strong>Duplicate Day Detected:</strong> You cannot add another food cost record for {new Date(existingDayWarning.date).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}. 
-                    Please edit the existing record below.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-flex flex-col items-center">
-                  <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="text-gray-600">Loading food cost records...</p>
-                </div>
-              </div>
-            ) : filteredFoodCosts.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="flex flex-col items-center justify-center">
-                  <div className="w-20 h-20 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-10 h-10 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-700 mb-2">
-                    {filterYear === "all" && filterMonth === "all" 
-                      ? "No food cost records yet"
-                      : "No food cost records found"
-                    }
-                  </h3>
-                  <p className="text-gray-500">
-                    {filterYear === "all" && filterMonth === "all" 
-                      ? "Add your first food cost record using the form!"
-                      : "Try changing your filter criteria."
-                    }
-                  </p>
-                  {(filterYear !== "all" || filterMonth !== "all") && (
-                    <button
-                      onClick={resetFilters}
-                      className="mt-4 px-4 py-2 text-sm bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:from-purple-200 hover:to-pink-200"
-                    >
-                      Reset Filters
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto rounded-xl border border-gray-200">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gradient-to-r from-purple-50 to-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Date
-                          <div className="text-xs font-normal text-purple-400 mt-1">Month-Year</div>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Note
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
-                      {filteredFoodCosts.map((cost, index) => {
-                        const costDate = new Date(cost.date);
-                        const monthYear = `${monthNames[costDate.getMonth()]} ${costDate.getFullYear()}`;
-                        
-                        return (
-                          <tr key={cost._id} className={`hover:bg-purple-50 transition-colors ${editingId === cost._id ? 'bg-gradient-to-r from-blue-50 to-purple-50' : ''}`}>
-                            <td className="px-4 py-3">
-                              <div className="font-medium text-gray-900">
-                                {formatDate(cost.date)}
-                              </div>
-                              <div className="text-xs text-purple-600 font-medium">
-                                {monthYear}
-                              </div>
-                              {index === 0 && (
-                                <div className="inline-block mt-1 px-2 py-0.5 bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 text-xs font-medium rounded">
-                                  Newest
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="font-bold text-purple-700">
-                                {formatCurrency(cost.cost)}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-sm text-gray-600 max-w-xs truncate" title={cost.note}>
-                                {cost.note || <span className="text-gray-400 italic">No note</span>}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => fetchFoodCostForEdit(cost._id)}
-                                  className="px-3 py-1.5 text-sm bg-gradient-to-r from-blue-50 to-purple-50 text-purple-700 rounded-lg hover:from-blue-100 hover:to-purple-100 transition-colors border border-purple-200 hover:border-purple-300 hover:shadow-md"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(cost._id)}
-                                  className="px-3 py-1.5 text-sm bg-gradient-to-r from-red-50 to-pink-50 text-red-700 rounded-lg hover:from-red-100 hover:to-pink-100 transition-colors border border-red-200 hover:border-red-300 hover:shadow-md"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Summary Stats */}
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                    <h4 className="text-sm font-medium text-purple-900 mb-2">
-                      {filterYear !== "all" || filterMonth !== "all" ? "Filtered Total" : "Total Amount"}
-                    </h4>
-                    <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                      {formatCurrency(calculateFilteredTotal())}
-                    </p>
-                    <div className="text-xs text-purple-500 mt-1">
-                      {filteredFoodCosts.length} record(s)
-                    </div>
-                  </div>
-                  <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
-                    <h4 className="text-sm font-medium text-blue-900 mb-2">
-                      Average Daily Cost
-                    </h4>
-                    <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                      {formatCurrency(calculateAverageDailyCost())}
-                    </p>
-                    <div className="text-xs text-blue-500 mt-1">
-                      Based on {filteredFoodCosts.length} day(s)
-                    </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </>
+            ) : (
+              <StatisticsView />
             )}
-
           </div>
         </div>
       </div>
