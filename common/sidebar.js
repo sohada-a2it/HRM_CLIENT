@@ -332,21 +332,19 @@ useEffect(() => {
       icon: <BarChart3 size={20} />, 
       path: "/reports", 
       roles: ['admin', 'moderator'],
-      permissions: ['view_reports']
+      permissions: ['view_reports'] 
     },
     { 
       name: "Audit Logs", 
       icon: <Shield size={20} />, 
       path: "/audit", 
-      roles: ['admin', 'moderator'],
-      permissions: ['view_audit']
+      roles: ['admin', 'employee'], 
     },
     { 
       name: "Session Logs", 
       icon: <Activity size={20} />, 
       path: "/session", 
-      roles: ['admin', 'moderator'],
-      permissions: ['view_audit']
+      roles: ['admin', 'employee'], 
     },
   ];
 
@@ -405,7 +403,7 @@ useEffect(() => {
     { 
       name: "Cost Dashboard", 
       icon: <PieChart size={18} />, 
-      href: "/dashboard/cost",
+      href: "/moderatorDashboard",
       roles: ['admin', 'moderator'], 
     },
     { 

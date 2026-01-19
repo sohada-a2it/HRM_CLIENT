@@ -16,8 +16,6 @@ import {
   RefreshCw,
   Calendar,
   TrendingUp,
-  CalendarDays,
-  User,
   Shield,
   Info,
   Plus,
@@ -28,7 +26,14 @@ import {
   Sparkles,
   BarChart3,
   CreditCard,
-  Wallet
+  Wallet,
+  DollarSign,
+  Eye,
+  EyeOff,
+  LogOut,
+  LogIn,
+  User,
+  Users
 } from "lucide-react";
 
 // Toast Component
@@ -87,93 +92,6 @@ const Toast = ({ message, type = 'success', onClose }) => {
         >
           <X size={18} />
         </button>
-      </div>
-    </div>
-  );
-};
-
-// Permission Denied Toast Component
-const PermissionDeniedToast = ({ action = "perform this action", requiredRole = "admin or moderator", onClose }) => {
-  const [isVisible, setIsVisible] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(false);
-      setTimeout(onClose, 300);
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, [onClose]);
-
-  if (!isVisible) return null;
-
-  return (
-    <div className="fixed top-4 right-4 z-50 w-full max-w-md">
-      <div className="bg-purple-50 border border-purple-200 rounded-xl shadow-lg p-4 animate-slide-in">
-        <div className="flex items-start space-x-3">
-          <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-            <Lock className="w-5 h-5 text-purple-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-purple-800">Access Restricted</h3>
-            <p className="text-sm text-purple-700 mt-1">
-              You don't have permission to {action}. 
-              This section requires <span className="font-bold">{requiredRole}</span> privileges.
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              setIsVisible(false);
-              setTimeout(onClose, 300);
-            }}
-            className="text-purple-400 hover:text-purple-600"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Access Restricted Banner Component
-const AccessRestrictedBanner = ({ userRole, onClose }) => {
-  return (
-    <div className="fixed inset-0 bg-gradient-to-br from-purple-900/80 to-indigo-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-in">
-        <div className="text-center">
-          <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-purple-100 to-pink-100 flex items-center justify-center mb-4">
-            <Shield className="w-10 h-10 text-purple-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-          <p className="text-gray-600 mb-6">
-            This section is exclusively available to <span className="font-bold text-purple-600">Administrators</span> and <span className="font-bold text-purple-600">Moderators</span> only.
-          </p>
-          
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 mb-6 border border-purple-200">
-            <div className="flex items-center justify-center space-x-4">
-              <div className="flex items-center">
-                <Crown className="w-5 h-5 text-purple-600 mr-2" />
-                <span className="text-sm font-medium text-purple-800">Admin</span>
-              </div>
-              <div className="text-gray-400">|</div>
-              <div className="flex items-center">
-                <Key className="w-5 h-5 text-purple-600 mr-2" />
-                <span className="text-sm font-medium text-purple-800">Moderator</span>
-              </div>
-            </div>
-            <div className="mt-3 text-xs text-gray-500">
-              Your current role: <span className="font-bold capitalize text-purple-700">{userRole || 'guest'}</span>
-            </div>
-          </div>
-          
-          <button
-            onClick={onClose}
-            className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium hover:from-purple-700 hover:to-indigo-700 transition-all duration-300"
-          >
-            Return to Dashboard
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -254,17 +172,241 @@ const DeleteConfirmationModal = ({
   );
 };
 
-export default function ExtraExpensesPage() {
+// Stats Dashboard Component
+const StatsDashboard = ({ expenses, userRole }) => {
+  const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+
+  // Calculate basic stats
+  const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalExpenses = expenses.length;
+  const averageExpense = totalExpenses > 0 ? totalAmount / totalExpenses : 0;
+
+  // Calculate advanced stats
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const thisMonthExpenses = expenses.filter(exp => {
+    const date = new Date(exp.date);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  });
+  const thisMonthTotal = thisMonthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+
+  // Payment method distribution
+  const paymentMethods = {
+    'Cash': 0,
+    'Card': 0,
+    'Bank Transfer': 0,
+    'Mobile Banking': 0
+  };
+  
+  expenses.forEach(exp => {
+    if (paymentMethods.hasOwnProperty(exp.paymentMethod)) {
+      paymentMethods[exp.paymentMethod] += exp.amount;
+    }
+  });
+
+  // Monthly trend
+  const monthlyData = {};
+  expenses.forEach(exp => {
+    const date = new Date(exp.date);
+    const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const monthName = date.toLocaleString('default', { month: 'short' });
+    
+    if (!monthlyData[monthYear]) {
+      monthlyData[monthYear] = {
+        month: monthName,
+        year: date.getFullYear(),
+        total: 0,
+        count: 0
+      };
+    }
+    
+    monthlyData[monthYear].total += exp.amount;
+    monthlyData[monthYear].count += 1;
+  });
+
+  const sortedMonths = Object.values(monthlyData)
+    .sort((a, b) => `${b.year}${b.month}`.localeCompare(`${a.year}${a.month}`))
+    .slice(0, 6);
+
+  return (
+    <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-lg p-6 border border-gray-200 mb-6">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h3 className="text-xl font-bold text-gray-800 flex items-center">
+            <BarChart3 className="w-6 h-6 mr-2 text-purple-600" />
+            Expense Statistics
+          </h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Overview and insights of your extra expenses • Access: {userRole.toUpperCase()}
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAdvancedStats(!showAdvancedStats)}
+          className="px-4 py-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-xl hover:from-purple-200 hover:to-pink-200 transition-all duration-300 flex items-center text-sm"
+        >
+          {showAdvancedStats ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+          {showAdvancedStats ? 'Hide Details' : 'Show Details'}
+        </button>
+      </div>
+
+      {/* Basic Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-purple-700 font-medium">Total Expenses</p>
+              <p className="text-2xl font-bold text-purple-800 mt-2">{totalExpenses}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-purple-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-green-700 font-medium">Total Amount</p>
+              <p className="text-2xl font-bold text-green-800 mt-2">
+                {new Intl.NumberFormat('en-BD', {
+                  style: 'currency',
+                  currency: 'BDT',
+                  minimumFractionDigits: 0
+                }).format(totalAmount)}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-pink-50 to-rose-50 p-4 rounded-xl border border-pink-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-pink-700 font-medium">Average per Expense</p>
+              <p className="text-2xl font-bold text-pink-800 mt-2">
+                {new Intl.NumberFormat('en-BD', {
+                  style: 'currency',
+                  currency: 'BDT',
+                  minimumFractionDigits: 0
+                }).format(averageExpense)}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-pink-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-700 font-medium">This Month</p>
+              <p className="text-2xl font-bold text-blue-800 mt-2">
+                {new Intl.NumberFormat('en-BD', {
+                  style: 'currency',
+                  currency: 'BDT',
+                  minimumFractionDigits: 0
+                }).format(thisMonthTotal)}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Stats Section */}
+      {showAdvancedStats && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 pt-6 border-t border-gray-200">
+          {/* Payment Method Distribution */}
+          <div className="bg-white rounded-xl p-4 border border-gray-200">
+            <h4 className="font-bold text-gray-700 mb-4 flex items-center">
+              <CreditCard className="w-5 h-5 mr-2 text-purple-600" />
+              Payment Method Distribution
+            </h4>
+            <div className="space-y-3">
+              {Object.entries(paymentMethods).map(([method, amount]) => {
+                const percentage = totalAmount > 0 ? (amount / totalAmount) * 100 : 0;
+                return (
+                  <div key={method} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium text-gray-700">{method}</span>
+                      <span className="text-gray-600">
+                        {new Intl.NumberFormat('en-BD', {
+                          style: 'currency',
+                          currency: 'BDT',
+                          minimumFractionDigits: 0
+                        }).format(amount)} ({percentage.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full ${
+                          method === 'Cash' ? 'bg-yellow-500' :
+                          method === 'Card' ? 'bg-purple-500' :
+                          method === 'Bank Transfer' ? 'bg-blue-500' :
+                          'bg-teal-500'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Recent Monthly Trend */}
+          <div className="bg-white rounded-xl p-4 border border-gray-200">
+            <h4 className="font-bold text-gray-700 mb-4 flex items-center">
+              <TrendingUp className="w-5 h-5 mr-2 text-purple-600" />
+              Recent Monthly Trend
+            </h4>
+            <div className="space-y-3">
+              {sortedMonths.map((monthData, index) => (
+                <div key={index} className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium text-gray-700">
+                      {monthData.month} {monthData.year}
+                    </span>
+                    <span className="text-gray-600">
+                      {new Intl.NumberFormat('en-BD', {
+                        style: 'currency',
+                        currency: 'BDT',
+                        minimumFractionDigits: 0
+                      }).format(monthData.total)} ({monthData.count} expenses)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
+                      style={{ 
+                        width: `${Math.min((monthData.total / Math.max(...sortedMonths.map(m => m.total))) * 100, 100)}%` 
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function MiscellaneousExpensesPage() {
   const router = useRouter();
   
-  // Authentication state
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [accessDenied, setAccessDenied] = useState(false);
+  // User role state
+  const [userRole, setUserRole] = useState("guest");
+  const [authLoading, setAuthLoading] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState(null);
-  const [permissionToast, setPermissionToast] = useState(null);
   
   // Delete confirmation state
   const [deleteModal, setDeleteModal] = useState({
@@ -287,6 +429,8 @@ export default function ExtraExpensesPage() {
   const [storedExpenses, setStoredExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     expenseName: "",
@@ -318,12 +462,12 @@ export default function ExtraExpensesPage() {
   // Backend API URL
   const API_URL = "https://a2itserver.onrender.com/api/v1";
 
-  // Payment methods - MUST MATCH BACKEND ENUM
+  // Payment methods - Backend এর enum এর সাথে match
   const paymentMethods = [
     "Cash", 
+    "Card", 
     "Bank Transfer", 
-    "Mobile Banking", 
-    "Card"
+    "Mobile Banking"
   ];
 
   // Show toast function
@@ -336,100 +480,15 @@ export default function ExtraExpensesPage() {
     setToast(null);
   };
 
-  // Show permission denied toast
-  const showPermissionToast = (action = "perform this action", requiredRole = "admin or moderator") => {
-    setPermissionToast({ action, requiredRole });
-  };
-
-  // Clear permission toast
-  const clearPermissionToast = () => {
-    setPermissionToast(null);
-  };
-
-  // Check if user has admin or moderator role
-  const hasAdminOrModeratorAccess = () => {
-    if (!user) return false;
-    return ['admin', 'moderator'].includes(user.role);
-  };
-
-  // Check user permissions
-  const checkPermission = (action) => {
-    if (!user) return false;
-    
-    switch (action) {
-      case 'delete':
-        return ['admin', 'moderator'].includes(user.role);
-      case 'edit':
-        return ['admin', 'moderator'].includes(user.role);
-      case 'create':
-        return ['admin', 'moderator'].includes(user.role);
-      case 'view':
-        return ['admin', 'moderator'].includes(user.role);
-      default:
-        return false;
-    }
-  };
-
-  // Check authentication on mount
+  // Check user role on component mount
   useEffect(() => {
-    checkAuthentication();
+    checkUserRole();
+    fetchStoredExpenses();
   }, []);
-
-  // Fetch extra expenses after authentication
-  useEffect(() => {
-    if (user && hasAdminOrModeratorAccess() && !authLoading) {
-      fetchStoredExpenses();
-    }
-  }, [user, authLoading]);
-
-  // Check if user is authenticated and has admin/moderator role
-  const checkAuthentication = async () => {
-    const userData = localStorage.getItem('user');
-    const token = localStorage.getItem('auth_token');
-    
-    if (!userData || !token) {
-      showToast('Please login to access the system', 'error');
-      setTimeout(() => router.push('/'), 2000);
-      return;
-    }
-    
-    try {
-      const parsedUser = JSON.parse(userData);
-      
-      // Check if user has admin or moderator role
-      if (!hasAdminOrModeratorAccess(parsedUser)) {
-        setAccessDenied(true);
-        setAuthLoading(false);
-        return;
-      }
-      
-      setUser(parsedUser);
-      setAuthLoading(false);
-      showToast(`Welcome, ${parsedUser.name}! Admin access granted.`, 'success');
-    } catch (error) {
-      console.error('Error parsing user data:', error);
-      router.push('/');
-    }
-  };
-
-  // Helper function to get auth headers
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('auth_token');
-    const headers = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    return headers;
-  };
 
   // Update available years and months when storedExpenses changes
   useEffect(() => {
     if (storedExpenses.length > 0) {
-      // Extract unique years from stored expenses
       const years = Array.from(
         new Set(
           storedExpenses.map(expense => {
@@ -441,7 +500,6 @@ export default function ExtraExpensesPage() {
 
       setAvailableYears(years);
 
-      // If a year is selected, update available months
       if (filterYear !== "all") {
         const yearExpenses = storedExpenses.filter(expense => {
           const date = new Date(expense.date);
@@ -480,32 +538,71 @@ export default function ExtraExpensesPage() {
     }
   }, [editingId]);
 
-  const fetchStoredExpenses = async () => {
-    if (!hasAdminOrModeratorAccess()) {
-      showPermissionToast('view extra expenses');
-      return;
-    }
+  // Check user role from tokens
+  const checkUserRole = () => {
+    const adminToken = localStorage.getItem('adminToken') || 
+                      document.cookie.split('; ').find(row => row.startsWith('adminToken='))?.split('=')[1];
+    
+    const moderatorToken = localStorage.getItem('moderatorToken') || 
+                          document.cookie.split('; ').find(row => row.startsWith('moderatorToken='))?.split('=')[1];
 
+    if (adminToken) {
+      setUserRole("admin");
+      showToast('Admin access granted!', 'success');
+    } else if (moderatorToken) {
+      setUserRole("moderator");
+      showToast('Moderator access granted!', 'success');
+    } else {
+      setUserRole("guest");
+    }
+  };
+
+  // Helper function to get authentication headers
+  const getAuthHeaders = () => {
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    const adminToken = localStorage.getItem('adminToken') || 
+                      document.cookie.split('; ').find(row => row.startsWith('adminToken='))?.split('=')[1];
+    
+    const moderatorToken = localStorage.getItem('moderatorToken') || 
+                          document.cookie.split('; ').find(row => row.startsWith('moderatorToken='))?.split('=')[1];
+    
+    if (adminToken) {
+      headers['Authorization'] = `Bearer ${adminToken}`;
+      headers['X-User-Role'] = 'admin';
+    } else if (moderatorToken) {
+      headers['Authorization'] = `Bearer ${moderatorToken}`;
+      headers['X-User-Role'] = 'moderator';
+    }
+    
+    return headers;
+  };
+
+  // Check if user is authenticated
+  const isAuthenticated = () => {
+    return userRole !== "guest";
+  };
+
+  // Check if user has admin or moderator role
+  const hasAdminOrModeratorAccess = () => {
+    return isAuthenticated() && ['admin', 'moderator'].includes(userRole);
+  };
+
+  const fetchStoredExpenses = async () => {
     setLoading(true);
+    setError("");
     try {
       const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/extra-expenses`, {
-        headers: headers, 
+      
+      const response = await fetch(`${API_URL}/miscellaneous`, {
+        headers: headers
       });
       
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          showToast('Authentication failed. Please login again.', 'error');
-          localStorage.clear();
-          router.push('/');
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      };
-      
       const data = await response.json();
-      if (data.success) {
-        // Sort expenses by date in descending order (newest first)
+      
+      if (response.ok && data.success) {
         const sortedExpenses = [...data.data].sort((a, b) => {
           const dateA = new Date(a.date);
           const dateB = new Date(b.date);
@@ -513,21 +610,25 @@ export default function ExtraExpensesPage() {
         });
         setStoredExpenses(sortedExpenses);
       } else {
-        showToast(data.message || 'Failed to load extra expenses', 'error');
+        if (response.status === 401 || response.status === 403) {
+          setError('Authentication required. Please login with admin or moderator token.');
+          setStoredExpenses([]);
+        } else {
+          setError(data.message || 'Failed to load extra expenses');
+        }
       }
     } catch (error) {
       console.error('Error fetching extra expenses:', error);
-      showToast(`Network error: ${error.message}`, 'error');
+      setError('Network error. Please check if server is running.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter and sort expenses based on selected filters
+  // Filter and sort expenses
   const filteredExpenses = useMemo(() => {
     let filtered = storedExpenses;
 
-    // Apply date filter
     if (filterDate) {
       filtered = filtered.filter(expense => {
         const expenseDate = new Date(expense.date).toISOString().split('T')[0];
@@ -535,7 +636,6 @@ export default function ExtraExpensesPage() {
       });
     }
 
-    // Apply year filter
     if (filterYear !== "all") {
       filtered = filtered.filter(expense => {
         const date = new Date(expense.date);
@@ -543,7 +643,6 @@ export default function ExtraExpensesPage() {
       });
     }
 
-    // Apply month filter
     if (filterMonth !== "all") {
       filtered = filtered.filter(expense => {
         const date = new Date(expense.date);
@@ -551,7 +650,6 @@ export default function ExtraExpensesPage() {
       });
     }
 
-    // Already sorted in fetchStoredExpenses, but ensure sorting here too
     return [...filtered].sort((a, b) => {
       const dateA = new Date(a.date);
       const dateB = new Date(b.date);
@@ -561,31 +659,28 @@ export default function ExtraExpensesPage() {
 
   // Generate PDF function
   const generatePDF = () => {
-    if (!hasAdminOrModeratorAccess()) {
-      showPermissionToast('download reports');
-      return;
-    }
-
     if (filteredExpenses.length === 0) {
-      showToast("No extra expenses to download", "warning");
+      setError("No extra expenses to download");
       return;
     }
 
     try {
-      // Create new PDF document
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       
+      // Header
       doc.setFontSize(20);
-      doc.setTextColor(75, 0, 130); // Purple color
+      doc.setTextColor(106, 13, 173);
       doc.setFont("helvetica", "bold");
       doc.text("Extra Expenses Report", pageWidth / 2, 20, { align: "center" });
       
+      // Subtitle
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
       doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
       
+      // Filter info
       let filterInfo = "All Extra Expenses";
       if (filterDate) {
         filterInfo = `Date: ${new Date(filterDate).toLocaleDateString()}`;
@@ -595,29 +690,26 @@ export default function ExtraExpensesPage() {
       doc.text(`Report Type: ${filterInfo}`, 14, 36);
       doc.text(`Total Records: ${filteredExpenses.length}`, 14, 42);
       
-      // Add user info
-      if (user) {
-        doc.text(`Generated by: ${user.name} (${user.role})`, 14, 48);
-        doc.text(`Access Level: ${user.role === 'admin' ? 'Administrator' : 'Moderator'}`, 14, 54);
-      }
+      // User info
+      doc.text(`Generated by: ${userRole.toUpperCase()} User`, 14, 48);
+      doc.text(`Access Level: ${userRole.toUpperCase()}`, 14, 54);
       
       // Prepare table data
       const tableData = filteredExpenses.map(expense => [
         expense.expenseName,
         new Date(expense.date).toLocaleDateString(),
-        `BDT ${expense.amount.toFixed(2)}`,
+        `৳ ${expense.amount.toFixed(2)}`,
         expense.paymentMethod || 'Cash',
-        expense.note || "-",
-        `${monthNames[new Date(expense.date).getMonth()]} ${new Date(expense.date).getFullYear()}`
+        expense.note || "-"
       ]);
       
-      // Add table using autoTable
+      // Add table
       autoTable(doc, {
-        startY: user ? 60 : 50,
-        head: [['Expense Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Note', 'Month-Year']],
+        startY: 60,
+        head: [['Expense Name', 'Date', 'Amount (৳)', 'Payment Method', 'Note']],
         body: tableData,
         headStyles: {
-          fillColor: [128, 0, 128], // Purple color
+          fillColor: [106, 13, 173],
           textColor: 255,
           fontStyle: 'bold'
         },
@@ -626,12 +718,11 @@ export default function ExtraExpensesPage() {
           cellPadding: 3
         },
         columnStyles: {
-          0: { cellWidth: 35 },
-          1: { cellWidth: 25 },
-          2: { cellWidth: 25 },
-          3: { cellWidth: 30 },
-          4: { cellWidth: 40 },
-          5: { cellWidth: 30 }
+          0: { cellWidth: 40 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 45 }
         },
         didDrawPage: function (data) {
           // Footer
@@ -654,40 +745,26 @@ export default function ExtraExpensesPage() {
       // Add summary section
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(75, 0, 130);
+      doc.setTextColor(106, 13, 173);
       doc.text("SUMMARY", 14, lastY);
       
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.text(`Total Expenses: ${filteredExpenses.length}`, 14, lastY + 8);
-      doc.text(`Total Amount: BDT ${totalAmount.toFixed(2)}`, 14, lastY + 16);
-      doc.text(`Average per Expense: BDT ${(totalAmount / filteredExpenses.length).toFixed(2)}`, 14, lastY + 24);
+      doc.text(`Total Amount: ৳ ${totalAmount.toFixed(2)}`, 14, lastY + 16);
       
-      // Add generated date at bottom
-      doc.setFontSize(9);
-      doc.setTextColor(100);
-      doc.text(
-        `Report generated on ${new Date().toLocaleString()}`,
-        pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 20,
-        { align: "center" }
-      );
-      
-      // Generate filename with timestamp
+      // Generate filename
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-      const isFilterActive = filterDate || filterYear !== "all" || filterMonth !== "all";
-      const filterSuffix = isFilterActive ? '_filtered' : '';
-      const filename = `extra_expenses_${timestamp}${filterSuffix}.pdf`;
+      const filename = `extra_expenses_${timestamp}.pdf`;
       
       // Save the PDF
       doc.save(filename);
       
-      // Show success message
       showToast(`PDF report downloaded successfully!`, "success");
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      showToast(`Failed to generate PDF: ${error.message}`, 'error');
+      setError('Failed to generate PDF. Please try again.');
     }
   };
 
@@ -701,7 +778,7 @@ export default function ExtraExpensesPage() {
 
   const addExpense = () => {
     if (!hasAdminOrModeratorAccess()) {
-      showPermissionToast('add expenses');
+      setError('Only admin or moderator can add expenses. Please login.');
       return;
     }
 
@@ -726,27 +803,28 @@ export default function ExtraExpensesPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Check create permission
     if (!hasAdminOrModeratorAccess()) {
-      showPermissionToast('create extra expense records');
+      setError('Only admin or moderator can save expenses. Please login.');
       return;
     }
 
     setSaving(true);
+    setError("");
+    setSuccess("");
 
-    // Filter out empty rows
     const validExpenses = expenses.filter(
       item => item.expenseName.trim() && item.amount && item.date
     );
 
     if (validExpenses.length === 0) {
-      showToast("Please add at least one extra expense", 'error');
+      setError("Please add at least one extra expense");
       setSaving(false);
       return;
     }
 
     try {
-      // Prepare data for backend
+      const headers = getAuthHeaders();
+
       const expensesToSave = validExpenses.map(expense => ({
         expenseName: expense.expenseName.trim(),
         amount: parseFloat(expense.amount),
@@ -755,36 +833,16 @@ export default function ExtraExpensesPage() {
         note: expense.note || ""
       }));
 
-      const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/extra-expenses`, {
+      const response = await fetch(`${API_URL}/create-miscellaneous`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(expensesToSave),
       });
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          showToast('Authentication failed. Please login again.', 'error');
-          localStorage.clear();
-          setTimeout(() => router.push('/'), 2000);
-          return;
-        }
-        
-        const errorText = await response.text();
-        try {
-          const errorData = JSON.parse(errorText);
-          showToast(errorData.message || `Server error: ${response.status}`, 'error');
-        } catch {
-          showToast(`Server error: ${response.status} - ${errorText}`, 'error');
-        }
-        return;
-      }
-
       const data = await response.json();
 
-      if (data.success) {
-        showToast(`✅ Successfully saved ${data.data.length} extra expense(s)!`, 'success');
-        // Reset form
+      if (response.ok && data.success) {
+        setSuccess(`✅ Successfully saved ${data.data.length} extra expense(s) as ${userRole.toUpperCase()}!`);
         setExpenses([{
           id: crypto.randomUUID(),
           expenseName: "",
@@ -793,27 +851,29 @@ export default function ExtraExpensesPage() {
           paymentMethod: "Cash",
           note: "",
         }]);
-        // Refresh stored expenses
         fetchStoredExpenses();
         
         if (data.warnings && data.warnings.length > 0) {
           console.warn('Warnings:', data.warnings);
         }
       } else {
-        showToast(`❌ ${data.message || 'Failed to save extra expenses'}`, 'error');
+        if (response.status === 401 || response.status === 403) {
+          setError('❌ Authentication failed. Please login with admin or moderator token.');
+        } else {
+          setError(`❌ ${data.message || 'Failed to save extra expenses'}`);
+        }
       }
     } catch (error) {
       console.error('Error saving extra expenses:', error);
-      showToast(`❌ Network error: ${error.message}`, 'error');
+      setError('❌ Network error. Please check if server is running.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleEditExpense = (expense) => {
-    // Check edit permission
     if (!hasAdminOrModeratorAccess()) {
-      showPermissionToast('edit extra expense records');
+      setError('Only admin or moderator can edit expenses. Please login.');
       return;
     }
 
@@ -836,27 +896,29 @@ export default function ExtraExpensesPage() {
       paymentMethod: "Cash",
       note: ""
     });
-    showToast('Edit mode cancelled', 'info');
+    setSuccess('Edit mode cancelled');
   };
 
   const handleUpdateExpense = async () => {
     if (!editingId) return;
 
-    // Check edit permission
     if (!hasAdminOrModeratorAccess()) {
-      showPermissionToast('edit extra expense records');
+      setError('Only admin or moderator can update expenses. Please login.');
       return;
     }
 
-    // Validation
     if (!editForm.expenseName.trim() || !editForm.amount || !editForm.date) {
-      showToast("Please fill all required fields", 'error');
+      setError("Please fill all required fields");
       return;
     }
 
     setSaving(true);
+    setError("");
+    setSuccess("");
 
     try {
+      const headers = getAuthHeaders();
+
       const updateData = {
         expenseName: editForm.expenseName.trim(),
         date: editForm.date,
@@ -865,30 +927,17 @@ export default function ExtraExpensesPage() {
         note: editForm.note || ""
       };
 
-      const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/extra-expenses/${editingId}`, {
+      const response = await fetch(`${API_URL}/update-miscellaneous/${editingId}`, {
         method: 'PUT',
         headers: headers,
         body: JSON.stringify(updateData),
       });
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          showToast('Authentication failed. Please login again.', 'error');
-          localStorage.clear();
-          setTimeout(() => router.push('/'), 2000);
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
 
-      if (data.success) {
-        showToast('✅ Extra expense updated successfully!', 'success');
-        // Refresh the list
+      if (response.ok && data.success) {
+        setSuccess(`✅ Extra expense updated successfully as ${userRole.toUpperCase()}!`);
         fetchStoredExpenses();
-        // Reset edit mode
         setEditingId(null);
         setEditForm({
           expenseName: "",
@@ -898,11 +947,15 @@ export default function ExtraExpensesPage() {
           note: ""
         });
       } else {
-        showToast(`❌ ${data.message || 'Failed to update extra expense'}`, 'error');
+        if (response.status === 401 || response.status === 403) {
+          setError('❌ Authentication failed. Please login with admin or moderator token.');
+        } else {
+          setError(`❌ ${data.message || 'Failed to update extra expense'}`);
+        }
       }
     } catch (error) {
       console.error('Error updating extra expense:', error);
-      showToast(`❌ Error: ${error.message}`, 'error');
+      setError('❌ Failed to update extra expense');
     } finally {
       setSaving(false);
     }
@@ -910,13 +963,11 @@ export default function ExtraExpensesPage() {
 
   // Handle delete click
   const handleDeleteClick = (expense) => {
-    // Check delete permission
     if (!hasAdminOrModeratorAccess()) {
-      showPermissionToast('delete extra expense records');
+      setError('Only admin or moderator can delete expenses. Please login.');
       return;
     }
 
-    // Open delete confirmation modal
     setDeleteModal({
       isOpen: true,
       itemName: `${expense.expenseName} (${formatCurrency(expense.amount)})`,
@@ -929,41 +980,34 @@ export default function ExtraExpensesPage() {
     const { expenseId } = deleteModal;
     
     if (!expenseId) {
-      showToast("No expense selected for deletion", 'error');
+      setError("No expense selected for deletion");
       return;
     }
 
     try {
       const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/extra-expenses/${expenseId}`, {
+
+      const response = await fetch(`${API_URL}/delete-miscellaneous/${expenseId}`, {
         method: 'DELETE',
         headers: headers,
       });
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          showToast('Authentication failed. Please login again.', 'error');
-          localStorage.clear();
-          setTimeout(() => router.push('/'), 2000);
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
 
-      if (data.success) {
-        showToast('✅ Extra expense deleted successfully!', 'success');
-        // Refresh the list
+      if (response.ok && data.success) {
+        setSuccess(`✅ Extra expense deleted successfully as ${userRole.toUpperCase()}!`);
         fetchStoredExpenses();
       } else {
-        showToast(`❌ ${data.message || 'Failed to delete extra expense'}`, 'error');
+        if (response.status === 401 || response.status === 403) {
+          setError('❌ Authentication failed. Please login with admin or moderator token.');
+        } else {
+          setError(`❌ ${data.message || 'Failed to delete extra expense'}`);
+        }
       }
     } catch (error) {
       console.error('Error deleting extra expense:', error);
-      showToast(`❌ Error: ${error.message}`, 'error');
+      setError('❌ Failed to delete extra expense');
     } finally {
-      // Close the modal
       setDeleteModal({ isOpen: false, itemName: '', expenseId: null });
     }
   };
@@ -977,12 +1021,6 @@ export default function ExtraExpensesPage() {
       month: 'short',
       day: 'numeric'
     });
-  };
-
-  // Format payment method for display
-  const formatPaymentMethod = (method) => {
-    if (!method) return "Cash";
-    return method;
   };
 
   // Format currency in Bangladeshi Taka (BDT)
@@ -1000,27 +1038,28 @@ export default function ExtraExpensesPage() {
     return filteredExpenses.reduce((total, expense) => total + expense.amount, 0);
   };
 
+  // Calculate total for all expenses
+  const calculateTotal = () => {
+    return storedExpenses.reduce((total, expense) => total + expense.amount, 0);
+  };
+
   // Reset all filters
   const resetFilters = () => {
     setFilterDate("");
     setFilterMonth("all");
     setFilterYear("all");
-    showToast('All filters reset', 'info');
+    setSuccess('All filters reset');
   };
 
   // Handle year filter change
   const handleYearChange = (e) => {
     setFilterYear(e.target.value);
     setFilterMonth("all");
-    const year = e.target.value === "all" ? "All Years" : e.target.value;
-    showToast(`Filtered by year: ${year}`, 'info');
   };
 
   // Handle month filter change
   const handleMonthChange = (e) => {
     setFilterMonth(e.target.value);
-    const monthName = e.target.value === "all" ? "All Months" : monthNames[parseInt(e.target.value) - 1];
-    showToast(`Filtered by month: ${monthName}`, 'info');
   };
 
   // Check if any filter is active
@@ -1039,33 +1078,38 @@ export default function ExtraExpensesPage() {
     }, 0);
   };
 
+  // Handle token input
+  const handleTokenInput = (tokenType) => {
+    const token = prompt(`Enter ${tokenType} token:`);
+    if (token) {
+      localStorage.setItem(tokenType, token);
+      checkUserRole();
+      fetchStoredExpenses();
+      showToast(`${tokenType} saved successfully!`, 'success');
+    }
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('moderatorToken');
+    setUserRole("guest");
+    setStoredExpenses([]);
+    setExpenses([{
+      id: crypto.randomUUID(),
+      expenseName: "",
+      amount: "",
+      date: "",
+      paymentMethod: "Cash",
+      note: "",
+    }]);
+    showToast('Logged out successfully!', 'info');
+  };
+
   // Handle return to dashboard
   const handleReturnToDashboard = () => {
     router.push('/dashboard');
   };
-
-  // Show loading while auth is being checked
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-purple-600 font-medium">Checking admin privileges...</p>
-          <p className="text-gray-600 text-sm mt-2">Verifying your access level</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show access denied screen
-  if (accessDenied || !hasAdminOrModeratorAccess()) {
-    return (
-      <AccessRestrictedBanner 
-        userRole={user?.role} 
-        onClose={handleReturnToDashboard}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-violet-50 to-pink-50 p-3 md:p-6">
@@ -1073,68 +1117,136 @@ export default function ExtraExpensesPage() {
         {/* Toast Notifications */}
         {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
         
-        {/* Permission Denied Toast */}
-        {permissionToast && (
-          <PermissionDeniedToast 
-            action={permissionToast.action}
-            requiredRole={permissionToast.requiredRole}
-            onClose={clearPermissionToast}
-          />
-        )}
-        
         {/* Delete Confirmation Modal */}
         <DeleteConfirmationModal
           isOpen={deleteModal.isOpen}
           onClose={() => setDeleteModal({ isOpen: false, itemName: '', expenseId: null })}
           itemName={deleteModal.itemName}
           onConfirm={handleDeleteConfirm}
-          userRole={user?.role}
+          userRole={userRole}
         />
 
-        {/* Header with Admin Badge */}
+        {/* Header with Role Badge */}
         <div className="mb-6 md:mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
-                Extra Expenses Management
+              <h2 className="text-xl md:text-2xl font-bold text-center md:text-left text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+                📊 Extra Expenses Management
               </h2>
-              <p className="text-sm md:text-base text-gray-600 mt-1">
-                Admin & Moderator Access Only
+              <p className="text-sm md:text-base text-center md:text-left text-purple-600 mt-1">
+                Track and manage all your miscellaneous expenses
               </p>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className={`px-3 py-1.5 rounded-full flex items-center ${
-                user?.role === 'admin' 
-                  ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700' 
-                  : 'bg-gradient-to-r from-indigo-100 to-blue-100 text-indigo-700'
-              }`}>
-                {user?.role === 'admin' ? (
-                  <Crown className="w-4 h-4 mr-2" />
-                ) : (
-                  <Key className="w-4 h-4 mr-2" />
-                )}
-                <span className="text-sm font-medium capitalize">{user?.role}</span>
+            
+            {/* User Role and Token Management */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg shadow-sm border border-purple-100">
+                <div className={`w-3 h-3 rounded-full ${
+                  userRole === "admin" ? "bg-purple-600" :
+                  userRole === "moderator" ? "bg-indigo-500" :
+                  "bg-gray-400"
+                }`}></div>
+                <span className="text-sm font-medium text-gray-700">
+                  Role: <span className={`font-bold ${
+                    userRole === "admin" ? "text-purple-600" :
+                    userRole === "moderator" ? "text-indigo-500" :
+                    "text-gray-500"
+                  }`}>{userRole.toUpperCase()}</span>
+                </span>
               </div>
-              <button
-                onClick={handleReturnToDashboard}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Dashboard
-              </button>
+              
+              <div className="flex items-center space-x-2">
+                {!isAuthenticated() ? (
+                  <>
+                    <button
+                      onClick={() => handleTokenInput('adminToken')}
+                      className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm rounded-md transition-all duration-300 flex items-center shadow-sm"
+                    >
+                      <Crown className="w-4 h-4 mr-1" />
+                      Admin Login
+                    </button>
+                    <button
+                      onClick={() => handleTokenInput('moderatorToken')}
+                      className="px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-sm rounded-md transition-all duration-300 flex items-center shadow-sm"
+                    >
+                      <Key className="w-4 h-4 mr-1" />
+                      Moderator Login
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleReturnToDashboard}
+                      className="px-3 py-1.5 text-gray-600 hover:text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center text-sm"
+                    >
+                      <Users className="w-4 h-4 mr-1" />
+                      Dashboard
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="px-3 py-1.5 bg-gradient-to-r from-gray-200 to-gray-300 hover:from-gray-300 hover:to-gray-400 text-gray-700 text-sm rounded-md transition-colors flex items-center shadow-sm"
+                    >
+                      <LogOut className="w-4 h-4 mr-1" />
+                      Logout
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           
+          {/* Authentication Status */}
+          {!isAuthenticated() && (
+            <div className="mt-4 p-4 bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-200 rounded-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <Shield className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-purple-800">
+                    🔐 Authentication Required
+                  </h3>
+                  <div className="mt-2 text-sm text-purple-700">
+                    <p>Please login with either:</p>
+                    <ul className="list-disc pl-5 mt-1 space-y-1">
+                      <li><strong>Admin Token</strong> - Full access to all features</li>
+                      <li><strong>Moderator Token</strong> - Limited access to manage expenses</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Access Level Banner */}
-          <div className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl p-4 text-white">
+          <div className={`rounded-xl p-4 text-white mt-4 ${
+            userRole === 'admin' 
+              ? 'bg-gradient-to-r from-purple-500 to-indigo-500' 
+              : userRole === 'moderator'
+              ? 'bg-gradient-to-r from-indigo-500 to-blue-500'
+              : 'bg-gradient-to-r from-gray-500 to-gray-600'
+          }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <Shield className="w-5 h-5" />
+                  {userRole === 'admin' ? (
+                    <Crown className="w-5 h-5" />
+                  ) : userRole === 'moderator' ? (
+                    <Key className="w-5 h-5" />
+                  ) : (
+                    <User className="w-5 h-5" />
+                  )}
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg">Admin Access Granted</h3>
+                  <h3 className="font-bold text-lg">
+                    {userRole === 'admin' ? 'Admin Access Granted' :
+                     userRole === 'moderator' ? 'Moderator Access Granted' :
+                     'View-Only Access'}
+                  </h3>
                   <p className="text-sm opacity-90">
-                    Welcome, <span className="font-semibold">{user?.name}</span> • Full management privileges
+                    {userRole === 'admin' ? 'Full management privileges' :
+                     userRole === 'moderator' ? 'Limited management privileges' :
+                     'Login required for full access'}
                   </p>
                 </div>
               </div>
@@ -1147,7 +1259,7 @@ export default function ExtraExpensesPage() {
                 <div className="text-right">
                   <div className="text-xs opacity-80">Total Amount</div>
                   <div className="text-xl font-bold">
-                    {formatCurrency(storedExpenses.reduce((total, exp) => total + exp.amount, 0))}
+                    {formatCurrency(calculateTotal())}
                   </div>
                 </div>
               </div>
@@ -1155,50 +1267,76 @@ export default function ExtraExpensesPage() {
           </div>
         </div>
 
-        {/* Form Section */}
+        {/* Stats Dashboard */}
+        <StatsDashboard expenses={storedExpenses} userRole={userRole} />
+
+        {/* Form Section - Only for Admin & Moderator */}
         <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6 mb-6 md:mb-8 border border-purple-100">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
             <div>
-              <h3 className="text-xl font-bold text-gray-800 flex items-center">
-                <Plus className="w-6 h-6 mr-2 text-purple-600" />
+              <h3 className="text-lg font-bold text-purple-900 flex items-center">
+                <Plus className="w-5 h-5 mr-2 text-purple-600" />
                 Add New Extra Expenses
               </h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Add single or multiple expense entries
+              <p className="text-sm text-purple-600 mt-1">
+                {userRole === "admin" ? "🔓 Full administrative access" :
+                 userRole === "moderator" ? "🔐 Moderate access" :
+                 "🔒 Login required to add expenses"}
               </p>
             </div>
             <button
               onClick={addExpense}
-              className="md:hidden px-4 py-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-600 rounded-xl hover:from-purple-200 hover:to-pink-200 transition-all duration-300 text-sm flex items-center"
+              disabled={!hasAdminOrModeratorAccess()}
+              className={`px-4 py-2 rounded-lg transition-all duration-300 text-sm font-medium shadow-sm ${
+                !hasAdminOrModeratorAccess()
+                  ? "bg-gradient-to-r from-gray-200 to-gray-300 text-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-md"
+              }`}
             >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Row
+              <Plus className="w-4 h-4 mr-1 inline" />
+              Add Expense
             </button>
           </div>
+          
+          {/* Messages */}
+          {error && !editingId && (
+            <div className="mb-4 p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                <span className="text-red-700 font-medium">{error}</span>
+              </div>
+            </div>
+          )}
+          {success && !editingId && (
+            <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+              <div className="flex items-center">
+                <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                <span className="text-green-700 font-medium">{success}</span>
+              </div>
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Header Row - Hidden on mobile, visible on tablet+ */}
-            <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
-              <div className="col-span-3">Expense Name *</div>
-              <div className="col-span-2">Amount (BDT) *</div>
-              <div className="col-span-2">Date *</div>
-              <div className="col-span-2">Payment Method *</div>
+            <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-bold text-purple-700 px-1 bg-purple-50 p-3 rounded-lg">
+              <div className="col-span-3">Expense Name</div>
+              <div className="col-span-2">Amount (৳)</div>
+              <div className="col-span-2">Date</div>
+              <div className="col-span-2">Payment Method</div>
               <div className="col-span-2">Note (Optional)</div>
               <div className="col-span-1 text-center">Action</div>
             </div>
 
-            {expenses.map((item, index) => (
+            {expenses.map((item) => (
               <div
                 key={item.id}
-                className={`grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-center p-4 md:p-0 md:border-0 border ${
-                  index % 2 === 0 ? 'border-purple-100 bg-purple-50/50' : 'border-gray-100 bg-white'
-                } rounded-xl mb-4 md:mb-0`}
+                className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-center p-4 md:p-3 border border-purple-100 rounded-lg mb-4 md:mb-3 bg-gradient-to-br from-white to-purple-50"
               >
                 {/* Mobile View - Vertical Layout */}
                 <div className="md:hidden space-y-3 w-full">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-bold text-purple-700 mb-1">
                         Expense Name *
                       </label>
                       <input
@@ -1208,32 +1346,34 @@ export default function ExtraExpensesPage() {
                         onChange={(e) =>
                           updateField(item.id, "expenseName", e.target.value)
                         }
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                         required
+                        disabled={!hasAdminOrModeratorAccess()}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Amount (BDT) *
+                      <label className="block text-xs font-bold text-purple-700 mb-1">
+                        Amount (৳) *
                       </label>
                       <input
                         type="number"
-                        placeholder="Amount in BDT"
+                        placeholder="Amount in ৳"
                         value={item.amount}
                         onChange={(e) =>
                           updateField(item.id, "amount", e.target.value)
                         }
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                         required
                         min="0"
                         step="0.01"
+                        disabled={!hasAdminOrModeratorAccess()}
                       />
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-bold text-purple-700 mb-1">
                         Date *
                       </label>
                       <input
@@ -1243,12 +1383,13 @@ export default function ExtraExpensesPage() {
                         onChange={(e) =>
                           updateField(item.id, "date", e.target.value)
                         }
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                         required
+                        disabled={!hasAdminOrModeratorAccess()}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-bold text-purple-700 mb-1">
                         Payment Method *
                       </label>
                       <select
@@ -1256,8 +1397,9 @@ export default function ExtraExpensesPage() {
                         onChange={(e) =>
                           updateField(item.id, "paymentMethod", e.target.value)
                         }
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                         required
+                        disabled={!hasAdminOrModeratorAccess()}
                       >
                         <option value="">Select</option>
                         {paymentMethods.map(method => (
@@ -1270,7 +1412,7 @@ export default function ExtraExpensesPage() {
                   </div>
                   
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-bold text-purple-700 mb-1">
                       Note (Optional)
                     </label>
                     <input
@@ -1280,7 +1422,8 @@ export default function ExtraExpensesPage() {
                       onChange={(e) =>
                         updateField(item.id, "note", e.target.value)
                       }
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                      disabled={!hasAdminOrModeratorAccess()}
                     />
                   </div>
                   
@@ -1289,9 +1432,14 @@ export default function ExtraExpensesPage() {
                       <button
                         type="button"
                         onClick={() => removeExpense(item.id)}
-                        className="w-full py-2 bg-gradient-to-r from-red-50 to-pink-50 text-red-600 rounded-lg hover:from-red-100 hover:to-pink-100 transition-all duration-300 text-sm flex items-center justify-center"
+                        disabled={!hasAdminOrModeratorAccess()}
+                        className={`w-full py-2 rounded-lg transition-all duration-300 text-sm font-medium ${
+                          !hasAdminOrModeratorAccess()
+                            ? "bg-gradient-to-r from-gray-200 to-gray-300 text-gray-400 cursor-not-allowed"
+                            : "bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white shadow-md"
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4 mr-1" />
+                        <Trash2 className="w-4 h-4 mr-1 inline" />
                         Remove This Entry
                       </button>
                     </div>
@@ -1308,8 +1456,9 @@ export default function ExtraExpensesPage() {
                     onChange={(e) =>
                       updateField(item.id, "expenseName", e.target.value)
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                     required
+                    disabled={!hasAdminOrModeratorAccess()}
                   />
                 </div>
 
@@ -1317,15 +1466,16 @@ export default function ExtraExpensesPage() {
                 <div className="hidden md:block col-span-2">
                   <input
                     type="number"
-                    placeholder="Amount in BDT"
+                    placeholder="Amount in ৳"
                     value={item.amount}
                     onChange={(e) =>
                       updateField(item.id, "amount", e.target.value)
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                     required
                     min="0"
                     step="0.01"
+                    disabled={!hasAdminOrModeratorAccess()}
                   />
                 </div>
 
@@ -1338,8 +1488,9 @@ export default function ExtraExpensesPage() {
                     onChange={(e) =>
                       updateField(item.id, "date", e.target.value)
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                     required
+                    disabled={!hasAdminOrModeratorAccess()}
                   />
                 </div>
 
@@ -1350,8 +1501,9 @@ export default function ExtraExpensesPage() {
                     onChange={(e) =>
                       updateField(item.id, "paymentMethod", e.target.value)
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                     required
+                    disabled={!hasAdminOrModeratorAccess()}
                   >
                     <option value="">Select</option>
                     {paymentMethods.map(method => (
@@ -1371,7 +1523,8 @@ export default function ExtraExpensesPage() {
                     onChange={(e) =>
                       updateField(item.id, "note", e.target.value)
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
+                    disabled={!hasAdminOrModeratorAccess()}
                   />
                 </div>
 
@@ -1381,7 +1534,12 @@ export default function ExtraExpensesPage() {
                     <button
                       type="button"
                       onClick={() => removeExpense(item.id)}
-                      className="w-full py-2 bg-gradient-to-r from-red-50 to-pink-50 text-red-600 rounded-lg hover:from-red-100 hover:to-pink-100 transition-all duration-300 flex items-center justify-center"
+                      disabled={!hasAdminOrModeratorAccess()}
+                      className={`w-full py-2 rounded-lg transition-all duration-300 text-sm font-medium ${
+                        !hasAdminOrModeratorAccess()
+                          ? "bg-gradient-to-r from-gray-200 to-gray-300 text-gray-400 cursor-not-allowed"
+                          : "bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white shadow-md"
+                      }`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -1391,83 +1549,119 @@ export default function ExtraExpensesPage() {
             ))}
 
             {/* Form Total */}
-            <div className="flex justify-end mb-3">
-              <div className="text-lg font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 rounded-xl shadow-lg">
+            <div className="flex justify-between items-center mb-3 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-100">
+              <div className="text-lg font-bold text-purple-900">
                 Form Total: {formatCurrency(calculateFormTotal())}
+              </div>
+              <div className="text-sm text-purple-600">
+                {expenses.length} item(s) to save
               </div>
             </div>
 
-            {/* Add More Button */}
-            <div className="flex flex-col md:flex-row gap-3 mt-3">
-                <button
-                 type="button"
+            {/* Submit Button */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-3">
+              <button
+                type="button"
                 onClick={addExpense}
-                className="hidden md:block w-full border-2 border-dashed border-purple-300 text-purple-600 py-3 rounded-xl hover:bg-purple-50 transition-all duration-300 font-medium"
-               >
-                 <Plus className="inline w-5 h-5 mr-2" />
-                 Add More Expense Rows
+                disabled={!hasAdminOrModeratorAccess()}
+                className={`hidden md:block w-full py-3 rounded-lg transition-all duration-300 text-sm font-medium border-2 ${
+                  !hasAdminOrModeratorAccess()
+                    ? "border-gray-300 text-gray-400 cursor-not-allowed"
+                    : "border-purple-500 text-purple-600 hover:bg-purple-50 hover:border-purple-600"
+                }`}
+              >
+                <Plus className="w-4 h-4 mr-2 inline" />
+                Add More Expense Rows
               </button>
 
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={saving}
-                className={`w-full py-3 md:py-3 rounded-xl transition-all duration-300 text-sm md:text-base font-medium ${
+                disabled={saving || !hasAdminOrModeratorAccess()}
+                className={`w-full py-3 md:py-3 rounded-lg transition-all duration-300 text-sm md:text-base font-bold shadow-lg ${
                   saving
-                    ? 'bg-gradient-to-r from-purple-400 to-pink-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 hover:shadow-lg'
-                } text-white flex items-center justify-center`}
+                    ? 'bg-gradient-to-r from-purple-400 to-indigo-400 cursor-not-allowed'
+                    : !hasAdminOrModeratorAccess()
+                    ? 'bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 hover:shadow-xl'
+                } text-white`}
               >
-                {saving ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Saving Expenses...
-                  </>
+                {!hasAdminOrModeratorAccess() ? (
+                  <span className="flex items-center justify-center">
+                    <Lock className="w-5 h-5 mr-2" />
+                    Login Required to Save
+                  </span>
+                ) : saving ? (
+                  <span className="flex items-center justify-center">
+                    <Loader2 className="animate-spin h-5 w-5 mr-2 text-white" />
+                    Saving as {userRole.toUpperCase()}...
+                  </span>
                 ) : (
-                  <>
+                  <span className="flex items-center justify-center">
                     <CheckCircle className="w-5 h-5 mr-2" />
-                    Save Extra Expenses
-                  </>
+                    Save Extra Expenses as {userRole.toUpperCase()}
+                  </span>
                 )}
               </button>
             </div>
           </form>
         </div>
 
-        {/* Edit Form Section with ref */}
+        {/* Edit Form Section */}
         {editingId && (
           <div 
             ref={editFormRef} 
             className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl shadow-xl p-4 md:p-6 mb-6 md:mb-8 border-2 border-purple-300"
             id="edit-form-section"
           >
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
               <div>
-                <h3 className="text-lg md:text-xl font-bold text-purple-700 flex items-center">
-                  <Edit className="w-6 h-6 mr-2" />
+                <h3 className="text-base md:text-lg font-bold text-purple-900 flex items-center">
+                  <Edit className="w-5 h-5 mr-2" />
                   Edit Extra Expense
                 </h3>
                 <p className="text-sm text-purple-600 mt-1">
-                  Update expense details below
+                  Editing as <span className="font-bold text-purple-700">{userRole.toUpperCase()}</span>
                 </p>
               </div>
-              <span className="px-4 py-2 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 text-sm font-medium rounded-full flex items-center shadow-sm">
-                <Edit className="w-4 h-4 mr-1" />
-                Editing Mode
-              </span>
+              <button
+                onClick={handleCancelEdit}
+                className="px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors text-sm flex items-center"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Close Edit
+              </button>
             </div>
+            
+            {/* Messages in Edit Mode */}
+            {error && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg">
+                <div className="flex items-center">
+                  <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                  <span className="text-red-700 font-medium">{error}</span>
+                </div>
+              </div>
+            )}
+            {success && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                <div className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  <span className="text-green-700 font-medium">{success}</span>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-start">
               {/* Expense Name */}
               <div className="md:col-span-3">
-                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-xs md:text-sm font-bold text-purple-700 mb-1">
                   Expense Name *
                 </label>
                 <input
                   type="text"
                   value={editForm.expenseName}
                   onChange={(e) => setEditForm({...editForm, expenseName: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                   required
                   placeholder="e.g., Office Party, Stationery"
                 />
@@ -1475,14 +1669,14 @@ export default function ExtraExpensesPage() {
 
               {/* Amount */}
               <div className="md:col-span-2 mt-3 md:mt-0">
-                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
-                  Amount (BDT) *
+                <label className="block text-xs md:text-sm font-bold text-purple-700 mb-1">
+                  Amount (৳) *
                 </label>
                 <input
                   type="number"
                   value={editForm.amount}
                   onChange={(e) => setEditForm({...editForm, amount: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                   required
                   step="0.01"
                   min="0"
@@ -1492,7 +1686,7 @@ export default function ExtraExpensesPage() {
 
               {/* Date */}
               <div className="md:col-span-2 mt-3 md:mt-0">
-                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-xs md:text-sm font-bold text-purple-700 mb-1">
                   Date *
                 </label>
                 <input
@@ -1500,20 +1694,20 @@ export default function ExtraExpensesPage() {
                   value={editForm.date}
                   max={getTodayDate()}
                   onChange={(e) => setEditForm({...editForm, date: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                   required
                 />
               </div>
 
               {/* Payment Method */}
               <div className="md:col-span-2 mt-3 md:mt-0">
-                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-xs md:text-sm font-bold text-purple-700 mb-1">
                   Payment Method *
                 </label>
                 <select
                   value={editForm.paymentMethod}
                   onChange={(e) => setEditForm({...editForm, paymentMethod: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                   required
                 >
                   <option value="">Select Method</option>
@@ -1527,14 +1721,14 @@ export default function ExtraExpensesPage() {
 
               {/* Note */}
               <div className="md:col-span-2 mt-3 md:mt-0">
-                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-xs md:text-sm font-bold text-purple-700 mb-1">
                   Note (Optional)
                 </label>
                 <input
                   type="text"
                   value={editForm.note}
                   onChange={(e) => setEditForm({...editForm, note: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                   placeholder="Optional note"
                 />
               </div>
@@ -1543,31 +1737,25 @@ export default function ExtraExpensesPage() {
               <div className="md:col-span-1 flex space-x-2 pt-6 md:pt-0 md:items-end">
                 <button
                   onClick={handleUpdateExpense}
-                  disabled={saving}
-                  className={`flex-1 py-3 md:py-2 rounded-lg transition-all duration-300 text-sm md:text-base font-medium ${
+                  disabled={saving || !hasAdminOrModeratorAccess()}
+                  className={`flex-1 py-3 md:py-2 rounded-lg transition-all duration-300 text-sm md:text-base font-bold shadow-md ${
                     saving
-                      ? 'bg-gradient-to-r from-green-400 to-emerald-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-lg'
-                  } text-white flex items-center justify-center`}
+                      ? 'bg-gradient-to-r from-purple-400 to-indigo-400 cursor-not-allowed'
+                      : !hasAdminOrModeratorAccess()
+                      ? 'bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 hover:shadow-lg'
+                  } text-white`}
                 >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {!hasAdminOrModeratorAccess() ? (
+                    'Login Required'
+                  ) : saving ? (
+                    <span className="flex items-center justify-center">
+                      <Loader2 className="animate-spin h-4 w-4 mr-2 text-white" />
                       Updating...
-                    </>
+                    </span>
                   ) : (
-                    <>
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Update
-                    </>
+                    'Update'
                   )}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  className="px-4 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-lg font-medium hover:from-gray-300 hover:to-gray-400 transition-all duration-300 flex items-center"
-                >
-                  <X className="w-4 h-4 mr-1" />
-                  Cancel
                 </button>
               </div>
             </div>
@@ -1575,25 +1763,29 @@ export default function ExtraExpensesPage() {
         )}
 
         {/* Stored Extra Expenses Table Section */}
-        <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 space-y-3 md:space-y-0">
+        <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6 border border-purple-100">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 space-y-3 md:space-y-0">
             <div>
-              <h3 className="text-xl font-bold text-gray-800 flex items-center">
-                <FileText className="w-6 h-6 mr-2 text-purple-600" />
-                {isFilterActive ? 'Filtered Extra Expenses' : 'All Extra Expenses'}
-                <span className="ml-3 px-3 py-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-full text-sm font-medium">
+              <h3 className="text-lg font-bold text-purple-900 flex items-center">
+                <FileText className="w-5 h-5 mr-2 text-purple-600" />
+                Stored Extra Expenses
+                <span className="ml-3 px-2 py-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-full text-xs font-medium">
                   {filteredExpenses.length} records
                 </span>
               </h3>
-              <div className="mt-2 text-sm text-gray-600 flex items-center">
-                <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
-                {isFilterActive ? (
-                  <span>
-                    Showing {filteredExpenses.length} of {storedExpenses.length} expense(s)
+              <div className="mt-1 text-sm text-purple-600 flex items-center gap-2">
+                {isAuthenticated() && (
+                  <span className="px-2 py-0.5 bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 rounded-full text-xs font-medium">
+                    Access as: {userRole}
                   </span>
-                ) : (
-                  <span>Total: {storedExpenses.length} expense(s)</span>
                 )}
+                <span>
+                  {isFilterActive ? (
+                    `Showing ${filteredExpenses.length} of ${storedExpenses.length} expense(s)`
+                  ) : (
+                    `Total: ${storedExpenses.length} expense(s)`
+                  )}
+                </span>
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -1601,18 +1793,25 @@ export default function ExtraExpensesPage() {
               {filteredExpenses.length > 0 && (
                 <button
                   onClick={generatePDF}
-                  className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all duration-300 flex items-center text-sm md:text-base font-medium shadow-lg hover:shadow-xl"
+                  disabled={!isAuthenticated()}
+                  className={`px-3 md:px-4 py-2 rounded-lg transition-all duration-300 text-sm md:text-base font-medium shadow-md ${
+                    !isAuthenticated()
+                      ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed"
+                      : "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 hover:shadow-lg text-white"
+                  }`}
                   title="Download PDF Report"
                 >
-                  <Download className="w-4 h-4 md:w-5 md:h-5 mr-2" />
-                  Download PDF
+                  <span className="flex items-center">
+                    <Download className="w-4 h-4 md:w-5 md:h-5 mr-2" />
+                    {!isAuthenticated() ? 'Login to Download' : 'Download PDF'}
+                  </span>
                 </button>
               )}
               
               {/* Mobile Filters Toggle */}
               <button
                 onClick={toggleMobileFilters}
-                className="md:hidden px-4 py-2.5 bg-gradient-to-r from-gray-200 to-gray-300 hover:from-gray-300 hover:to-gray-400 rounded-xl transition-all duration-300 flex items-center"
+                className="md:hidden px-3 py-2 bg-gradient-to-r from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 text-purple-700 rounded-lg transition-colors flex items-center shadow-sm"
               >
                 <Filter className="w-4 h-4 mr-2" />
                 Filters
@@ -1620,48 +1819,41 @@ export default function ExtraExpensesPage() {
               
               <button
                 onClick={fetchStoredExpenses}
-                disabled={loading}
-                className="px-4 py-2.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-xl hover:from-purple-200 hover:to-pink-200 transition-all duration-300 text-sm md:text-base font-medium flex items-center shadow-sm"
+                disabled={loading || !isAuthenticated()}
+                className={`px-3 md:px-4 py-2 rounded-lg transition-all duration-300 text-sm md:text-base font-medium shadow-md ${
+                  loading || !isAuthenticated()
+                    ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed"
+                    : "bg-gradient-to-r from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 text-purple-700 hover:shadow-lg"
+                }`}
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                {loading ? 'Refreshing...' : 'Refresh'}
+                <span className="flex items-center">
+                  <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  {!isAuthenticated() ? 'Login to Refresh' : loading ? 'Refreshing...' : 'Refresh Data'}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Sort Indicator */}
-          <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 rounded-xl flex items-center">
-            <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-purple-600 mr-3" />
-            <div>
-              <p className="text-sm md:text-base font-medium text-purple-800">
-                <strong>Sorted by:</strong> Date (Newest to Oldest)
-              </p>
-              <p className="text-xs text-purple-600 mt-1">
-                Most recent expenses appear first
-              </p>
-            </div>
-          </div>
-
           {/* Filter Section */}
-          <div className={`${showMobileFilters ? 'block' : 'hidden'} md:block mb-6 p-5 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200`}>
+          <div className={`${showMobileFilters ? 'block' : 'hidden'} md:block mb-4 md:mb-6 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-100`}>
             <div className="flex flex-col space-y-4 md:space-y-0 md:flex-row md:items-center md:space-x-4">
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700 flex items-center">
+                <span className="text-sm font-bold text-purple-700 flex items-center">
                   <Filter className="w-4 h-4 mr-2" />
                   Filter by:
                 </span>
                 <button
                   onClick={toggleMobileFilters}
-                  className="md:hidden text-gray-500 hover:text-gray-700"
+                  className="md:hidden text-purple-500 hover:text-purple-700"
                 >
-                  <X size={18} />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               
               <div className="flex flex-col md:flex-row md:flex-wrap gap-3 md:gap-4">
                 {/* Date Filter */}
                 <div className="w-full md:w-auto">
-                  <label htmlFor="filterDate" className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="filterDate" className="block text-xs md:text-sm font-bold text-purple-700 mb-1">
                     Specific Date
                   </label>
                   <input
@@ -1669,21 +1861,21 @@ export default function ExtraExpensesPage() {
                     id="filterDate"
                     value={filterDate}
                     onChange={(e) => setFilterDate(e.target.value)}
-                    className="w-full md:w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                    className="w-full md:w-40 px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                     max={getTodayDate()}
                   />
                 </div>
 
                 {/* Year Filter */}
                 <div className="w-full md:w-auto">
-                  <label htmlFor="filterYear" className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="filterYear" className="block text-xs md:text-sm font-bold text-purple-700 mb-1">
                     Year
                   </label>
                   <select
                     id="filterYear"
                     value={filterYear}
                     onChange={handleYearChange}
-                    className="w-full md:w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                    className="w-full md:w-32 px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm"
                   >
                     <option value="all">All Years</option>
                     {availableYears.map(year => (
@@ -1694,7 +1886,7 @@ export default function ExtraExpensesPage() {
 
                 {/* Month Filter */}
                 <div className="w-full md:w-auto">
-                  <label htmlFor="filterMonth" className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="filterMonth" className="block text-xs md:text-sm font-bold text-purple-700 mb-1">
                     Month
                   </label>
                   <select
@@ -1702,8 +1894,8 @@ export default function ExtraExpensesPage() {
                     value={filterMonth}
                     onChange={handleMonthChange}
                     disabled={filterYear === "all"}
-                    className={`w-full md:w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm ${
-                      filterYear === "all" ? 'bg-gray-100 cursor-not-allowed' : ''
+                    className={`w-full md:w-40 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${
+                      filterYear === "all" ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'bg-white border-purple-200'
                     }`}
                   >
                     <option value="all">All Months</option>
@@ -1718,9 +1910,8 @@ export default function ExtraExpensesPage() {
                 {/* Active Filters Display */}
                 {isFilterActive && (
                   <div className="flex items-center space-x-2 w-full md:w-auto">
-                    <div className="flex flex-wrap items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2 rounded-xl border border-green-200">
-                      <span className="text-xs text-green-700 flex items-center">
-                        <Filter className="w-3 h-3 mr-1" />
+                    <div className="flex flex-wrap items-center gap-2 bg-gradient-to-r from-purple-100 to-pink-100 px-3 py-2 rounded-lg border border-purple-200">
+                      <span className="text-xs text-purple-700 font-medium">
                         {filterDate && `Date: ${new Date(filterDate).toLocaleDateString()}`}
                         {filterDate && (filterYear !== "all" || filterMonth !== "all") && ", "}
                         {filterYear !== "all" && `Year: ${filterYear}`}
@@ -1729,9 +1920,9 @@ export default function ExtraExpensesPage() {
                       </span>
                       <button
                         onClick={() => resetFilters()}
-                        className="text-green-500 hover:text-green-700 text-sm"
+                        className="text-purple-500 hover:text-purple-700 text-sm"
                       >
-                        ✕
+                        ✕ Clear
                       </button>
                     </div>
                   </div>
@@ -1742,9 +1933,9 @@ export default function ExtraExpensesPage() {
                   <div className="w-full md:w-auto flex md:items-end">
                     <button
                       onClick={resetFilters}
-                      className="w-full md:w-auto px-4 py-2 text-sm text-gray-600 hover:text-gray-900 bg-gradient-to-r from-gray-200 to-gray-300 hover:from-gray-300 hover:to-gray-400 rounded-xl transition-all duration-300"
+                      className="w-full md:w-auto px-3 py-2 text-sm font-medium text-purple-600 hover:text-purple-900 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 rounded-lg transition-colors border border-purple-200"
                     >
-                      Reset Filters
+                      Reset All Filters
                     </button>
                   </div>
                 )}
@@ -1752,12 +1943,11 @@ export default function ExtraExpensesPage() {
 
               {/* Results Count - Desktop only */}
               <div className="hidden md:block ml-auto text-right">
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-purple-600 font-medium">
                   Showing {filteredExpenses.length} of {storedExpenses.length} record(s)
                 </span>
                 {isFilterActive && (
-                  <div className="text-sm font-medium text-green-600 mt-1 flex items-center">
-                    <BarChart3 className="w-4 h-4 mr-1" />
+                  <div className="text-sm font-bold text-green-600 mt-1">
                     Filtered Total: {formatCurrency(calculateFilteredTotal())}
                   </div>
                 )}
@@ -1765,14 +1955,13 @@ export default function ExtraExpensesPage() {
             </div>
             
             {/* Results Count - Mobile only */}
-            <div className="md:hidden mt-4 pt-4 border-t border-gray-200">
+            <div className="md:hidden mt-4 pt-4 border-t border-purple-200">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-purple-600 font-medium">
                   Showing {filteredExpenses.length} of {storedExpenses.length}
                 </span>
                 {isFilterActive && (
-                  <span className="text-sm font-medium text-green-600 flex items-center">
-                    <BarChart3 className="w-4 h-4 mr-1" />
+                  <span className="text-sm font-bold text-green-600">
                     Total: {formatCurrency(calculateFilteredTotal())}
                   </span>
                 )}
@@ -1780,232 +1969,268 @@ export default function ExtraExpensesPage() {
             </div>
           </div>
 
+          {/* Sort Indicator */}
+          <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg flex items-center">
+            <TrendingUp className="w-5 h-5 text-purple-600 mr-2" />
+            <p className="text-xs md:text-sm text-purple-800 font-medium">
+              <strong>Sorted by:</strong> Date (Newest to Oldest) • <strong>Access Level:</strong> {userRole.toUpperCase()}
+            </p>
+          </div>
+
           {loading ? (
             <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 md:h-16 md:w-16 border-b-2 border-purple-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600 text-base font-medium">Loading extra expenses...</p>
-              <p className="text-sm text-gray-500 mt-2">Fetching data from secure admin database</p>
+              <div className="animate-spin rounded-full h-12 w-12 md:h-16 md:w-16 border-b-2 border-purple-600 mx-auto"></div>
+              <p className="mt-4 text-purple-600 text-sm md:text-base font-medium">Loading extra expenses...</p>
+              <p className="text-xs text-purple-500 mt-1">Fetching data as {userRole}</p>
+            </div>
+          ) : !isAuthenticated() ? (
+            <div className="text-center py-12">
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-8 max-w-md mx-auto">
+                <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 flex items-center justify-center">
+                  <Lock className="w-8 h-8 text-purple-600" />
+                </div>
+                <h4 className="text-xl font-bold text-purple-900 mb-3">Authentication Required</h4>
+                <p className="text-purple-600 mb-6">Please login with Admin or Moderator token to view extra expenses.</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => handleTokenInput('adminToken')}
+                    className="px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg transition-all duration-300 font-medium shadow-md"
+                  >
+                    Login as Admin
+                  </button>
+                  <button
+                    onClick={() => handleTokenInput('moderatorToken')}
+                    className="px-4 py-3 bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white rounded-lg transition-all duration-300 font-medium shadow-md"
+                  >
+                    Login as Moderator
+                  </button>
+                </div>
+              </div>
             </div>
           ) : filteredExpenses.length === 0 ? (
             <div className="text-center py-12">
-              <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-purple-100 to-pink-100 flex items-center justify-center mb-4">
-                <FileText className="w-10 h-10 text-purple-500" />
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-8 max-w-md mx-auto">
+                <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 flex items-center justify-center">
+                  <FileText className="w-8 h-8 text-purple-600" />
+                </div>
+                {isFilterActive ? (
+                  <>
+                    <h4 className="text-xl font-bold text-purple-900 mb-3">No Expenses Found</h4>
+                    <p className="text-purple-600 mb-6">No extra expenses found for the selected filters.</p>
+                    <button
+                      onClick={resetFilters}
+                      className="px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg transition-all duration-300 font-medium shadow-md"
+                    >
+                      Reset Filters
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h4 className="text-xl font-bold text-purple-900 mb-3">No Expenses Yet</h4>
+                    <p className="text-purple-600 mb-6">No extra expenses stored yet. Add some using the form above.</p>
+                    <p className="text-sm text-purple-500">
+                      Logged in as: <span className="font-bold">{userRole.toUpperCase()}</span>
+                    </p>
+                  </>
+                )}
               </div>
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                {isFilterActive ? 'No matching expenses found' : 'No expenses recorded yet'}
-              </h4>
-              <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                {isFilterActive 
-                  ? 'Try adjusting your filters or add new expenses using the form above.'
-                  : 'Start by adding some extra expenses using the form above.'
-                }
-              </p>
-              {isFilterActive && (
-                <button
-                  onClick={resetFilters}
-                  className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
-                >
-                  Reset Filters
-                </button>
-              )}
             </div>
           ) : (
             <>
               {/* Mobile Card View */}
               <div className="md:hidden space-y-4">
                 {filteredExpenses.map((expense, index) => (
-                  <div key={expense._id} className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <div key={expense._id} className="bg-gradient-to-br from-white to-purple-50 rounded-xl p-4 border border-purple-100 shadow-sm">
                     <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <h4 className="font-bold text-gray-900">{expense.expenseName}</h4>
-                        <div className="text-xs text-gray-500 mt-1 flex items-center">
-                          <Calendar className="w-3 h-3 mr-1" />
+                      <div>
+                        <h4 className="font-bold text-purple-900">{expense.expenseName}</h4>
+                        <div className="text-xs text-purple-600 mt-1 flex items-center gap-2">
                           {formatDate(expense.date)}
                           {index === 0 && (
-                            <span className="ml-2 px-2 py-0.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 text-xs font-medium rounded">
-                              Newest
+                            <span className="px-2 py-0.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 text-xs font-bold rounded-full">
+                              NEWEST
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">
-                          {formatCurrency(expense.amount)}
-                        </div>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full mt-1 ${
-                          expense.paymentMethod === 'Cash' ? 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800' :
-                          expense.paymentMethod === 'Bank Transfer' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800' :
-                          expense.paymentMethod === 'Mobile Banking' ? 'bg-gradient-to-r from-teal-100 to-emerald-100 text-teal-800' :
-                          expense.paymentMethod === 'Card' ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800' :
-                          'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800'
+                        <div className="font-bold text-green-700 text-lg">{formatCurrency(expense.amount)}</div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          expense.paymentMethod === 'Cash' ? 'bg-yellow-100 text-yellow-800' :
+                          expense.paymentMethod === 'Card' ? 'bg-purple-100 text-purple-800' :
+                          expense.paymentMethod === 'Bank Transfer' ? 'bg-blue-100 text-blue-800' :
+                          'bg-teal-100 text-teal-800'
                         }`}>
-                          {formatPaymentMethod(expense.paymentMethod || 'Cash')}
+                          {expense.paymentMethod}
                         </span>
                       </div>
                     </div>
                     
                     {expense.note && (
-                      <div className="text-sm text-gray-600 mb-3 bg-gray-50 p-2 rounded-lg">
-                        <span className="font-medium text-gray-700">Note:</span> {expense.note}
+                      <div className="text-sm text-purple-600 mb-3 p-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
+                        <span className="font-bold">📝 Note:</span> {expense.note}
                       </div>
                     )}
                     
-                    <div className="flex space-x-2 pt-3 border-t border-gray-200">
+                    <div className="flex space-x-2 pt-3 border-t border-purple-200">
                       <button
                         onClick={() => handleEditExpense(expense)}
-                        disabled={!checkPermission('edit')}
-                        className="flex-1 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 rounded-lg hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                        title={!checkPermission('edit') ? "Admin/Moderator access required" : ""}
+                        disabled={!hasAdminOrModeratorAccess()}
+                        className={`flex-1 py-2.5 rounded-lg transition-all duration-300 text-sm font-medium shadow-sm ${
+                          !hasAdminOrModeratorAccess()
+                            ? 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 text-purple-700 hover:shadow-md'
+                        }`}
                       >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        <span className="flex items-center justify-center">
+                          <Edit className="w-4 h-4 mr-2" />
+                          {!hasAdminOrModeratorAccess() ? 'Login to Edit' : 'Edit'}
+                        </span>
                       </button>
                       <button
                         onClick={() => handleDeleteClick(expense)}
-                        disabled={!checkPermission('delete')}
-                        className="flex-1 py-2.5 bg-gradient-to-r from-red-50 to-pink-50 text-red-600 rounded-lg hover:from-red-100 hover:to-pink-100 transition-all duration-300 text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                        title={!checkPermission('delete') ? "Admin/Moderator access required" : ""}
+                        disabled={!hasAdminOrModeratorAccess()}
+                        className={`flex-1 py-2.5 rounded-lg transition-all duration-300 text-sm font-medium shadow-sm ${
+                          !hasAdminOrModeratorAccess()
+                            ? 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-red-100 to-pink-100 hover:from-red-200 hover:to-pink-200 text-red-700 hover:shadow-md'
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
+                        <span className="flex items-center justify-center">
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {!hasAdminOrModeratorAccess() ? 'Login to Delete' : 'Delete'}
+                        </span>
                       </button>
                     </div>
                   </div>
                 ))}
                 
                 {/* Mobile Summary */}
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 mt-4 border border-purple-100">
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 mt-4 border border-purple-200 shadow-sm">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-purple-800">
+                    <span className="font-bold text-purple-900 text-lg">
                       {isFilterActive ? "Filtered Total" : "Total"}
                     </span>
-                    <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
-                      {formatCurrency(calculateFilteredTotal())}
-                    </span>
+                    <span className="font-bold text-purple-900 text-xl">{formatCurrency(calculateFilteredTotal())}</span>
                   </div>
-                  <div className="text-xs text-purple-600 flex items-center">
-                    <BarChart3 className="w-3 h-3 mr-1" />
-                    {filteredExpenses.length} expense(s)
+                  <div className="text-xs text-purple-600 font-medium">
+                    {filteredExpenses.length} expense(s) • Access: {userRole.toUpperCase()}
                   </div>
                 </div>
               </div>
 
               {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+              <div className="hidden md:block overflow-x-auto rounded-xl border border-purple-100">
+                <table className="min-w-full divide-y divide-purple-100">
+                  <thead className="bg-gradient-to-r from-purple-50 to-pink-50">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">
                         Expense Name
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                        Amount (BDT)
+                      <th className="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">
+                        Amount (৳)
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">
                         Payment Method
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">
                         Note
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-purple-50">
                     {filteredExpenses.map((expense, index) => (
-                      <tr key={expense._id} className="hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-pink-50/50 transition-all duration-300">
+                      <tr key={expense._id} className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 transition-colors duration-200">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 flex items-center justify-center mr-3">
-                              <Wallet className="w-4 h-4 text-purple-600" />
-                            </div>
-                            <div>
-                              <div className="text-sm font-semibold text-gray-900">
-                                {expense.expenseName}
-                              </div>
-                            </div>
+                          <div className="text-sm font-bold text-purple-900">
+                            {expense.expenseName}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 flex items-center">
-                            <Calendar className="w-4 h-4 mr-2 text-purple-500" />
+                          <div className="text-sm font-medium text-purple-900">
                             {formatDate(expense.date)}
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-purple-600">
                             {monthNames[new Date(expense.date).getMonth()]} {new Date(expense.date).getFullYear()}
                           </div>
                           {index === 0 && (
-                            <div className="inline-block mt-1 px-2 py-0.5 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 text-xs font-medium rounded-full flex items-center">
-                              <TrendingUp className="w-3 h-3 mr-1" />
-                              Newest
+                            <div className="inline-block mt-1 px-2 py-0.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 text-xs font-bold rounded-full">
+                              NEWEST
                             </div>
                           )}
                           {index === filteredExpenses.length - 1 && filteredExpenses.length > 1 && (
-                            <div className="inline-block mt-1 px-2 py-0.5 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 text-xs font-medium rounded-full">
-                              Oldest
+                            <div className="inline-block mt-1 px-2 py-0.5 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 text-xs font-bold rounded-full">
+                              OLDEST
                             </div>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">
+                          <div className="text-sm font-bold text-green-700">
                             {formatCurrency(expense.amount)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            expense.paymentMethod === 'Cash' ? 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800' :
-                            expense.paymentMethod === 'Bank Transfer' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800' :
-                            expense.paymentMethod === 'Mobile Banking' ? 'bg-gradient-to-r from-teal-100 to-emerald-100 text-teal-800' :
-                            expense.paymentMethod === 'Card' ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800' :
-                            'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800'
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full ${
+                            expense.paymentMethod === 'Cash' ? 'bg-yellow-100 text-yellow-800' :
+                            expense.paymentMethod === 'Card' ? 'bg-purple-100 text-purple-800' :
+                            expense.paymentMethod === 'Bank Transfer' ? 'bg-blue-100 text-blue-800' :
+                            'bg-teal-100 text-teal-800'
                           }`}>
-                            <CreditCard className="inline w-3 h-3 mr-1" />
-                            {formatPaymentMethod(expense.paymentMethod || 'Cash')}
+                            {expense.paymentMethod}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-600 max-w-xs">
-                            {expense.note || (
-                              <span className="text-gray-400 italic">No note</span>
-                            )}
+                          <div className="text-sm text-purple-600 max-w-xs truncate">
+                            {expense.note || <span className="text-purple-400">-</span>}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex space-x-2">
                             <button
                               onClick={() => handleEditExpense(expense)}
-                              disabled={!checkPermission('edit')}
-                              className="px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 rounded-lg hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                              title={!checkPermission('edit') ? "Admin/Moderator access required" : ""}
+                              disabled={!hasAdminOrModeratorAccess()}
+                              className={`px-4 py-2 rounded-lg transition-all duration-300 font-medium shadow-sm ${
+                                !hasAdminOrModeratorAccess()
+                                  ? 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-400 cursor-not-allowed'
+                                  : 'bg-gradient-to-r from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 text-purple-700 hover:shadow-md'
+                              }`}
                             >
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit
+                              <span className="flex items-center">
+                                <Edit className="w-4 h-4 mr-1" />
+                                {!hasAdminOrModeratorAccess() ? 'Login to Edit' : 'Edit'}
+                              </span>
                             </button>
                             <button
                               onClick={() => handleDeleteClick(expense)}
-                              disabled={!checkPermission('delete')}
-                              className="px-4 py-2 bg-gradient-to-r from-red-50 to-pink-50 text-red-600 rounded-lg hover:from-red-100 hover:to-pink-100 transition-all duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                              title={!checkPermission('delete') ? "Admin/Moderator access required" : ""}
+                              disabled={!hasAdminOrModeratorAccess()}
+                              className={`px-4 py-2 rounded-lg transition-all duration-300 font-medium shadow-sm ${
+                                !hasAdminOrModeratorAccess()
+                                  ? 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-400 cursor-not-allowed'
+                                  : 'bg-gradient-to-r from-red-100 to-pink-100 hover:from-red-200 hover:to-pink-200 text-red-700 hover:shadow-md'
+                              }`}
                             >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
+                              <span className="flex items-center">
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                {!hasAdminOrModeratorAccess() ? 'Login to Delete' : 'Delete'}
+                              </span>
                             </button>
                           </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-gradient-to-r from-gray-50 to-gray-100">
+                  <tfoot className="bg-gradient-to-r from-purple-50 to-pink-50">
                     <tr>
-                      <td colSpan="2" className="px-6 py-4 text-sm font-bold text-gray-900">
+                      <td colSpan="2" className="px-6 py-4 text-sm font-bold text-purple-900">
                         {isFilterActive ? "Filtered Total" : "Total"}
                         {isFilterActive && (
-                          <div className="text-xs font-normal text-gray-500 mt-1">
-                            <Filter className="inline w-3 h-3 mr-1" />
+                          <div className="text-xs font-normal text-purple-600 mt-1">
                             {filterDate && `Date: ${new Date(filterDate).toLocaleDateString()}`}
                             {filterDate && (filterYear !== "all" || filterMonth !== "all") && " • "}
                             {filterYear !== "all" && `Year: ${filterYear}`}
@@ -2013,13 +2238,12 @@ export default function ExtraExpensesPage() {
                             {filterMonth !== "all" && `Month: ${monthNames[parseInt(filterMonth) - 1]}`}
                           </div>
                         )}
-                        <div className="text-xs font-normal text-purple-600 mt-1 flex items-center">
-                          <TrendingUp className="w-3 h-3 mr-1" />
-                          Sorted: Newest to Oldest • Admin View
+                        <div className="text-xs font-normal text-purple-500 mt-1">
+                          Sorted: Newest to Oldest • Access: {userRole.toUpperCase()}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+                        <div className="text-lg font-bold text-purple-900">
                           {formatCurrency(calculateFilteredTotal())}
                         </div>
                         {filteredExpenses.length > 0 && (
@@ -2028,7 +2252,7 @@ export default function ExtraExpensesPage() {
                           </div>
                         )}
                       </td>
-                      <td colSpan="3" className="px-6 py-4 text-sm text-gray-500">
+                      <td colSpan="3" className="px-6 py-4 text-sm text-purple-600 font-medium">
                         <div className="flex items-center">
                           <BarChart3 className="w-4 h-4 mr-2 text-purple-500" />
                           {filteredExpenses.length} expense(s)
@@ -2045,76 +2269,64 @@ export default function ExtraExpensesPage() {
               </div>
               
               {/* Summary Stats */}
-              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100">
-                  <h4 className="text-xs md:text-sm font-medium text-purple-900 flex items-center">
-                    <FileText className="w-4 h-4 mr-2" />
+              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 md:p-6 rounded-xl border border-purple-100 shadow-sm">
+                  <h4 className="text-xs md:text-sm font-bold text-purple-900">
                     {isFilterActive ? "Filtered Expenses" : "Total Expenses"}
                   </h4>
-                  <p className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-violet-600">
-                    {filteredExpenses.length}
-                  </p>
+                  <p className="text-2xl md:text-3xl font-bold text-purple-700 mt-2">{filteredExpenses.length}</p>
+                  <div className="text-xs text-purple-600 mt-2">Managed by {userRole}</div>
                 </div>
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
-                  <h4 className="text-xs md:text-sm font-medium text-green-900 flex items-center">
-                    <Wallet className="w-4 h-4 mr-2" />
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 md:p-6 rounded-xl border border-green-100 shadow-sm">
+                  <h4 className="text-xs md:text-sm font-bold text-green-900">
                     {isFilterActive ? "Filtered Cost" : "Total Cost"}
                   </h4>
-                  <p className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">
-                    {formatCurrency(calculateFilteredTotal())}
-                  </p>
+                  <p className="text-2xl md:text-3xl font-bold text-green-700 mt-2">{formatCurrency(calculateFilteredTotal())}</p>
+                  <div className="text-xs text-green-600 mt-2">Bangladeshi Taka</div>
                 </div>
-                <div className="bg-gradient-to-r from-pink-50 to-rose-50 p-4 rounded-xl border border-pink-100">
-                  <h4 className="text-xs md:text-sm font-medium text-pink-900 flex items-center">
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Average per Expense
-                  </h4>
-                  <p className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-rose-600">
-                    {formatCurrency(filteredExpenses.length > 0 ? calculateFilteredTotal() / filteredExpenses.length : 0)}
-                  </p>
-                </div>
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
-                  <h4 className="text-xs md:text-sm font-medium text-blue-900 flex items-center">
-                    <TrendingUp className="w-4 h-4 mr-2" />
-                    Expense Types
-                  </h4>
-                  <p className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+                <div className="bg-gradient-to-br from-pink-50 to-rose-50 p-4 md:p-6 rounded-xl border border-pink-100 shadow-sm">
+                  <h4 className="text-xs md:text-sm font-bold text-pink-900">Expense Types</h4>
+                  <p className="text-2xl md:text-3xl font-bold text-pink-700 mt-2">
                     {[...new Set(filteredExpenses.map(expense => expense.expenseName))].length}
                   </p>
+                  <div className="text-xs text-pink-600 mt-2">Unique categories</div>
+                </div>
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-4 md:p-6 rounded-xl border border-blue-100 shadow-sm">
+                  <h4 className="text-xs md:text-sm font-bold text-blue-900">Access Level</h4>
+                  <p className="text-2xl md:text-3xl font-bold text-blue-700 mt-2">{userRole.toUpperCase()}</p>
+                  <div className="text-xs text-blue-600 mt-2">Current user role</div>
                 </div>
               </div>
 
               {/* Expense Type Breakdown */}
               {filteredExpenses.length > 0 && (
-                <div className="mt-8">
-                  <h4 className="text-lg md:text-xl font-bold text-gray-800 mb-4 flex items-center">
-                    <BarChart3 className="w-6 h-6 mr-2 text-purple-600" />
+                <div className="mt-8 md:mt-10">
+                  <h4 className="text-base md:text-lg font-bold text-purple-900 mb-4">
                     {isFilterActive ? "Filtered Expense Type Breakdown" : "Expense Type Breakdown"}
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                     {Object.entries(
                       filteredExpenses.reduce((acc, expense) => {
                         acc[expense.expenseName] = (acc[expense.expenseName] || 0) + expense.amount;
                         return acc;
                       }, {})
                     ).map(([expenseName, totalAmount]) => (
-                      <div key={expenseName} className="bg-gradient-to-r from-gray-50 to-white p-4 rounded-xl border border-gray-200">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-700 truncate mr-2">{expenseName}</span>
-                          <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 whitespace-nowrap">
-                            {formatCurrency(totalAmount)}
-                          </span>
+                      <div key={expenseName} className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-100 shadow-sm">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-sm md:text-base font-bold text-purple-900 truncate mr-2">{expenseName}</span>
+                          <span className="text-sm md:text-base font-bold text-purple-900 whitespace-nowrap">{formatCurrency(totalAmount)}</span>
                         </div>
-                        <div className="mt-3 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-full h-2">
+                        <div className="mb-1 flex justify-between text-xs text-purple-600">
+                          <span>{(totalAmount / calculateFilteredTotal() * 100).toFixed(1)}% of total</span>
+                          <span>{((filteredExpenses.filter(e => e.expenseName === expenseName).length / filteredExpenses.length) * 100).toFixed(1)}% by count</span>
+                        </div>
+                        <div className="w-full bg-purple-200 rounded-full h-2">
                           <div 
-                            className="bg-gradient-to-r from-purple-600 to-pink-600 h-2 rounded-full transition-all duration-1000" 
+                            className="bg-gradient-to-r from-purple-600 to-pink-600 h-2 rounded-full" 
                             style={{ 
-                              width: `${Math.min((totalAmount / calculateFilteredTotal()) * 100, 100)}%` 
+                              width: `${(totalAmount / calculateFilteredTotal()) * 100}%` 
                             }}
                           ></div>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-2 text-right">
-                          {((totalAmount / calculateFilteredTotal()) * 100).toFixed(1)}% of total
                         </div>
                       </div>
                     ))}
@@ -2124,42 +2336,22 @@ export default function ExtraExpensesPage() {
             </>
           )}
         </div>
-      </div>
-
-      {/* Add CSS for animations */}
-      <style jsx>{`
-        @keyframes slideIn {
-          from {
-            transform: translateY(-20px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
         
-        .animate-slide-in {
-          animation: slideIn 0.3s ease-out;
-        }
-
-        @keyframes gradientShift {
-          0% {
-            background-position: 0% 50%;
-          }
-          50% {
-            background-position: 100% 50%;
-          }
-          100% {
-            background-position: 0% 50%;
-          }
-        }
-
-        .bg-gradient-shift {
-          background-size: 200% 200%;
-          animation: gradientShift 3s ease infinite;
-        }
-      `}</style>
+        {/* Footer */}
+        <div className="mt-8 pt-6 border-t border-purple-200">
+          <div className="text-center text-sm text-purple-600">
+            <p>Extra Expense Management System • {new Date().getFullYear()}</p>
+            <p className="mt-1">Access Level: <span className="font-bold text-purple-700">{userRole.toUpperCase()}</span></p>
+            <div className="mt-2 flex flex-wrap justify-center gap-4 text-xs text-purple-500">
+              <span>Total Expenses: {storedExpenses.length}</span>
+              <span>•</span>
+              <span>Total Amount: {formatCurrency(calculateTotal())}</span>
+              <span>•</span>
+              <span>Last Updated: {new Date().toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

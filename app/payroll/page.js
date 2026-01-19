@@ -1922,24 +1922,7 @@ const handleCreatePayroll = async (e) => {
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 mt-4 md:mt-0">
-            <button onClick={() => router.push('/dashboard')} className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-2 text-sm font-medium">
-              <Home size={18} /> Dashboard
-            </button>
-            <button onClick={handleRefresh} disabled={loading.payrolls} className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-2 text-sm font-medium disabled:opacity-50">
-              <RefreshCw size={18} className={loading.payrolls ? 'animate-spin' : ''} /> Refresh
-            </button>
-            {userRole === 'admin' && (
-              <button onClick={() => toast.info('PDF Export feature coming soon')} className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl hover:opacity-90 flex items-center gap-2 text-sm font-medium">
-                <DownloadCloud size={18} /> Export All PDF
-              </button>
-            )}
-            <button onClick={handleLogout} className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl hover:opacity-90 flex items-center gap-2 text-sm font-medium">
-              <LogOut size={18} /> Logout
-            </button>
-          </div>
+          </div> 
         </div>
 
         {/* Employee View Banner */}
@@ -2349,23 +2332,7 @@ const handleCreatePayroll = async (e) => {
       {showDetailsModal && renderDetailsModal()}
       {showEmployeeDetails && renderEmployeeDetailsModal()}
       {showMonthYearViewModal && renderMonthYearViewModal()}
-      {showMonthYearDetails && renderMonthYearDetailsModal()}
-
-      {/* Footer */}
-      <div className="mt-8 text-center text-gray-500 text-sm">
-        <p>Payroll Management System • All data stored in MongoDB • Version 1.0</p>
-        <p className="mt-1">
-          {apiConnected ? (
-            <span className="text-green-600 flex items-center justify-center gap-1">
-              <Server size={12} /> MongoDB Connected
-            </span>
-          ) : (
-            <span className="text-red-600 flex items-center justify-center gap-1">
-              <WifiOff size={12} /> Offline Mode
-            </span>
-          )}
-        </p>
-      </div>
+      {showMonthYearDetails && renderMonthYearDetailsModal()} 
     </div>
   )
 }
