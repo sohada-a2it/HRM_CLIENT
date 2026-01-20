@@ -1172,7 +1172,7 @@ export default function DashboardPage() {
             <button
               onClick={downloadMonthlyPDF}
               disabled={!pdfReady || downloadingPDF.monthly || dashboardData.isLoading || dashboardData.monthlySummary.categoryBreakdown.length === 0}
-              className="flex items-center px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-purple-500 rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FileDown className={`w-4 h-4 mr-2 ${downloadingPDF.monthly ? 'animate-spin' : ''}`} />
               {downloadingPDF.monthly ? 'Generating PDF...' : 'Download PDF'}

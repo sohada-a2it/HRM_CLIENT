@@ -306,7 +306,7 @@ useEffect(() => {
       name: "Payroll", 
       icon: <Wallet size={20} />, 
       path: "/payroll", 
-      roles: ['admin', 'moderator', 'employee'],
+      roles: ['admin', 'employee'],
       showForAll: true
     },
     { 

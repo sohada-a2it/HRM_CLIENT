@@ -97,6 +97,8 @@ const [form, setForm] = useState({
   status: "active",
   department: "IT",
   phone: "",
+  workLocationType: "onsite",
+  workArrangement: "full-time",
   joiningDate: new Date().toISOString().split('T')[0],
   profilePicture: null,
   employeeId: "", // Optional - খালি রাখলে auto generate হবে
@@ -368,6 +370,8 @@ const handleSubmit = async (e) => {
       status: form.status,
       department: form.department,
       phone: form.phone,
+      workLocationType: form.workLocationType || "onsite",
+      workArrangement: form.workArrangement || "full-time",
       joiningDate: form.joiningDate || new Date().toISOString().split('T')[0],
       salaryType: form.salaryType || "monthly",
       rate: Number(form.rate) || Number(form.salary) || 0,
@@ -597,6 +601,8 @@ const handleSubmit = async (e) => {
       status: "active",
       department: "IT",
       phone: "",
+      workLocationType: "onsite",
+      workArrangement: "full-time",
       joiningDate: new Date().toISOString().split('T')[0],
       profilePicture: null,
       employeeId: "",
@@ -659,6 +665,8 @@ const handleSubmit = async (e) => {
       status: user.status || "active",
       department: user.department || "IT",
       phone: user.phone || "",
+      workLocationType: user.workLocationType || "onsite",
+      workArrangement: user.workArrangement || "full-time",
       joiningDate: user.joiningDate || new Date().toISOString().split('T')[0],
       profilePicture: user.profilePicture || user.picture || null,
       employeeId: user.employeeId || "",
@@ -2332,6 +2340,13 @@ const handleSubmit = async (e) => {
               <Phone className="w-4 h-4 mr-3 text-blue-500" />
               <span>{user.phone || "Not provided"}</span>
             </div>
+            {/* User View Modal এ এই অংশ পরিবর্তন করুন */}
+            <div className="flex items-center text-gray-700">
+              <Briefcase className="w-4 h-4 mr-3 text-green-500" />
+              <span className="capitalize">
+                {user.workArrangement || "full-time"} • {user.workLocationType || "onsite"}
+              </span>
+            </div>
             <div className="flex items-center text-gray-700">
               <Building className="w-4 h-4 mr-3 text-green-500" />
               <span>{user.department || "Not assigned"}</span>
@@ -3008,6 +3023,42 @@ const handleSubmit = async (e) => {
                         placeholder="Phone Number"
                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
                       />
+                      {/* পুরানো workType এর জায়গায় */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Work Location
+                        </label>
+                        <select
+                          name="workLocationType"
+                          value={form.workLocationType || "onsite"}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
+                        >
+                          <option value="onsite">Onsite</option>
+                          <option value="remote">Remote</option>
+                          <option value="hybrid">Hybrid</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Work Arrangement
+                        </label>
+                        <select
+                          name="workArrangement"
+                          value={form.workArrangement || "full-time"}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
+                        >
+                          <option value="full-time">Full-time</option>
+                          <option value="part-time">Part-time</option>
+                          <option value="contractual">Contractual</option>
+                          <option value="freelance">Freelance</option>
+                          <option value="internship">Internship</option>
+                          <option value="temporary">Temporary</option>
+                        </select>
+                      </div>
+                    </div>
                       <select
                         name="department"
                         value={form.department}
@@ -3042,7 +3093,9 @@ const handleSubmit = async (e) => {
     className="px-3 py-1 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
   />
 </div>
-                      
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Salary (৳)
+                      </label>
                       <input
                         name="salary"
                         type="number"
@@ -3056,24 +3109,27 @@ const handleSubmit = async (e) => {
                   </div>
                   
                   {/* Contract Type for Employee & Moderator */}
-                  {(form.role === 'employee' || form.role === 'moderator') && (
+                  {/* {(form.role === 'employee' || form.role === 'moderator') && (
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
                         Contract Type
                       </label>
-                      <select
-                        name="contractType"
-                        value={form.contractType}
+                         <select
+                        name="workType"
+                        value={form.workType || "full-time"}  // default value
                         onChange={handleChange}
                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm transition-colors hover:border-purple-300"
                       >
-                        <option value="permanent">Permanent</option>
+                        <option value="full-time">Full-time</option>
+                        <option value="part-time">Part-time</option>
                         <option value="contractual">Contractual</option>
-                        <option value="probation">Probation</option>
-                        <option value="intern">Intern</option>
+                        <option value="freelance">Freelance</option>
+                        <option value="internship">Internship</option>
+                        <option value="temporary">Temporary</option>
+                        <option value="remote">Remote</option>
                       </select>
                     </div>
-                  )}
+                  )} */}
                 </div>
 
                 {/* Advanced Settings Toggle */}
