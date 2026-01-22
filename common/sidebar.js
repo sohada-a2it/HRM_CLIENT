@@ -310,6 +310,13 @@ useEffect(() => {
       showForAll: true
     },
     { 
+      name: "office Schedule", 
+      icon: <Wallet size={20} />, 
+      path: "/officeSchedule", 
+      roles: ['admin', 'employee'],
+      showForAll: true
+    },
+    { 
       name: "Holiday", 
       icon: <Award size={20} />, 
       path: "/holiday", 

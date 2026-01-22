@@ -35,13 +35,20 @@ import {
   Camera,
   Trash2,
   Image as ImageIcon,
-  Loader2
+  Loader2,
+  Search,
+  ExternalLink,
+  MoreVertical,
+  Bell,
+  AlertTriangle,
+  Settings
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
-export default function page() {
+export default function ProfilePage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [activeTab, setActiveTab] = useState("personal");
@@ -52,17 +59,54 @@ export default function page() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showUploadConfirm, setShowUploadConfirm] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const fileInputRef = useRef(null);
   const router = useRouter();
 
-  // ইউজারের টাইপ চেক করার জন্য
+  // Helper to get user type from role
+  const getUserTypeFromRole = (role) => {
+    switch(role) {
+      case 'admin':
+      case 'superAdmin':
+        return 'admin';
+      case 'employee':
+        return 'employee';
+      case 'moderator':
+        return 'moderator';
+      default:
+        return 'user';
+    }
+  };
+
+  // Improved getUserType function
   const getUserType = () => {
     if (localStorage.getItem("adminToken")) return "admin";
     if (localStorage.getItem("employeeToken")) return "employee";
+    if (localStorage.getItem("moderatorToken")) return "moderator";
     return null;
   };
 
-  // নতুন Model এর জন্য updated profile form
+  // Get current token based on user type
+  const getCurrentToken = () => {
+    const userType = getUserType();
+    switch(userType) {
+      case 'admin':
+        return localStorage.getItem("adminToken");
+      case 'employee':
+        return localStorage.getItem("employeeToken");
+      case 'moderator':
+        return localStorage.getItem("moderatorToken");
+      default:
+        return null;
+    }
+  };
+
+  // New Model এর জন্য updated profile form
   const [profileForm, setProfileForm] = useState({
     firstName: "",
     lastName: "",
@@ -73,26 +117,61 @@ export default function page() {
     employeeId: "",
     salaryType: "",
     rate: "",
-    basicSalary: "", // নতুন field
+    basicSalary: "",
     joiningDate: "",
-    // Admin-specific fields (নতুন Model থেকে)
+    picture: "",
+    
+    // Admin-specific fields
     companyName: "",
-    adminPosition: "", // আগেরটা position ছিল
+    adminPosition: "",
     adminLevel: "",
     permissions: [],
     isSuperAdmin: false,
     canManageUsers: false,
     canManagePayroll: false,
-    // Employee-specific fields (নতুন Model থেকে)
+    
+    // Moderator-specific fields
+    moderatorLevel: "",
+    moderatorScope: [],
+    canModerateUsers: false,
+    canModerateContent: true,
+    canViewReports: true,
+    canManageReports: false,
+    moderationLimits: {
+      dailyActions: 50,
+      warningLimit: 3,
+      canBanUsers: false,
+      canDeleteContent: true,
+      canEditContent: true,
+      canWarnUsers: true
+    },
+    
+    // Employee-specific fields
     managerId: "",
     attendanceId: "",
     shiftTiming: {
       start: "09:00",
       end: "17:00"
     },
-    // অন্যান্য fields
-    salary: "", // আপনার original থেকে
-    salaryRule: "" // আপনার original থেকে
+    
+    // Work type fields
+    workLocationType: "onsite",
+    workArrangement: "full-time",
+    contractType: "",
+    
+    // Bank details
+    bankDetails: {
+      bankName: "",
+      accountNumber: "",
+      accountHolderName: "",
+      branchName: "",
+      routingNumber: "",
+      accountType: "savings",
+      swiftCode: "",
+      isVerified: false,
+      verifiedAt: null,
+      updatedAt: null
+    }
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -101,20 +180,17 @@ export default function page() {
     confirmPassword: ""
   });
 
-  // Fetch user profile - Updated for new model
+  // Fetch user profile - Unified for all roles
   const fetchUserProfile = async () => {
     try {
-      const userType = getUserType();
-      const token = userType === "admin" 
-        ? localStorage.getItem("adminToken") 
-        : localStorage.getItem("employeeToken");
+      const token = getCurrentToken();
       
       if (!token) {
         router.push("/");
         return;
       }
 
-      // নতুন Model এ সব user একই endpoint থেকে fetch হবে
+      // Unified endpoint for all users
       const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
 
       console.log("Fetching profile from:", endpoint);
@@ -127,35 +203,37 @@ export default function page() {
       });
 
       if (response.status === 401) {
-        if (userType === "admin") {
-          localStorage.removeItem("adminToken");
-        } else {
-          localStorage.removeItem("employeeToken");
-        }
+        // Clear all tokens and redirect
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("employeeToken");
+        localStorage.removeItem("moderatorToken");
         router.push("/");
         return;
       }
 
       const data = await response.json();
       
-      if (data.user || (data && typeof data === 'object' && (data.email || data._id))) {
+      if (data.user || (data && typeof data === 'object' && data._id)) {
         const userData = data.user || data;
         
-        // Check for locally stored picture
-        const currentUserType = getUserType();
+        // Get user type based on role
+        const currentUserType = getUserTypeFromRole(userData.role);
         const localUserKey = `${currentUserType}UserData`;
         const localData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
         
-        // Picture persistence improvement
+        // Picture persistence
         const pictureToUse = userData.picture || localData.picture || null;
         
-        setUser({
+        const userObj = {
           ...userData,
           picture: pictureToUse
-        });
+        };
         
-        // নতুন Model এর জন্য updated profile form
-        setProfileForm({
+        setUser(userObj);
+        
+        // Unified profile form for all roles
+        const formData = {
+          // Basic info
           firstName: userData.firstName || "",
           lastName: userData.lastName || "",
           phone: userData.phone || "",
@@ -165,29 +243,67 @@ export default function page() {
           employeeId: userData.employeeId || "",
           salaryType: userData.salaryType || "",
           rate: userData.rate || "",
-          basicSalary: userData.basicSalary || userData.salary || "", // নতুন field
+          basicSalary: userData.basicSalary || userData.salary || "",
           joiningDate: userData.joiningDate || "",
+          picture: userData.picture || "",
+          
           // Admin-specific fields
           companyName: userData.companyName || "",
-          adminPosition: userData.adminPosition || userData.position || "", // backward compatibility
+          adminPosition: userData.adminPosition || userData.position || "",
           adminLevel: userData.adminLevel || "",
           permissions: userData.permissions || [],
           isSuperAdmin: userData.isSuperAdmin || false,
           canManageUsers: userData.canManageUsers || false,
           canManagePayroll: userData.canManagePayroll || false,
+          
+          // Moderator-specific fields
+          moderatorLevel: userData.moderatorLevel || "",
+          moderatorScope: userData.moderatorScope || [],
+          canModerateUsers: userData.canModerateUsers || false,
+          canModerateContent: userData.canModerateContent !== undefined ? userData.canModerateContent : true,
+          canViewReports: userData.canViewReports !== undefined ? userData.canViewReports : true,
+          canManageReports: userData.canManageReports || false,
+          moderationLimits: userData.moderationLimits || {
+            dailyActions: 50,
+            warningLimit: 3,
+            canBanUsers: false,
+            canDeleteContent: true,
+            canEditContent: true,
+            canWarnUsers: true
+          },
+          
           // Employee-specific fields
           managerId: userData.managerId || "",
           attendanceId: userData.attendanceId || "",
           shiftTiming: userData.shiftTiming || { start: "09:00", end: "17:00" },
-          // অন্যান্য fields
-          salary: userData.salary || "",
-          salaryRule: userData.salaryRule || ""
-        });
+          
+          // Work type fields
+          workLocationType: userData.workLocationType || "onsite",
+          workArrangement: userData.workArrangement || "full-time",
+          contractType: userData.contractType || "",
+          
+          // Bank details
+          bankDetails: userData.bankDetails || {
+            bankName: "",
+            accountNumber: "",
+            accountHolderName: "",
+            branchName: "",
+            routingNumber: "",
+            accountType: "savings",
+            swiftCode: "",
+            isVerified: false,
+            verifiedAt: null,
+            updatedAt: null
+          }
+        };
+        
+        setProfileForm(formData);
 
         console.log("User data loaded:", {
           role: userData.role,
-          hasPicture: !!pictureToUse,
-          isAdmin: userData.role === 'admin'
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          hasPicture: !!pictureToUse
         });
       } else {
         console.error("Invalid response data:", data);
@@ -204,10 +320,7 @@ export default function page() {
   // Fetch user sessions
   const fetchUserSessions = async () => {
     try {
-      const userType = getUserType();
-      const token = userType === "admin" 
-        ? localStorage.getItem("adminToken") 
-        : localStorage.getItem("employeeToken");
+      const token = getCurrentToken();
       
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/my-sessions`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -258,6 +371,12 @@ export default function page() {
         picture: previewUrl
       }));
       
+      // Update profile form
+      setProfileForm(prev => ({
+        ...prev,
+        picture: previewUrl
+      }));
+      
       // Save to localStorage for persistence
       const userType = getUserType();
       const localUserKey = `${userType}UserData`;
@@ -289,10 +408,7 @@ export default function page() {
     setUploadProgress(10);
 
     try {
-      const userType = getUserType();
-      const token = userType === "admin" 
-        ? localStorage.getItem("adminToken") 
-        : localStorage.getItem("employeeToken");
+      const token = getCurrentToken();
       
       if (!token) {
         throw new Error('No authentication token found');
@@ -341,6 +457,11 @@ export default function page() {
           ...prev,
           picture: pictureUrl
         }));
+
+        setProfileForm(prev => ({
+          ...prev,
+          picture: pictureUrl
+        }));
         
         // Also save to localStorage as backup
         const userType = getUserType();
@@ -374,6 +495,11 @@ export default function page() {
         
         // Update state
         setUser(prev => ({
+          ...prev,
+          picture: localUrl
+        }));
+
+        setProfileForm(prev => ({
           ...prev,
           picture: localUrl
         }));
@@ -418,10 +544,7 @@ export default function page() {
     if (!confirm("Are you sure you want to remove your profile picture? This will delete it from Cloudinary.")) return;
 
     try {
-      const userType = getUserType();
-      const token = userType === "admin" 
-        ? localStorage.getItem("adminToken") 
-        : localStorage.getItem("employeeToken");
+      const token = getCurrentToken();
       
       if (!token) {
         throw new Error('No authentication token found');
@@ -468,6 +591,11 @@ export default function page() {
           ...prev,
           picture: null
         }));
+
+        setProfileForm(prev => ({
+          ...prev,
+          picture: ""
+        }));
         
         // Also remove from localStorage
         const userType = getUserType();
@@ -495,6 +623,11 @@ export default function page() {
         setUser(prev => ({
           ...prev,
           picture: null
+        }));
+
+        setProfileForm(prev => ({
+          ...prev,
+          picture: ""
         }));
         
         // Remove from localStorage
@@ -534,6 +667,11 @@ export default function page() {
         ...prev,
         picture: localData.picture
       }));
+
+      setProfileForm(prev => ({
+        ...prev,
+        picture: localData.picture
+      }));
     } else if (user?.picture && !user.picture.includes('data:') && !user.picture.includes('preview')) {
       // Keep server picture if exists
     } else {
@@ -541,72 +679,248 @@ export default function page() {
         ...prev,
         picture: null
       }));
+
+      setProfileForm(prev => ({
+        ...prev,
+        picture: ""
+      }));
     }
   };
 
-  // Update profile - Updated for new model
-  const handleUpdateProfile = async () => {
-    try {
-      const userType = getUserType();
-      const token = userType === "admin" 
-        ? localStorage.getItem("adminToken") 
-        : localStorage.getItem("employeeToken");
+  // Fixed Profile Update Function
+const handleUpdateProfile = async () => {
+  // Prevent multiple clicks
+  if (updating) return;
+  
+  setUpdating(true);
+  
+  console.log("=== PROFILE UPDATE START ===");
+  console.log("User Role:", user?.role);
+  console.log("Profile Form Data to Update:", profileForm);
+  
+  try {
+    const token = getCurrentToken();
+    
+    if (!token) {
+      toast.error("No authentication token found. Please login again.");
+      localStorage.clear();
+      router.push("/");
+      return;
+    }
+
+    // Use correct endpoint based on user role
+    let endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/updateProfile`;
+    
+    console.log("API Endpoint:", endpoint);
+    console.log("Token exists:", !!token);
+
+    // Basic validation
+    if (!profileForm.firstName?.trim()) {
+      toast.error("First name is required");
+      setUpdating(false);
+      return;
+    }
+
+    if (!profileForm.lastName?.trim()) {
+      toast.error("Last name is required");
+      setUpdating(false);
+      return;
+    }
+
+    // Prepare update data
+    const updateData = {
+      // Personal Information
+      firstName: profileForm.firstName.trim(),
+      lastName: profileForm.lastName.trim(),
+      phone: profileForm.phone?.trim() || "",
+      address: profileForm.address?.trim() || "",
       
-      // নতুন Model এ সব user একই endpoint এ update হবে
-      const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/updateProfile`;
+      // Professional Information
+      department: profileForm.department?.trim() || "",
+      designation: profileForm.designation?.trim() || "",
+      employeeId: profileForm.employeeId?.trim() || "",
+      joiningDate: profileForm.joiningDate || "",
+      
+      // Work Information
+      workLocationType: profileForm.workLocationType || "onsite",
+      workArrangement: profileForm.workArrangement || "full-time",
+      contractType: profileForm.contractType || "",
+      
+      // Salary Information
+      salaryType: profileForm.salaryType || "",
+      rate: profileForm.rate ? parseFloat(profileForm.rate) : 0,
+      basicSalary: profileForm.basicSalary ? parseFloat(profileForm.basicSalary) : 0,
+      salary: profileForm.basicSalary ? parseFloat(profileForm.basicSalary) : 0,
+      
+      // Profile Picture
+      picture: profileForm.picture || "",
+      
+      // Status
+      status: user?.status || 'active',
+      isActive: user?.isActive !== undefined ? user.isActive : true
+    };
 
-      const updateData = {
-        firstName: profileForm.firstName,
-        lastName: profileForm.lastName,
-        phone: profileForm.phone,
-        address: profileForm.address,
-        department: profileForm.department,
-        designation: profileForm.designation,
-        employeeId: profileForm.employeeId,
-        salaryType: profileForm.salaryType,
-        rate: profileForm.rate,
-        basicSalary: profileForm.basicSalary, // নতুন field
-        joiningDate: profileForm.joiningDate,
-        salary: profileForm.salary, // আপনার original থেকে
-        // Role-specific fields
-        ...(user?.role === "admin" && {
-          companyName: profileForm.companyName,
-          adminPosition: profileForm.adminPosition,
-          adminLevel: profileForm.adminLevel,
-          permissions: profileForm.permissions,
-          isSuperAdmin: profileForm.isSuperAdmin,
-          canManageUsers: profileForm.canManageUsers,
-          canManagePayroll: profileForm.canManagePayroll
-        }),
-        ...(user?.role === "employee" && {
-          managerId: profileForm.managerId,
-          attendanceId: profileForm.attendanceId,
-          shiftTiming: profileForm.shiftTiming
-        })
-      };
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(updateData)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Profile updated successfully!");
-        setEditMode(false);
-        fetchUserProfile();
-      } else {
-        toast.error(data.message || "Failed to update profile");
-      }
-    } catch (error) {
-      toast.error("Network error. Please try again.");
+    // Add role-specific fields based on user's role
+    if (user?.role === "admin" || user?.role === "superAdmin") {
+      updateData.companyName = profileForm.companyName?.trim() || "";
+      updateData.adminPosition = profileForm.adminPosition?.trim() || "";
+      updateData.adminLevel = profileForm.adminLevel || "";
+      updateData.permissions = profileForm.permissions || [];
+      updateData.isSuperAdmin = profileForm.isSuperAdmin || false;
+      updateData.canManageUsers = profileForm.canManageUsers !== undefined ? profileForm.canManageUsers : false;
+      updateData.canManagePayroll = profileForm.canManagePayroll !== undefined ? profileForm.canManagePayroll : false;
     }
-  };
+
+    if (user?.role === "moderator") {
+      updateData.moderatorLevel = profileForm.moderatorLevel || "";
+      updateData.moderatorScope = profileForm.moderatorScope || [];
+      updateData.canModerateUsers = profileForm.canModerateUsers !== undefined ? profileForm.canModerateUsers : false;
+      updateData.canModerateContent = profileForm.canModerateContent !== undefined ? profileForm.canModerateContent : true;
+      updateData.canViewReports = profileForm.canViewReports !== undefined ? profileForm.canViewReports : true;
+      updateData.canManageReports = profileForm.canManageReports !== undefined ? profileForm.canManageReports : false;
+      updateData.moderationLimits = profileForm.moderationLimits || {
+        dailyActions: 50,
+        warningLimit: 3,
+        canBanUsers: false,
+        canDeleteContent: true,
+        canEditContent: true,
+        canWarnUsers: true
+      };
+      updateData.permissions = profileForm.permissions || [];
+    }
+
+    if (user?.role === "employee") {
+      // FIX: Only send managerId if it's a valid ObjectId or has value
+      if (profileForm.managerId && profileForm.managerId.trim() !== "") {
+        updateData.managerId = profileForm.managerId.trim();
+      }
+      
+      // FIX: Only send attendanceId if it has value
+      if (profileForm.attendanceId && profileForm.attendanceId.trim() !== "") {
+        updateData.attendanceId = profileForm.attendanceId.trim();
+      }
+      
+      // Send shiftTiming only if it exists
+      if (profileForm.shiftTiming) {
+        updateData.shiftTiming = profileForm.shiftTiming;
+      }
+    }
+
+    // Bank Details (if provided)
+    if (profileForm.bankDetails && 
+        (profileForm.bankDetails.bankName || profileForm.bankDetails.accountNumber)) {
+      updateData.bankDetails = {
+        bankName: profileForm.bankDetails.bankName?.trim() || "",
+        accountNumber: profileForm.bankDetails.accountNumber?.toString() || "",
+        accountHolderName: profileForm.bankDetails.accountHolderName?.trim() || "",
+        branchName: profileForm.bankDetails.branchName?.trim() || "",
+        routingNumber: profileForm.bankDetails.routingNumber?.toString() || "",
+        accountType: profileForm.bankDetails.accountType || "savings",
+        swiftCode: profileForm.bankDetails.swiftCode || ""
+      };
+    }
+
+    // Clean up undefined/null/empty string values
+    const cleanUpdateData = Object.keys(updateData).reduce((acc, key) => {
+      const value = updateData[key];
+      
+      // Skip empty strings, null, undefined
+      if (value !== undefined && value !== null && value !== "") {
+        // For nested objects, check if they have any properties
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          const hasProperties = Object.keys(value).some(k => 
+            value[k] !== undefined && value[k] !== null && value[k] !== ""
+          );
+          if (hasProperties) {
+            acc[key] = value;
+          }
+        } else if (Array.isArray(value)) {
+          // Keep empty arrays
+          acc[key] = value;
+        } else {
+          acc[key] = value;
+        }
+      }
+      return acc;
+    }, {});
+
+    console.log("📤 Sending Update Data:", cleanUpdateData);
+
+    // Send request to server
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(cleanUpdateData)
+    });
+
+    console.log("📥 Response Status:", response.status);
+
+    const result = await response.json();
+    console.log("📥 Response Data:", result);
+
+    if (response.ok) {
+      if (result.success || result.user) {
+        toast.success(result.message || "Profile updated successfully!");
+        
+        // Update local user state with new data
+        if (result.user) {
+          const updatedUser = {
+            ...user,
+            ...result.user,
+            picture: result.user.picture || user.picture
+          };
+          setUser(updatedUser);
+        }
+        
+        setEditMode(false);
+        
+        // Refresh user data
+        setTimeout(() => {
+          fetchUserProfile();
+        }, 1000);
+        
+      } else {
+        toast.error(result.message || "Failed to update profile");
+      }
+    } else {
+      // Handle specific error cases
+      if (response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        localStorage.clear();
+        router.push("/");
+      } else if (response.status === 400) {
+        // Show specific validation error from server
+        if (result.message && result.message.includes('Validation failed')) {
+          const validationError = result.message.split(': ')[1] || result.message;
+          toast.error(`Validation Error: ${validationError}`);
+        } else {
+          toast.error(result.message || "Invalid data. Please check your inputs.");
+        }
+      } else if (response.status === 403) {
+        toast.error("You don't have permission to update this profile.");
+      } else {
+        toast.error(result.message || `Update failed (Status: ${response.status})`);
+      }
+    }
+    
+  } catch (error) {
+    console.error("❌ Profile update error:", error);
+    
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      toast.error("Network error. Please check your connection and try again.");
+    } else if (error.name === 'SyntaxError') {
+      toast.error("Server response error. Please try again.");
+    } else {
+      toast.error(error.message || "An unexpected error occurred.");
+    }
+  } finally {
+    setUpdating(false);
+    console.log("=== PROFILE UPDATE END ===");
+  }
+};
 
   // Change password
   const handleChangePassword = async () => {
@@ -621,12 +935,8 @@ export default function page() {
     }
 
     try {
-      const userType = getUserType();
-      const token = userType === "admin" 
-        ? localStorage.getItem("adminToken") 
-        : localStorage.getItem("employeeToken");
+      const token = getCurrentToken();
       
-      // নতুন Model এ সব user একই endpoint এ password change হবে
       const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/change-password`;
 
       const response = await fetch(endpoint, {
@@ -667,10 +977,7 @@ export default function page() {
     if (!confirm("Are you sure you want to logout from all devices?")) return;
 
     try {
-      const userType = getUserType();
-      const token = userType === "admin" 
-        ? localStorage.getItem("adminToken") 
-        : localStorage.getItem("employeeToken");
+      const token = getCurrentToken();
       
       const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/logout-all`;
 
@@ -700,10 +1007,7 @@ export default function page() {
     if (!confirm("Terminate this session?")) return;
 
     try {
-      const userType = getUserType();
-      const token = userType === "admin" 
-        ? localStorage.getItem("adminToken") 
-        : localStorage.getItem("employeeToken");
+      const token = getCurrentToken();
       
       const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/terminate-session/${sessionId}`;
 
@@ -726,6 +1030,104 @@ export default function page() {
     } catch (error) {
       toast.error("Network error. Please try again.");
     }
+  };
+
+  // Admin: Search users
+  const handleSearchUsers = async () => {
+    if (!searchQuery.trim()) {
+      toast.error("Please enter a search query");
+      return;
+    }
+
+    try {
+      const token = getCurrentToken();
+      
+      const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/search?query=${encodeURIComponent(searchQuery)}`;
+
+      const response = await fetch(endpoint, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSearchResults(data.users || []);
+          setShowSearchResults(true);
+        } else {
+          toast.error(data.message || "Search failed");
+        }
+      } else {
+        toast.error("Failed to search users");
+      }
+    } catch (error) {
+      toast.error("Network error. Please try again.");
+    }
+  };
+
+  // Admin: Delete user
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    setDeleteLoading(true);
+
+    try {
+      const token = getCurrentToken();
+      
+      const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/${userToDelete._id}`;
+
+      const response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          toast.success(`User "${userToDelete.email}" deleted successfully!`);
+          
+          // Remove from search results if exists
+          setSearchResults(prev => prev.filter(u => u._id !== userToDelete._id));
+          
+          // Close modal
+          setShowDeleteModal(false);
+          setUserToDelete(null);
+        } else {
+          toast.error(data.message || "Failed to delete user");
+        }
+      } else {
+        const data = await response.json();
+        toast.error(data.message || "Failed to delete user");
+      }
+    } catch (error) {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Open delete confirmation modal
+  const openDeleteModal = (userData) => {
+    // Prevent self-deletion
+    if (userData._id === user?._id) {
+      toast.error("You cannot delete your own account");
+      return;
+    }
+
+    // Prevent deleting super admin if not super admin
+    if ((userData.isSuperAdmin || userData.adminLevel === 'super') && 
+        (!user?.isSuperAdmin && user?.adminLevel !== 'super')) {
+      toast.error("Cannot delete super admin without super admin privileges");
+      return;
+    }
+
+    setUserToDelete(userData);
+    setShowDeleteModal(true);
   };
 
   const formatDate = (dateString) => {
@@ -762,14 +1164,41 @@ export default function page() {
     return user?.picture && user.picture !== null && user.picture !== '' && user.picture !== 'null' && user.picture !== 'undefined';
   };
 
-  // Check if user is admin
+  // Check user role
   const isAdmin = () => {
-    return user?.role === "admin";
+    return user?.role === "admin" || user?.role === "superAdmin";
   };
 
-  // Check if user is employee
+  const isModerator = () => {
+    return user?.role === "moderator";
+  };
+
   const isEmployee = () => {
     return user?.role === "employee";
+  };
+
+  // Get role badge color
+  const getRoleBadgeColor = () => {
+    if (isAdmin()) return "from-indigo-500 to-purple-500";
+    if (isModerator()) return "from-orange-500 to-red-500";
+    if (isEmployee()) return "from-blue-500 to-cyan-500";
+    return "from-gray-500 to-gray-700";
+  };
+
+  // Get role display text
+  const getRoleDisplayText = () => {
+    if (user?.role === "superAdmin") return "SUPER ADMIN";
+    if (isAdmin()) return "ADMINISTRATOR";
+    if (isModerator()) return "MODERATOR";
+    if (isEmployee()) return "EMPLOYEE";
+    return "USER";
+  };
+
+  // Get work type display text
+  const getWorkTypeDisplay = () => {
+    const location = profileForm.workLocationType || user?.workLocationType || 'onsite';
+    const arrangement = profileForm.workArrangement || user?.workArrangement || 'full-time';
+    return `${arrangement} • ${location}`;
   };
 
   if (loading) {
@@ -801,6 +1230,115 @@ export default function page() {
             </div>
           </div>
         </div>
+
+        {/* Admin User Search Bar */}
+        {isAdmin() && (
+          <div className="mb-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4">
+              <div className="flex flex-col md:flex-row gap-3 items-center">
+                <div className="relative flex-1 w-full">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearchUsers()}
+                    placeholder="Search users by name, email, phone, or ID..."
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSearchUsers}
+                  className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                >
+                  <Search size={18} />
+                  Search Users
+                </button>
+              </div>
+              
+              {/* Search Results */}
+              {showSearchResults && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-gray-900">Search Results ({searchResults.length})</h3>
+                    <button
+                      onClick={() => setShowSearchResults(false)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  
+                  {searchResults.length > 0 ? (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {searchResults.map((result) => (
+                        <div
+                          key={result._id}
+                          className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                              {result.name?.charAt(0) || result.email?.charAt(0) || "U"}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{result.name || result.email}</p>
+                              <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <span>{result.email}</span>
+                                <span className="px-2 py-0.5 bg-gray-200 rounded text-xs">
+                                  {result.role}
+                                </span>
+                                {result.employeeId && (
+                                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                                    {result.employeeId}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => router.push(`/admin/users/${result._id}`)}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1 text-sm"
+                            >
+                              <ExternalLink size={14} />
+                              View
+                            </button>
+                            
+                            {user?.isSuperAdmin || user?.adminLevel === 'super' ? (
+                              <button
+                                onClick={() => openDeleteModal(result)}
+                                className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1 text-sm"
+                              >
+                                <Trash2 size={14} />
+                                Delete
+                              </button>
+                            ) : (
+                              // Non-super admin can only delete non-admin users
+                              (result.role !== 'admin' && result.role !== 'superAdmin') && (
+                                <button
+                                  onClick={() => openDeleteModal(result)}
+                                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1 text-sm"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      No users found matching your search
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Profile Card */}
@@ -886,12 +1424,8 @@ export default function page() {
                   </h2>
                   <p className="text-purple-100 mt-1 text-center">{user?.email}</p>
                   <div className="mt-3">
-                    <span className={`px-3 py-1 text-white rounded-full text-sm font-medium ${
-                      isAdmin() 
-                        ? "bg-gradient-to-r from-indigo-500 to-purple-500" 
-                        : "bg-gradient-to-r from-blue-500 to-cyan-500"
-                    }`}>
-                      {isAdmin() ? "ADMINISTRATOR" : "EMPLOYEE"}
+                    <span className={`px-3 py-1 text-white rounded-full text-sm font-medium bg-gradient-to-r ${getRoleBadgeColor()}`}>
+                      {getRoleDisplayText()}
                     </span>
                   </div>
                   
@@ -988,6 +1522,22 @@ export default function page() {
                     </div>
                   </div>
 
+                  {/* Work Type Info */}
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                        <Briefcase className="text-cyan-600" size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Work Type</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {getWorkTypeDisplay()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Role-specific additional info */}
                   {isAdmin() && user?.adminLevel && (
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                       <div className="flex items-center gap-3">
@@ -1003,19 +1553,46 @@ export default function page() {
                       </div>
                     </div>
                   )}
+
+                  {isModerator() && user?.moderatorLevel && (
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                          <ShieldCheck className="text-orange-600" size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Moderator Level</p>
+                          <p className="text-sm font-semibold text-orange-600 capitalize">
+                            {user?.moderatorLevel}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Quick Actions */}
                 <div className="mt-6 space-y-3">
                   <button
-                    onClick={() => setActiveTab("sessions")}
+                    onClick={() => setActiveTab("personal")}
                     className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <History className="text-gray-600" size={20} />
-                      <span className="font-medium text-gray-700">Session History</span>
+                      <User className="text-gray-600" size={20} />
+                      <span className="font-medium text-gray-700">Personal Info</span>
                     </div>
-                    <span className="text-sm text-gray-500">{sessions.length}</span>
+                    <ChevronRight className="text-gray-400" size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab("bank")}
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="text-gray-600" size={20} />
+                      <span className="font-medium text-gray-700">Bank Information</span>
+                    </div>
+                    <ChevronRight className="text-gray-400" size={16} />
                   </button>
 
                   <button
@@ -1026,7 +1603,29 @@ export default function page() {
                       <Shield className="text-gray-600" size={20} />
                       <span className="font-medium text-gray-700">Security Settings</span>
                     </div>
-                    <span className="text-sm text-purple-600">Update</span>
+                    <ChevronRight className="text-gray-400" size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab("settings")}
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Settings className="text-gray-600" size={20} />
+                      <span className="font-medium text-gray-700">Account Settings</span>
+                    </div>
+                    <ChevronRight className="text-gray-400" size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab("sessions")}
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <History className="text-gray-600" size={20} />
+                      <span className="font-medium text-gray-700">Session History</span>
+                    </div>
+                    <span className="text-sm text-gray-500">{sessions.length}</span>
                   </button>
 
                   {isAdmin() && (
@@ -1050,10 +1649,10 @@ export default function page() {
           <div className="lg:col-span-2">
             {/* Tabs */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 mb-6">
-              <div className="flex border-b border-gray-200">
+              <div className="flex border-b border-gray-200 overflow-x-auto">
                 <button
                   onClick={() => setActiveTab("personal")}
-                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
                     activeTab === "personal"
                       ? "text-purple-600 border-b-2 border-purple-600"
                       : "text-gray-500 hover:text-gray-700"
@@ -1062,8 +1661,18 @@ export default function page() {
                   Personal Info
                 </button>
                 <button
+                  onClick={() => setActiveTab("bank")}
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
+                    activeTab === "bank"
+                      ? "text-purple-600 border-b-2 border-purple-600"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Bank Info
+                </button>
+                <button
                   onClick={() => setActiveTab("security")}
-                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
                     activeTab === "security"
                       ? "text-purple-600 border-b-2 border-purple-600"
                       : "text-gray-500 hover:text-gray-700"
@@ -1072,8 +1681,18 @@ export default function page() {
                   Security
                 </button>
                 <button
+                  onClick={() => setActiveTab("settings")}
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
+                    activeTab === "settings"
+                      ? "text-purple-600 border-b-2 border-purple-600"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Settings
+                </button>
+                <button
                   onClick={() => setActiveTab("sessions")}
-                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
                     activeTab === "sessions"
                       ? "text-purple-600 border-b-2 border-purple-600"
                       : "text-gray-500 hover:text-gray-700"
@@ -1113,19 +1732,29 @@ export default function page() {
                         </button>
                         <button
                           onClick={handleUpdateProfile}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                          disabled={updating}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <Save size={16} />
-                          Save Changes
+                          {updating ? (
+                            <>
+                              <Loader2 className="animate-spin" size={16} />
+                              Updating...
+                            </>
+                          ) : (
+                            <>
+                              <Save size={16} />
+                              Save Changes
+                            </>
+                          )}
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* View Mode - No change options */}
+                  {/* View Mode */}
                   {!editMode ? (
                     <div className="space-y-6">
-                      {/* Profile Picture View Card - NO CHANGE OPTIONS */}
+                      {/* Profile Picture View Card */}
                       <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-100">
                         <div className="flex items-center justify-between mb-6">
                           <h4 className="text-lg font-bold text-gray-900 flex items-center gap-3">
@@ -1222,13 +1851,37 @@ export default function page() {
                             </div>
                             
                             <div>
-                              <p className="text-sm text-gray-500 mb-1">address</p>
+                              <p className="text-sm text-gray-500 mb-1">Address</p>
                               <div className="flex items-center gap-2">
                                 <MapPin className="text-gray-400" size={16} />
                                 <p className="text-lg font-semibold text-gray-900">{user?.address || "Not provided"}</p>
                               </div>
                             </div>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Work Information Card */}
+                      <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-2xl p-6 border border-cyan-100">
+                        <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
+                          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                            <Briefcase className="text-cyan-600" size={22} />
+                          </div>
+                          Work Information
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <p className="text-sm text-gray-500 mb-1">Work Type</p>
+                            <p className="text-lg font-semibold text-gray-900">{getWorkTypeDisplay()}</p>
+                          </div>
+                          
+                          {user?.contractType && (
+                            <div>
+                              <p className="text-sm text-gray-500 mb-1">Contract Type</p>
+                              <p className="text-lg font-semibold text-gray-900 capitalize">{user.contractType}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1301,6 +1954,75 @@ export default function page() {
                         </div>
                       )}
 
+                      {/* Moderator Information Card */}
+                      {isModerator() && (
+                        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl p-6 border border-orange-100">
+                          <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                              <ShieldCheck className="text-orange-600" size={22} />
+                            </div>
+                            Moderator Information
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Moderator Level</p>
+                                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
+                                  user?.moderatorLevel === 'senior' ? 'bg-red-50 text-red-800' :
+                                  user?.moderatorLevel === 'junior' ? 'bg-orange-50 text-orange-800' :
+                                  'bg-yellow-50 text-yellow-800'
+                                }`}>
+                                  <ShieldCheck className={
+                                    user?.moderatorLevel === 'senior' ? 'text-red-600' :
+                                    user?.moderatorLevel === 'junior' ? 'text-orange-600' :
+                                    'text-yellow-600'
+                                  } size={18} />
+                                  <p className="font-semibold capitalize">{user?.moderatorLevel || 'Moderator'}</p>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Moderation Scope</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {user?.moderatorScope?.map((scope, index) => (
+                                    <span key={index} className="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full font-medium">
+                                      {scope}
+                                    </span>
+                                  )) || (
+                                    <span className="text-gray-500">No specific scope</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Permissions</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {user?.permissions?.map((perm, index) => (
+                                    <span key={index} className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full font-medium">
+                                      {perm}
+                                    </span>
+                                  )) || (
+                                    <span className="text-gray-500">No specific permissions</span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Moderation Limits</p>
+                                <div className="text-sm text-gray-700">
+                                  <p>Daily Actions: {user?.moderationLimits?.dailyActions || 50}</p>
+                                  <p>Warning Limit: {user?.moderationLimits?.warningLimit || 3}</p>
+                                  <p>Can Ban Users: {user?.moderationLimits?.canBanUsers ? 'Yes' : 'No'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Professional Info Card */}
                       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
                         <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
@@ -1349,8 +2071,8 @@ export default function page() {
                         </div>
                       </div>
 
-                      {/* Salary Info Card (Employee এর জন্য) */}
-                      {isEmployee() && user?.salaryType && (
+                      {/* Salary Info Card */}
+                      {(isEmployee() || isModerator()) && user?.salaryType && (
                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
                           <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
                             <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
@@ -1391,6 +2113,44 @@ export default function page() {
                         </div>
                       )}
 
+                      {/* Bank Details Card */}
+                      {(isEmployee() || isModerator()) && user?.bankDetails?.bankName && (
+                        <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 border border-emerald-100">
+                          <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                              <CreditCard className="text-emerald-600" size={22} />
+                            </div>
+                            Bank Details
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Bank Name</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.bankName}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Account Number</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.accountNumber}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Account Holder Name</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.accountHolderName}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Branch Name</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.branchName}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Account Status Card */}
                       <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-2xl p-6 border border-gray-200">
                         <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
@@ -1421,9 +2181,15 @@ export default function page() {
                             <div>
                               <p className="text-sm text-gray-500 mb-1">Account Role</p>
                               <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                                isAdmin() ? 'bg-purple-50 text-purple-800' : 'bg-blue-50 text-blue-800'
+                                isAdmin() ? 'bg-purple-50 text-purple-800' : 
+                                isModerator() ? 'bg-orange-50 text-orange-800' : 
+                                'bg-blue-50 text-blue-800'
                               }`}>
-                                <Shield className={isAdmin() ? "text-purple-600" : "text-blue-600"} size={18} />
+                                <Shield className={
+                                  isAdmin() ? "text-purple-600" : 
+                                  isModerator() ? "text-orange-600" : 
+                                  "text-blue-600"
+                                } size={18} />
                                 <p className="font-semibold capitalize">{user?.role || 'N/A'}</p>
                               </div>
                             </div>
@@ -1450,9 +2216,9 @@ export default function page() {
                       </div>
                     </div>
                   ) : (
-                    /* Edit Mode - Input Forms - With upload options */
+                    /* Edit Mode - Input Forms */
                     <div className="space-y-6">
-                      {/* Profile Picture Upload Section - Edit mode has upload */}
+                      {/* Profile Picture Upload Section */}
                       <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-3">
@@ -1576,24 +2342,26 @@ export default function page() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              First Name
+                              First Name *
                             </label>
                             <input
                               type="text"
                               value={profileForm.firstName}
                               onChange={(e) => setProfileForm({...profileForm, firstName: e.target.value})}
                               className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                              required
                             />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Last Name
+                              Last Name *
                             </label>
                             <input
                               type="text"
                               value={profileForm.lastName}
                               onChange={(e) => setProfileForm({...profileForm, lastName: e.target.value})}
                               className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                              required
                             />
                           </div>
                         </div>
@@ -1633,7 +2401,7 @@ export default function page() {
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              address
+                              Address
                             </label>
                             <input
                               type="text"
@@ -1641,6 +2409,62 @@ export default function page() {
                               onChange={(e) => setProfileForm({...profileForm, address: e.target.value})}
                               placeholder="City, Country"
                               className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Work Information Section */}
+                      <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl p-4 border border-cyan-100">
+                        <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
+                          <Briefcase size={18} />
+                          Work Information
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Work Location Type
+                            </label>
+                            <select
+                              value={profileForm.workLocationType}
+                              onChange={(e) => setProfileForm({...profileForm, workLocationType: e.target.value})}
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+                            >
+                              <option value="onsite">Onsite</option>
+                              <option value="remote">Remote</option>
+                              <option value="hybrid">Hybrid</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Work Arrangement
+                            </label>
+                            <select
+                              value={profileForm.workArrangement}
+                              onChange={(e) => setProfileForm({...profileForm, workArrangement: e.target.value})}
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+                            >
+                              <option value="full-time">Full-time</option>
+                              <option value="part-time">Part-time</option>
+                              <option value="contractual">Contractual</option>
+                              <option value="freelance">Freelance</option>
+                              <option value="internship">Internship</option>
+                              <option value="temporary">Temporary</option>
+                            </select>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Contract Type (if applicable)
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.contractType}
+                              onChange={(e) => setProfileForm({...profileForm, contractType: e.target.value})}
+                              placeholder="e.g., Permanent, Probation, Project-based"
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
                             />
                           </div>
                         </div>
@@ -1709,6 +2533,175 @@ export default function page() {
                               />
                               <p className="text-xs text-gray-500 mt-1">Comma separated values</p>
                             </div>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={profileForm.isSuperAdmin}
+                                onChange={(e) => setProfileForm({...profileForm, isSuperAdmin: e.target.checked})}
+                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <label className="text-sm text-gray-700">Is Super Admin</label>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={profileForm.canManageUsers}
+                                onChange={(e) => setProfileForm({...profileForm, canManageUsers: e.target.checked})}
+                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <label className="text-sm text-gray-700">Can Manage Users</label>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={profileForm.canManagePayroll}
+                                onChange={(e) => setProfileForm({...profileForm, canManagePayroll: e.target.checked})}
+                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <label className="text-sm text-gray-700">Can Manage Payroll</label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Moderator Information Section */}
+                      {isModerator() && (
+                        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-100">
+                          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
+                            <ShieldCheck size={18} />
+                            Moderator Information
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Moderator Level
+                              </label>
+                              <select
+                                value={profileForm.moderatorLevel}
+                                onChange={(e) => setProfileForm({...profileForm, moderatorLevel: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                              >
+                                <option value="">Select Level</option>
+                                <option value="trainee">Trainee</option>
+                                <option value="junior">Junior Moderator</option>
+                                <option value="senior">Senior Moderator</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Moderation Scope
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.moderatorScope.join(', ')}
+                                onChange={(e) => setProfileForm({...profileForm, moderatorScope: e.target.value.split(',').map(s => s.trim())})}
+                                placeholder="content, users, reports, etc."
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Comma separated values</p>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Moderation Permissions
+                              </label>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={profileForm.canModerateUsers}
+                                    onChange={(e) => setProfileForm({...profileForm, canModerateUsers: e.target.checked})}
+                                    className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                  />
+                                  <label className="text-sm text-gray-700">Can Moderate Users</label>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={profileForm.canModerateContent}
+                                    onChange={(e) => setProfileForm({...profileForm, canModerateContent: e.target.checked})}
+                                    className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                  />
+                                  <label className="text-sm text-gray-700">Can Moderate Content</label>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={profileForm.canViewReports}
+                                    onChange={(e) => setProfileForm({...profileForm, canViewReports: e.target.checked})}
+                                    className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                  />
+                                  <label className="text-sm text-gray-700">Can View Reports</label>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={profileForm.canManageReports}
+                                    onChange={(e) => setProfileForm({...profileForm, canManageReports: e.target.checked})}
+                                    className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                  />
+                                  <label className="text-sm text-gray-700">Can Manage Reports</label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Daily Action Limit
+                              </label>
+                              <input
+                                type="number"
+                                value={profileForm.moderationLimits.dailyActions}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  moderationLimits: {
+                                    ...profileForm.moderationLimits,
+                                    dailyActions: parseInt(e.target.value) || 50
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Warning Limit
+                              </label>
+                              <input
+                                type="number"
+                                value={profileForm.moderationLimits.warningLimit}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  moderationLimits: {
+                                    ...profileForm.moderationLimits,
+                                    warningLimit: parseInt(e.target.value) || 3
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Permissions
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.permissions.join(', ')}
+                                onChange={(e) => setProfileForm({...profileForm, permissions: e.target.value.split(',').map(p => p.trim())})}
+                                placeholder="content:edit, user:view, report:view, etc."
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Comma separated values</p>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1771,8 +2764,110 @@ export default function page() {
                         </div>
                       </div>
 
-                      {/* Salary Info Section (Employee এর জন্য) */}
-                      {isEmployee() && (
+                      {/* Bank Details Section (for employees and moderators) */}
+                      {(isEmployee() || isModerator()) && (
+                        <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-100">
+                          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
+                            <CreditCard size={18} />
+                            Bank Details
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Bank Name
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.bankDetails?.bankName || ''}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  bankDetails: {
+                                    ...profileForm.bankDetails,
+                                    bankName: e.target.value
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Account Number
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.bankDetails?.accountNumber || ''}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  bankDetails: {
+                                    ...profileForm.bankDetails,
+                                    accountNumber: e.target.value
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Account Holder Name
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.bankDetails?.accountHolderName || ''}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  bankDetails: {
+                                    ...profileForm.bankDetails,
+                                    accountHolderName: e.target.value
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Branch Name
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.bankDetails?.branchName || ''}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  bankDetails: {
+                                    ...profileForm.bankDetails,
+                                    branchName: e.target.value
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Routing Number
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.bankDetails?.routingNumber || ''}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  bankDetails: {
+                                    ...profileForm.bankDetails,
+                                    routingNumber: e.target.value
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Salary Info Section */}
+                      {(isEmployee() || isModerator()) && (
                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
                           <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                             <CreditCard size={18} />
@@ -1826,6 +2921,438 @@ export default function page() {
                           </div>
                         </div>
                       )}
+
+                      {/* Employee-specific fields */}
+                      {isEmployee() && (
+                        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
+                          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
+                            <Users size={18} />
+                            Employee Information
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Manager ID
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.managerId}
+                                onChange={(e) => setProfileForm({...profileForm, managerId: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Attendance ID
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.attendanceId}
+                                onChange={(e) => setProfileForm({...profileForm, attendanceId: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Shift Start Time
+                              </label>
+                              <input
+                                type="time"
+                                value={profileForm.shiftTiming.start}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  shiftTiming: {
+                                    ...profileForm.shiftTiming,
+                                    start: e.target.value
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Shift End Time
+                              </label>
+                              <input
+                                type="time"
+                                value={profileForm.shiftTiming.end}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  shiftTiming: {
+                                    ...profileForm.shiftTiming,
+                                    end: e.target.value
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Bank Information Tab */}
+              {activeTab === "bank" && (
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Bank Information</h3>
+                      <p className="text-gray-600 mt-1">Manage your bank account details</p>
+                    </div>
+                    {!editMode ? (
+                      <button
+                        onClick={() => setEditMode(true)}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                      >
+                        <Edit size={16} />
+                        Edit Bank Info
+                      </button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setEditMode(false);
+                            fetchUserProfile();
+                          }}
+                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        >
+                          <X size={16} />
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleUpdateProfile}
+                          disabled={updating}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {updating ? (
+                            <>
+                              <Loader2 className="animate-spin" size={16} />
+                              Updating...
+                            </>
+                          ) : (
+                            <>
+                              <Save size={16} />
+                              Save Changes
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* View Mode - Bank Information */}
+                  {!editMode ? (
+                    <div className="space-y-6">
+                      {/* Bank Details Card */}
+                      {(isEmployee() || isModerator()) && user?.bankDetails?.bankName ? (
+                        <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 border border-emerald-100">
+                          <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                              <CreditCard className="text-emerald-600" size={22} />
+                            </div>
+                            Bank Account Details
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-6">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Bank Name</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.bankName}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Account Number</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.accountNumber}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Account Holder Name</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.accountHolderName}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-6">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Branch Name</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.branchName}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Routing Number</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.routingNumber || "N/A"}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Account Type</p>
+                                <p className="text-lg font-semibold text-gray-900">{user?.bankDetails?.accountType || "Savings"}</p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Account Status */}
+                          <div className="mt-8 pt-6 border-t border-emerald-200">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-gray-500 mb-1">Verification Status</p>
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-3 h-3 rounded-full ${user?.bankDetails?.isVerified ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                                  <p className={`font-semibold ${user?.bankDetails?.isVerified ? 'text-green-600' : 'text-yellow-600'}`}>
+                                    {user?.bankDetails?.isVerified ? 'Verified' : 'Pending Verification'}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="text-right">
+                                <p className="text-sm text-gray-500 mb-1">Last Updated</p>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {user?.bankDetails?.updatedAt ? formatDate(user.bankDetails.updatedAt) : formatDate(user?.updatedAt)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // No Bank Information Card
+                        <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-2xl p-8 border border-gray-200 text-center">
+                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <CreditCard className="text-gray-400" size={24} />
+                          </div>
+                          <h4 className="text-lg font-bold text-gray-900 mb-2">No Bank Information</h4>
+                          <p className="text-gray-600 mb-4">
+                            {isAdmin() 
+                              ? "Bank information is not applicable for admin accounts"
+                              : "You haven't added your bank account details yet"
+                            }
+                          </p>
+                          {!isAdmin() && (
+                            <button
+                              onClick={() => setEditMode(true)}
+                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors inline-flex items-center gap-2"
+                            >
+                              <Edit size={16} />
+                              Add Bank Details
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Security Note */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                        <div className="flex items-start gap-3">
+                          <ShieldCheck className="text-blue-600 mt-0.5" size={18} />
+                          <div>
+                            <p className="font-medium text-gray-900 mb-1">Security Note</p>
+                            <p className="text-sm text-gray-600">
+                              Your bank information is encrypted and stored securely. Only authorized payroll administrators can view this information.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Edit Mode - Bank Information Form */
+                    <div className="space-y-6">
+                      {/* Bank Details Form */}
+                      <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6 border border-emerald-100">
+                        <h4 className="font-bold text-gray-900 mb-6 flex items-center gap-2 text-lg">
+                          <CreditCard size={20} />
+                          Bank Account Details
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Bank Name *
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.bankDetails?.bankName || ''}
+                              onChange={(e) => setProfileForm({
+                                ...profileForm,
+                                bankDetails: {
+                                  ...profileForm.bankDetails,
+                                  bankName: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., DBBL, City Bank, Brac Bank"
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Account Number *
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.bankDetails?.accountNumber || ''}
+                              onChange={(e) => setProfileForm({
+                                ...profileForm,
+                                bankDetails: {
+                                  ...profileForm.bankDetails,
+                                  accountNumber: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., 1234567890"
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Account Holder Name *
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.bankDetails?.accountHolderName || ''}
+                              onChange={(e) => setProfileForm({
+                                ...profileForm,
+                                bankDetails: {
+                                  ...profileForm.bankDetails,
+                                  accountHolderName: e.target.value
+                                }
+                              })}
+                              placeholder="Your full name as in bank account"
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Branch Name *
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.bankDetails?.branchName || ''}
+                              onChange={(e) => setProfileForm({
+                                ...profileForm,
+                                bankDetails: {
+                                  ...profileForm.bankDetails,
+                                  branchName: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., Gulshan, Motijheel, Dhanmondi"
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Routing Number
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.bankDetails?.routingNumber || ''}
+                              onChange={(e) => setProfileForm({
+                                ...profileForm,
+                                bankDetails: {
+                                  ...profileForm.bankDetails,
+                                  routingNumber: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., 123456789"
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Account Type
+                            </label>
+                            <select
+                              value={profileForm.bankDetails?.accountType || 'savings'}
+                              onChange={(e) => setProfileForm({
+                                ...profileForm,
+                                bankDetails: {
+                                  ...profileForm.bankDetails,
+                                  accountType: e.target.value
+                                }
+                              })}
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                            >
+                              <option value="savings">Savings Account</option>
+                              <option value="current">Current Account</option>
+                              <option value="salary">Salary Account</option>
+                              <option value="student">Student Account</option>
+                              <option value="joint">Joint Account</option>
+                            </select>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Swift Code / IBAN (if applicable)
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.bankDetails?.swiftCode || ''}
+                              onChange={(e) => setProfileForm({
+                                ...profileForm,
+                                bankDetails: {
+                                  ...profileForm.bankDetails,
+                                  swiftCode: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., DBBLBDDH123"
+                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Verification Checkbox */}
+                        <div className="mt-6 pt-6 border-t border-emerald-200">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={profileForm.bankDetails?.isVerified || false}
+                              onChange={(e) => setProfileForm({
+                                ...profileForm,
+                                bankDetails: {
+                                  ...profileForm.bankDetails,
+                                  isVerified: e.target.checked,
+                                  verifiedAt: e.target.checked ? new Date() : null
+                                }
+                              })}
+                              className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                              id="bankVerified"
+                            />
+                            <label htmlFor="bankVerified" className="text-sm text-gray-700">
+                              Mark account as verified (Only for admin use)
+                            </label>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            This indicates that the bank account has been verified by the finance department.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Security Note */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
+                        <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                          <ShieldCheck size={16} />
+                          Important Instructions
+                        </h5>
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="text-green-600 mt-0.5" size={14} />
+                            <p className="text-sm text-gray-600">Ensure the account holder name matches your official name</p>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="text-green-600 mt-0.5" size={14} />
+                            <p className="text-sm text-gray-600">Double-check account number before saving</p>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="text-green-600 mt-0.5" size={14} />
+                            <p className="text-sm text-gray-600">Your salary will be deposited to this account</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1989,6 +3516,247 @@ export default function page() {
                 </div>
               )}
 
+              {/* Settings Tab */}
+              {activeTab === "settings" && (
+                <div className="p-6">
+                  <div className="mb-6">
+                    <h3 className="text-lg font-bold text-gray-900">Account Settings</h3>
+                    <p className="text-gray-600 mt-1">Configure your account preferences and notifications</p>
+                  </div>
+
+                  <div className="space-y-6">
+                    {/* Notification Settings */}
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <Bell className="text-purple-600" size={20} />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900">Notification Settings</h4>
+                            <p className="text-sm text-gray-600">Manage your notification preferences</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                          <div>
+                            <p className="font-medium text-gray-900">Email Notifications</p>
+                            <p className="text-sm text-gray-500">Receive updates via email</p>
+                          </div>
+                          <div className="relative inline-block w-12 h-6">
+                            <input
+                              type="checkbox"
+                              checked={true}
+                              onChange={() => {}}
+                              className="sr-only"
+                            />
+                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                          <div>
+                            <p className="font-medium text-gray-900">Push Notifications</p>
+                            <p className="text-sm text-gray-500">Receive browser notifications</p>
+                          </div>
+                          <div className="relative inline-block w-12 h-6">
+                            <input
+                              type="checkbox"
+                              checked={true}
+                              onChange={() => {}}
+                              className="sr-only"
+                            />
+                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                          <div>
+                            <p className="font-medium text-gray-900">Salary Alerts</p>
+                            <p className="text-sm text-gray-500">Get notified when salary is processed</p>
+                          </div>
+                          <div className="relative inline-block w-12 h-6">
+                            <input
+                              type="checkbox"
+                              checked={true}
+                              onChange={() => {}}
+                              className="sr-only"
+                            />
+                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Privacy Settings */}
+                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <ShieldCheck className="text-blue-600" size={20} />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900">Privacy Settings</h4>
+                            <p className="text-sm text-gray-600">Control your privacy preferences</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                          <div>
+                            <p className="font-medium text-gray-900">Show Profile to Others</p>
+                            <p className="text-sm text-gray-500">Allow colleagues to view your profile</p>
+                          </div>
+                          <div className="relative inline-block w-12 h-6">
+                            <input
+                              type="checkbox"
+                              checked={true}
+                              onChange={() => {}}
+                              className="sr-only"
+                            />
+                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                          <div>
+                            <p className="font-medium text-gray-900">Show Contact Information</p>
+                            <p className="text-sm text-gray-500">Display phone and email to team members</p>
+                          </div>
+                          <div className="relative inline-block w-12 h-6">
+                            <input
+                              type="checkbox"
+                              checked={false}
+                              onChange={() => {}}
+                              className="sr-only"
+                            />
+                            <div className={`w-12 h-6 rounded-full transition-colors ${false ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${false ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                          <div>
+                            <p className="font-medium text-gray-900">Activity Status</p>
+                            <p className="text-sm text-gray-500">Show when you're online</p>
+                          </div>
+                          <div className="relative inline-block w-12 h-6">
+                            <input
+                              type="checkbox"
+                              checked={true}
+                              onChange={() => {}}
+                              className="sr-only"
+                            />
+                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Account Preferences */}
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <Settings className="text-green-600" size={20} />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900">Account Preferences</h4>
+                            <p className="text-sm text-gray-600">Customize your account experience</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Preferred Language
+                          </label>
+                          <select className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
+                            <option value="en">English</option>
+                            <option value="bn">Bangla</option>
+                            <option value="ar">Arabic</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Time Zone
+                          </label>
+                          <select className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
+                            <option value="Asia/Dhaka">Asia/Dhaka (Bangladesh)</option>
+                            <option value="UTC">UTC</option>
+                            <option value="America/New_York">America/New_York</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Date Format
+                          </label>
+                          <select className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
+                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Danger Zone */}
+                    <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-6 border border-red-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                            <AlertTriangle className="text-red-600" size={20} />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900">Danger Zone</h4>
+                            <p className="text-sm text-gray-600">Irreversible actions</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="p-4 bg-white rounded-lg border border-red-200">
+                          <p className="font-medium text-gray-900 mb-2">Deactivate Account</p>
+                          <p className="text-sm text-gray-600 mb-3">
+                            Temporarily deactivate your account. You can reactivate it later.
+                          </p>
+                          <button className="px-4 py-2 border-2 border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                            Deactivate Account
+                          </button>
+                        </div>
+
+                        <div className="p-4 bg-white rounded-lg border border-red-200">
+                          <p className="font-medium text-gray-900 mb-2">Delete Account</p>
+                          <p className="text-sm text-gray-600 mb-3">
+                            Permanently delete your account and all associated data. This action cannot be undone.
+                          </p>
+                          <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                            Delete Account
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Sessions Tab */}
               {activeTab === "sessions" && (
                 <div className="p-6">
@@ -2074,6 +3842,62 @@ export default function page() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                <Trash2 className="text-red-600" size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Delete User</h3>
+                <p className="text-sm text-gray-600">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">
+                Are you sure you want to delete the user <strong>{userToDelete?.name || userToDelete?.email}</strong>?
+              </p>
+              <p className="text-xs text-red-600 mt-2">
+                This will permanently delete the user account and all associated data.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setUserToDelete(null);
+                }}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {deleteLoading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Yes, Delete User
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
