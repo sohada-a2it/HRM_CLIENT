@@ -1,77 +1,220 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { 
-  Clock, Calendar, Filter, Download, BarChart3, 
-  Users, UserCheck, UserX, AlertCircle, CheckCircle, 
-  XCircle, RefreshCw, Plus, FileSpreadsheet, Edit, 
-  Eye, Trash2, Search, ChevronLeft, ChevronRight,
-  MoreVertical, Sun, Moon, MapPin, Smartphone,
-  Server, Network, Printer, Share2, Upload,
-  Loader2, Settings, FileText, PieChart,
-  Bell, Clock4, TrendingUp, Home, Briefcase,
-  Coffee, Activity, User as UserIcon, Shield,
-  LogIn, LogOut, CalendarDays, Layers,
-  Database, Save, HardDrive, Wifi, X,
-  FileEdit, CalendarRange, Globe, Battery,
-  BatteryCharging, Cpu, MemoryStick,
-  CreditCard, Award, Target, Zap,
-  TrendingDown, Clock9, Clock10, MoonStar,
-  Sunrise, Sunset, Thermometer, Cloud,
-  CloudRain, Wind, Droplets, Umbrella
+  Clock, Calendar, Filter, Wifi, Server, Network,
+  RefreshCw, CheckCircle, XCircle, AlertCircle, Download,
+  BarChart3, TrendingUp, Moon, Sun, Zap, ChevronRight,
+  Edit, Eye, EyeOff, FileText, Printer, Share2, User,
+  Shield, Loader2, LogIn, LogOut, Users, Home, Briefcase,
+  Coffee, Activity, ChevronLeft, ChevronRight as ChevronRightIcon,
+  Upload, Play, Settings, FileSpreadsheet, CalendarDays,
+  Clock4, AlertTriangle, MoreVertical, Search, UserCircle,
+  ChevronDown, X, FileEdit, CalendarRange, Layers, Database,
+  Save, MapPin, Smartphone, Globe, HardDrive, Battery,
+  BatteryCharging, Calendar as CalendarIcon, CalendarCheck,
+  CalendarX, CalendarClock, Timer, Clock8, Clock9, Clock10,
+  TrendingDown, Percent, Thermometer, Target, Bell, BellOff,
+  Lock, Unlock, AlertOctagon, CheckSquare, Square, Clock12,
+  RotateCcw, GitPullRequest, GitCommit, GitBranch, Layers2,
+  PieChart, LineChart, ScatterChart, Grid, List, Layout,
+  Grid3x3, Columns, Rows, Sidebar, Menu, CornerUpRight,
+  CornerUpLeft, CornerDownRight, CornerDownLeft, ArrowUpDown,
+  ChevronsUpDown, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle,
+  ArrowDownCircle, MinusCircle, PlusCircle, DivideCircle,
+  Hash, DollarSign, CreditCard, Package, Box, Container,
+  Truck, Ship, Plane, Car, Bike, Walk, Run, ActivitySquare,
+  ActivityHeart, Heart, HeartPulse, Brain, Cpu, DatabaseZap,
+  Cloud, CloudRain, CloudSnow, CloudLightning, CloudSun,
+  CloudMoon, SunDim, SunMedium, SunSnow, MoonStar, Sparkles,
+  Star, Award, Trophy, Medal, Crown, Flag, Target as TargetIcon,
+  Crosshair, Navigation, Compass, Map, MapPinned, Navigation2,
+  NavigationOff, Route, Satellite, Globe2, Earth, World,
+  WifiOff, Wifi as WifiIcon, Radio, RadioTower, Signal,
+  SignalHigh, SignalMedium, SignalLow, SignalZero, BatteryFull,
+  BatteryMedium, BatteryLow, BatteryWarning, BatteryChargingIcon,
+  Plug, PlugZap, Plug2, Zap as ZapIcon, ZapOff, Lightning,
+  Thunderstorm, Hurricane, Tornado, Volcano, Fire, Flame,
+  Droplets, Waves, Wind, ThermometerSun, ThermometerSnowflake,
+  Thermometer as ThermometerIcon, Waves as WavesIcon,
+  Umbrella, CloudFog, CloudDrizzle, CloudHail, CloudSunRain,
+  CloudMoonRain, CloudMoonSnow, CloudWind,
+  Wind as WindIcon, Snowflake, Cloudy, CloudRainWind, Haze,
+  Sunrise, Sunset, Moonrise, Moonset, Telescope, SatelliteDish,
+  Orbit, Rocket, Space, UFO, Alien, Ghost, Skull, Cross,
+  Church, Mosque, Synagogue, Temple, Castle, Home as HomeIcon,
+  Building, Building2, Factory, Warehouse, Store, Shop,
+  ShoppingCart, ShoppingBag, Package2, Boxes, Palette,
+  Brush, PenTool, Ruler, Scissors, Cut, Combine, Merge,
+  Split, Unite, Divide, Minus, Plus, X as XIcon, Divide as DivideIcon,
+  Percent as PercentIcon, Infinity, Pi, Sigma, Omega, Alpha,
+  Beta, Gamma, Delta, Epsilon, Zeta, Eta, Theta, Iota,
+  Kappa, Lambda, Mu, Nu, Xi, Omicron, Rho, Tau, Upsilon,
+  Phi, Chi, Psi, Omega as OmegaIcon,
+  Smartphone as SmartphoneIcon,
+  Monitor,
+  Laptop,
+  Tablet,
+  Watch,
+  Headphones,
+  Camera,
+  Video,
+  Mic,
+  Volume2,
+  BellRing,
+  Key,
+  Mail,
+  Phone,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  Star as StarIcon,
+  Heart as HeartIcon,
+  Bookmark,
+  Share,
+  ExternalLink,
+  Link,
+  Lock as LockIcon,
+  Unlock as UnlockIcon,
+  Eye as EyeIcon,
+  EyeOff as EyeOffIcon,
+  UserCheck,
+  UserX,
+  Users as UsersIcon,
+  UserPlus,
+  UserMinus,
+  Award as AwardIcon,
+  Trophy as TrophyIcon,
+  Crown as CrownIcon,
+  Flag as FlagIcon,
+  Target as TargetIcon2,
+  Crosshair as CrosshairIcon,
+  Navigation as NavigationIcon,
+  Compass as CompassIcon,
+  Map as MapIcon,
+  MapPinned as MapPinnedIcon,
+  Satellite as SatelliteIcon,
+  Globe as GlobeIcon,
+  Cloud as CloudIcon,
+  Sun as SunIcon,
+  Moon as MoonIcon,
+  Sunrise as SunriseIcon,
+  Sunset as SunsetIcon,
+  Thermometer as ThermometerIcon2,
+  Droplet,
+  Wind as WindIcon2,
+  CloudLightning as CloudLightningIcon,
+  CloudRain as CloudRainIcon,
+  CloudSnow as CloudSnowIcon,
+  Cloud as CloudIcon2,
+  Zap as ZapIcon2,
+  Battery as BatteryIcon,
+  Cpu as CpuIcon,
+  HardDrive as HardDriveIcon,
+  Database as DatabaseIcon,
+  Server as ServerIcon,
+  Wifi as WifiIcon2,
+  Radio as RadioIcon,
+  Signal as SignalIcon,
+  Bluetooth,
+  Cctv,
+  Router,
+  Terminal,
+  Code,
+  Cpu as CpuIcon2,
+  MemoryStick,
+  HardDrive as HardDriveIcon2,
+  Database as DatabaseIcon2,
+  Network as NetworkIcon,
+  GitBranch as GitBranchIcon,
+  GitCommit as GitCommitIcon,
+  GitPullRequest as GitPullRequestIcon,
+  GitMerge,
+  GitCompare,
+  GitFork,
+  GitPullRequestClosed,
+  GitBranchPlus,
+  GitBranchMinus,
+  GitCommitVertical,
+  GitCompareArrows,
+  GitGraph,
+  GitMergeVertical,
+  GitPullRequestArrow,
+  GitPullRequestCreate,
+  GitPullRequestDraft
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
-const AttendanceManagement = ({ userId, isAdminView = false }) => {
-  const router = {
-    push: (path) => window.location.href = path
-  };
-
-  // ===================== STATE MANAGEMENT =====================
-  const [loading, setLoading] = useState(true);
-  const [attendanceRecords, setAttendanceRecords] = useState([]);
+export default function AttendanceSystem() {
+  const router = useRouter();
+  
+  // Main state
+  const [attendance, setAttendance] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userData, setUserData] = useState(null);
+  
+  // Date range state
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0]
+  });
+  
+  // Today's status state
   const [todayStatus, setTodayStatus] = useState({
     clockedIn: false,
     clockedOut: false,
     clockInTime: null,
     clockOutTime: null,
     status: "Not Clocked",
-    date: new Date().toDateString()
+    date: new Date().toDateString(),
+    shiftDetails: null
   });
-  const [userData, setUserData] = useState(null);
-  const [userRole, setUserRole] = useState("employee");
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [employees, setEmployees] = useState([]);
-  const [lastAutoCheck, setLastAutoCheck] = useState({ date: '', type: '' });
-  // Filters and Pagination
-  const [filters, setFilters] = useState({
-    startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    employeeId: "",
-    department: "",
-    status: "all",
-    search: ""
+  
+  // Clock details state
+  const [clockDetails, setClockDetails] = useState(null);
+  const [showRecentDetails, setShowRecentDetails] = useState(false);
+  
+  // Device and location info
+  const [realIpAddress, setRealIpAddress] = useState("Fetching...");
+  const [userLocation, setUserLocation] = useState({
+    latitude: null,
+    longitude: null,
+    address: "Fetching location...",
+    accuracy: null,
+    city: null,
+    country: null
   });
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    itemsPerPage: 10,
-    totalPages: 1,
-    totalItems: 0
+  const [deviceInfo, setDeviceInfo] = useState({
+    type: 'Unknown',
+    os: 'Unknown',
+    browser: 'Unknown',
+    browserVersion: 'Unknown',
+    engine: 'Unknown',
+    screen: 'Unknown',
+    userAgent: ''
   });
-
-  // Modals
-  const [showManualModal, setShowManualModal] = useState(false);
-  const [showBulkModal, setShowBulkModal] = useState(false);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  
+  // Admin states
+  const [showManualAttendanceModal, setShowManualAttendanceModal] = useState(false);
+  const [showBulkAttendanceModal, setShowBulkAttendanceModal] = useState(false);
+  const [showAdminActionsMenu, setShowAdminActionsMenu] = useState(false);
   const [showEmployeeSelector, setShowEmployeeSelector] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-
-  // Form Data
-  const [manualForm, setManualForm] = useState({
+  const [employees, setEmployees] = useState([]);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [selectedAttendanceRecord, setSelectedAttendanceRecord] = useState(null);
+  
+  // Manual attendance data
+  const [manualAttendanceData, setManualAttendanceData] = useState({
     employeeId: "",
     employeeName: "",
     date: new Date().toISOString().split('T')[0],
@@ -80,15 +223,16 @@ const AttendanceManagement = ({ userId, isAdminView = false }) => {
     status: "Present",
     shiftStart: "09:00",
     shiftEnd: "18:00",
-    remarks: "",
+    remarks: "Created by admin",
+    isHoliday: false,
+    holidayType: null,
     ipAddress: "",
     location: "Office",
-    deviceType: "desktop",
-    isHoliday: false,
-    holidayType: null
+    deviceType: "desktop"
   });
-
-  const [bulkForm, setBulkForm] = useState({
+  
+  // Bulk attendance data
+  const [bulkAttendanceData, setBulkAttendanceData] = useState({
     employeeId: "",
     employeeName: "",
     month: new Date().getMonth() + 1,
@@ -101,345 +245,273 @@ const AttendanceManagement = ({ userId, isAdminView = false }) => {
     markAllAsPresent: false,
     skipWeekends: true
   });
-
-  // System Info
-  const [systemInfo, setSystemInfo] = useState({
-    ipAddress: "Fetching...",
-    location: "Fetching...",
-    device: {
-      type: "desktop",
-      os: "Unknown",
-      browser: "Unknown",
-      userAgent: ""
-    },
-    battery: null,
-    connection: null,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-  });
-
-  // Current Time
+  
+  // Current time and auto clock out timer
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [weather, setWeather] = useState(null);
- 
-
-  // ===================== CONSTANTS & HELPER FUNCTIONS =====================
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-  const TIMEZONE = "Asia/Dhaka";
-
+  const [autoClockOutTimer, setAutoClockOutTimer] = useState(null);
+  
+  // View mode
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'calendar', 'grid', 'analytics'
+  
+  // Enhanced Filters
+  const [filters, setFilters] = useState({
+    status: 'all',
+    employeeId: '',
+    department: '',
+    date: '',
+    month: '',
+    year: '',
+    search: '',
+    lateOnly: false,
+    earlyOnly: false,
+    showAllEmployees: false // New: টগল করলে সব এমপ্লয়ি দেখাবে
+  });
+  
+  // Shift timing state
+  const [shiftTiming, setShiftTiming] = useState({
+    start: "09:00",
+    end: "18:00",
+    lateThreshold: 5,
+    earlyThreshold: -1,
+    autoClockOutDelay: 10,
+    isNightShift: false
+  });
+  
+  // Analytics state
+  const [analytics, setAnalytics] = useState({
+    monthlyData: [],
+    weeklyData: [],
+    statusDistribution: {}
+  });
+  
+  // ===================== INITIALIZATION =====================
+  
+  // Initialize component
+  useEffect(() => {
+    initializeData();
+    getDetailedDeviceInfo();
+    getUserDetailedLocation();
+    getRealIPAddress();
+    
+    // Update current time every second
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    // Check auto clock out timer
+    const checkAutoClockOut = () => {
+      if (todayStatus.clockedIn && !todayStatus.clockedOut && !isAdmin) {
+        calculateAutoClockOutTimer();
+      }
+    };
+    
+    const autoCheckInterval = setInterval(checkAutoClockOut, 30000); // Every 30 seconds
+    
+    return () => {
+      clearInterval(timer);
+      clearInterval(autoCheckInterval);
+    };
+  }, [todayStatus]);
+  
+  // ===================== HELPER FUNCTIONS =====================
+  
   const getToken = () => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("token") || 
-             localStorage.getItem("adminToken") || 
-             localStorage.getItem("employeeToken");
+      const adminToken = localStorage.getItem("adminToken");
+      const employeeToken = localStorage.getItem("employeeToken");
+      
+      if (adminToken) return { token: adminToken, type: "admin" };
+      if (employeeToken) return { token: employeeToken, type: "employee" };
     }
     return null;
   };
-
-  const getAuthHeaders = () => {
-    const token = getToken();
-    return {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    };
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const formatTime = (timeString) => {
-    if (!timeString) return "-";
-    if (timeString.includes('T')) {
-      return new Date(timeString).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    }
-    return timeString;
-  };
-
-  const formatDateTime = (dateTimeString) => {
-    if (!dateTimeString) return "-";
-    const date = new Date(dateTimeString);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getStatusColor = (status, statusType = null) => {
-  // বিশেষভাবে Early-Present এবং Late-Present হ্যান্ডেল করা
-  if (status === "Present") {
-    if (statusType === "Early") {
-      return { 
-        bg: 'bg-blue-100', 
-        text: 'text-blue-800', 
-        border: 'border-blue-200',
-        displayText: 'Early-Present'  // নতুন property
-      };
-    }
-    if (statusType === "Late") {
-      return { 
-        bg: 'bg-yellow-100', 
-        text: 'text-yellow-800', 
-        border: 'border-yellow-200',
-        displayText: 'Late-Present'  // নতুন property
-      };
-    }
-  }
   
-  // বাকি status গুলোর জন্য
-  const colors = {
-    'Present': { 
-      bg: 'bg-green-100', 
-      text: 'text-green-800', 
-      border: 'border-green-200',
-      displayText: 'Present'  // নতুন property
-    },
-    'Absent': { 
-      bg: 'bg-red-100', 
-      text: 'text-red-800', 
-      border: 'border-red-200',
-      displayText: 'Absent'  // নতুন property
-    },
-    'Late': { 
-      bg: 'bg-yellow-100', 
-      text: 'text-yellow-800', 
-      border: 'border-yellow-200',
-      displayText: 'Late'  // নতুন property
-    },
-    'Early': { 
-      bg: 'bg-orange-100', 
-      text: 'text-orange-800', 
-      border: 'border-orange-200',
-      displayText: 'Early'  // নতুন property
-    },
-    'Leave': { 
-      bg: 'bg-blue-100', 
-      text: 'text-blue-800', 
-      border: 'border-blue-200',
-      displayText: 'Leave'  // নতুন property
-    },
-    'Govt Holiday': { 
-      bg: 'bg-purple-100', 
-      text: 'text-purple-800', 
-      border: 'border-purple-200',
-      displayText: 'Govt Holiday'  // নতুন property
-    },
-    'Weekly Off': { 
-      bg: 'bg-indigo-100', 
-      text: 'text-indigo-800', 
-      border: 'border-indigo-200',
-      displayText: 'Weekly Off'  // নতুন property
-    },
-    'Off Day': { 
-      bg: 'bg-gray-100', 
-      text: 'text-gray-800', 
-      border: 'border-gray-200',
-      displayText: 'Off Day'  // নতুন property
-    },
-    'Clocked In': { 
-      bg: 'bg-cyan-100', 
-      text: 'text-cyan-800', 
-      border: 'border-cyan-200',
-      displayText: 'Clocked In'  // নতুন property
-    },
-    'Half Day': { 
-      bg: 'bg-amber-100', 
-      text: 'text-amber-800', 
-      border: 'border-amber-200',
-      displayText: 'Half Day'  // নতুন property
-    },
-    'Auto Absent': { 
-      bg: 'bg-red-50', 
-      text: 'text-red-600', 
-      border: 'border-red-100',
-      displayText: 'Auto Absent'  // নতুন property
-    },
-    'Half Paid Leave': { 
-      bg: 'bg-pink-100', 
-      text: 'text-pink-800', 
-      border: 'border-pink-200',
-      displayText: 'Half Paid Leave'  // নতুন property
-    },
-    'Unpaid Leave': { 
-      bg: 'bg-rose-100', 
-      text: 'text-rose-800', 
-      border: 'border-rose-200',
-      displayText: 'Unpaid Leave'  // নতুন property
-    }
-  };
-  
-  const result = colors[status] || colors['Absent'];
-  // displayText না থাকলে status দিয়ে সেট করুন
-  if (!result.displayText) {
-    result.displayText = status;
-  }
-  return result;
-};
-
-  const calculateHours = (clockIn, clockOut) => {
-    if (!clockIn || !clockOut) return 0;
-    const start = new Date(clockIn);
-    const end = new Date(clockOut);
-    const diffMs = end - start;
-    return (diffMs / (1000 * 60 * 60)).toFixed(2);
-  };
-
-  const getDayStatus = (dateString) => {
-  const date = new Date(dateString);
-  const day = date.getDay();
-  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-  
-  // Check for holidays (you can expand this)
-  const holidays = [
-    '2024-01-01', // New Year
-    '2024-12-16', // Victory Day
-    '2024-12-25'  // Christmas
-  ];
-  
-  if (holidays.includes(dateString)) {
-    return {
-      status: 'Govt Holiday',
-      dayName: dayName,
-      isWeekend: true,
-      isWorkingDay: false,
-      description: 'Government Holiday'
-    };
-  }
-  
-  // Bangladesh weekend: Friday & Saturday
-  if (day === 5) { // Friday
-    return {
-      status: 'Weekly Off',
-      dayName: 'Friday',
-      isWeekend: true,
-      isWorkingDay: false,
-      description: 'Friday - Weekly Off'
-    };
-  }
-  
-  if (day === 6) { // Saturday
-    return {
-      status: 'Weekly Off',
-      dayName: 'Saturday',
-      isWeekend: true,
-      isWorkingDay: false,
-      description: 'Saturday - Weekly Off'
-    };
-  }
-  
-  // Sunday is working day in Bangladesh
-  if (day === 0) { // Sunday
-    return {
-      status: 'Working Day',
-      dayName: 'Sunday',
-      isWeekend: false,
-      isWorkingDay: true,
-      description: 'Sunday - Working Day'
-    };
-  }
-  
-  // Monday-Thursday (1-4)
-  return {
-    status: 'Working Day',
-    dayName: dayName,
-    isWeekend: false,
-    isWorkingDay: true,
-    description: `${dayName} - Working Day`
-  };
-};
-
-  const getAutoStatus = (dateString) => {
-    const dayStatus = getDayStatus(dateString);
-    return dayStatus.status;
-  };
-
-  const formatDayMessage = (dateString) => {
-    const dayStatus = getDayStatus(dateString);
-    
-    if (dayStatus.status === 'Govt Holiday') {
-      return `🎉 ${dayStatus.dayName} - Government Holiday (Auto-generated at 1:00 AM)`;
-    }
-    
-    if (dayStatus.status === 'Weekly Off') {
-      return `🏖️ ${dayStatus.dayName} - Weekly Off (Auto-generated at 1:00 AM)`;
-    }
-    
-    return `🏢 ${dayStatus.dayName} - Working Day`;
-  };
-
-  // ===================== API FUNCTIONS =====================
-  const fetchUserProfile = async () => {
-  try {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    const endpoint = token.includes('admin') 
-      ? `${API_URL}/admin/getAdminProfile`
-      : `${API_URL}/users/getProfile`;
-
-    const response = await fetch(endpoint, {
-      headers: getAuthHeaders()
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      const user = data.user || data;
-      setUserData(user);
-      setUserRole(user.role || 'employee');
-      setIsAdmin((user.role || '').toLowerCase() === 'admin');
+  const getDetailedDeviceInfo = () => {
+    if (typeof window !== 'undefined') {
+      const userAgent = navigator.userAgent;
+      const parser = new (require('ua-parser-js'))(userAgent);
+      const result = parser.getResult();
       
-      // User এর shift timing fetch করুন
-      if (user.shiftTiming) {
-        const shiftTiming = getUserShiftTiming(user);
-        
-        // Employee এর জন্য তাদের নিজের shift timing সেট করুন
-        if (!isAdmin && user.role === 'employee') {
-          setManualForm(prev => ({
-            ...prev,
-            shiftStart: shiftTiming.start,
-            shiftEnd: shiftTiming.end,
-            clockIn: shiftTiming.start,
-            clockOut: shiftTiming.end
-          }));
-          
-          setBulkForm(prev => ({
-            ...prev,
-            defaultShiftStart: shiftTiming.start,
-            defaultShiftEnd: shiftTiming.end
-          }));
-        }
+      let type = 'Unknown';
+      const screenWidth = window.screen.width;
+      const screenHeight = window.screen.height;
+      
+      if (/Mobile|Android|iPhone|iPad|iPod/i.test(userAgent)) {
+        if (screenWidth < 768) type = 'Mobile';
+        else type = 'Tablet';
+      } else {
+        type = 'Desktop';
       }
       
-      return user;
-    } else if (response.status === 401) {
-      localStorage.clear();
-      router.push('/login');
+      setDeviceInfo({
+        type,
+        os: result.os.name || 'Unknown',
+        browser: result.browser.name || 'Unknown',
+        browserVersion: result.browser.version || 'Unknown',
+        engine: result.engine.name || 'Unknown',
+        screen: `${screenWidth}x${screenHeight}`,
+        userAgent: userAgent.substring(0, 120)
+      });
     }
-  } catch (error) {
-    console.error("Error fetching profile:", error);
-  }
-  return null;
-};
-
-  const fetchTodayStatus = async () => {
-    if (isAdmin) return;
-    
+  };
+  
+  const getUserDetailedLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          
+          // Try to get address from reverse geocoding
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+            );
+            const data = await response.json();
+            
+            setUserLocation({
+              latitude,
+              longitude,
+              address: data.display_name || `Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`,
+              accuracy,
+              city: data.address?.city || data.address?.town || data.address?.village,
+              country: data.address?.country
+            });
+          } catch (error) {
+            setUserLocation({
+              latitude,
+              longitude,
+              address: `Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`,
+              accuracy,
+              city: null,
+              country: null
+            });
+          }
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          setUserLocation(prev => ({
+            ...prev,
+            address: "Location permission denied",
+            city: "Unknown",
+            country: "Unknown"
+          }));
+        }
+      );
+    } else {
+      setUserLocation(prev => ({
+        ...prev,
+        address: "Geolocation not supported"
+      }));
+    }
+  };
+  
+  const getRealIPAddress = async () => {
     try {
-      const response = await fetch(`${API_URL}/attendance/today-status`, {
-        headers: getAuthHeaders()
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      setRealIpAddress(data.ip);
+      return data.ip;
+    } catch (error) {
+      console.error("Error getting IP:", error);
+      setRealIpAddress("Error Fetching IP");
+      return "Unknown";
+    }
+  };
+  
+  const calculateAutoClockOutTimer = () => {
+    if (!todayStatus.shiftDetails) return;
+    
+    const now = new Date();
+    const [endHour, endMinute] = todayStatus.shiftDetails.end.split(':').map(Number);
+    const autoClockOutTime = new Date(now);
+    autoClockOutTime.setHours(endHour, endMinute + todayStatus.shiftDetails.autoClockOutDelay, 0, 0);
+    
+    // If auto clock out is next day (for night shift)
+    if (todayStatus.shiftDetails.isNightShift && autoClockOutTime < now) {
+      autoClockOutTime.setDate(autoClockOutTime.getDate() + 1);
+    }
+    
+    const diffMs = autoClockOutTime - now;
+    
+    if (diffMs > 0) {
+      const minutes = Math.floor(diffMs / (1000 * 60));
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      
+      setAutoClockOutTimer({
+        hours,
+        minutes: remainingMinutes,
+        totalMinutes: minutes,
+        autoClockOutTime: autoClockOutTime.toLocaleTimeString()
+      });
+    } else {
+      setAutoClockOutTimer(null);
+    }
+  };
+  
+  // ===================== DATA FETCHING =====================
+  
+  const initializeData = async () => {
+    setLoading(true);
+    try {
+      const tokenInfo = getToken();
+      if (!tokenInfo) {
+        router.push("/login");
+        return;
+      }
+      
+      // Fetch user profile
+      const endpoint = tokenInfo.type === "admin" 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/getAdminProfile`
+        : `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
+      
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${tokenInfo.token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const userData = data.user || data;
+        
+        setUserRole(tokenInfo.type);
+        setIsAdmin(tokenInfo.type === "admin");
+        setUserData(userData);
+        
+        // Fetch today's status and shift timing for employees
+        if (tokenInfo.type === "employee") {
+          await fetchTodayStatus();
+          await fetchShiftTiming();
+        }
+        
+        // Fetch attendance data
+        await fetchAttendanceData();
+        
+        // Fetch analytics if needed
+        if (viewMode === 'analytics') {
+          await fetchAnalytics();
+        }
+      }
+    } catch (error) {
+      console.error("Initialize data error:", error);
+      toast.error("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const fetchTodayStatus = async () => {
+    try {
+      const tokenInfo = getToken();
+      if (!tokenInfo || tokenInfo.type !== "employee") return;
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/today-status`, {
+        headers: { 
+          Authorization: `Bearer ${tokenInfo.token}`,
+          "Content-Type": "application/json"
+        }
       });
       
       if (response.ok) {
@@ -450,2716 +522,2817 @@ const AttendanceManagement = ({ userId, isAdminView = false }) => {
           clockInTime: data.attendance?.clockIn || null,
           clockOutTime: data.attendance?.clockOut || null,
           status: data.attendance?.status || "Not Clocked",
-          date: new Date().toDateString()
+          date: new Date().toDateString(),
+          shiftDetails: data.shiftDetails,
+          dayStatus: data.dayStatus
         });
+        
+        if (data.attendance) {
+          setClockDetails(data.attendance);
+        }
+        
+        // Calculate auto clock out timer
+        if (data.clockedIn && !data.clockedOut && data.shiftDetails) {
+          calculateAutoClockOutTimer();
+        }
       }
     } catch (error) {
-      console.error("Error fetching today status:", error);
+      console.error("Failed to fetch today's status:", error);
     }
   };
-
-  const fetchAttendanceRecords = async () => {
-    setLoading(true);
+  
+  const fetchShiftTiming = async () => {
     try {
-      const params = new URLSearchParams({
-        page: pagination.currentPage,
-        limit: pagination.itemsPerPage,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        ...(filters.employeeId && { employeeId: filters.employeeId }),
-        ...(filters.department && { department: filters.department }),
-        ...(filters.status !== 'all' && { status: filters.status }),
-        ...(filters.search && { search: filters.search })
+      const tokenInfo = getToken();
+      if (!tokenInfo || tokenInfo.type !== "employee") return;
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/shift-timing`, {
+        headers: { 
+          Authorization: `Bearer ${tokenInfo.token}`,
+          "Content-Type": "application/json"
+        }
       });
-
-      const endpoint = isAdmin 
-        ? `${API_URL}/admin/all-records`
-        : `${API_URL}/records`;
-
-      const response = await fetch(`${endpoint}?${params}`, {
-        headers: getAuthHeaders()
-      });
-
+      
       if (response.ok) {
         const data = await response.json();
-        setAttendanceRecords(data.records || data || []);
-        setPagination(prev => ({
-          ...prev,
-          totalItems: data.total || 0,
-          totalPages: Math.ceil((data.total || 0) / pagination.itemsPerPage)
-        }));
+        if (data.data?.shiftTiming) {
+          setShiftTiming(data.data.shiftTiming);
+        }
       }
     } catch (error) {
-      console.error("Error fetching records:", error);
-      toast.error("Failed to load attendance records");
-    } finally {
-      setLoading(false);
+      console.error("Failed to fetch shift timing:", error);
     }
   };
-
+  
+  const fetchAttendanceData = async () => {
+    try {
+      const tokenInfo = getToken();
+      if (!tokenInfo) return;
+      
+      // Build query parameters
+      const queryParams = {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        page: currentPage,
+        limit: itemsPerPage,
+      };
+      
+      // Add filters for admin
+      if (isAdmin) {
+        // If showAllEmployees is true, don't filter by employeeId
+        if (!filters.showAllEmployees && filters.employeeId) {
+          queryParams.employeeId = filters.employeeId;
+        }
+      }
+      
+      // Add other filters
+      if (filters.status !== 'all') queryParams.status = filters.status;
+      if (filters.date) queryParams.date = filters.date;
+      if (filters.month) queryParams.month = filters.month;
+      if (filters.year) queryParams.year = filters.year;
+      if (filters.search) queryParams.search = filters.search;
+      if (filters.lateOnly) queryParams.lateOnly = true;
+      if (filters.earlyOnly) queryParams.earlyOnly = true;
+      
+      const query = new URLSearchParams(queryParams).toString();
+      
+      const endpoint = isAdmin 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${query}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/records?${query}`;
+      
+      console.log("Fetching from:", endpoint); // Debugging
+      
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${tokenInfo.token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Attendance data received:", data); // Debugging
+        
+        // Handle both array and object response formats
+        let records = [];
+        if (Array.isArray(data)) {
+          records = data;
+          setTotalRecords(data.length);
+        } else if (data.records) {
+          records = data.records;
+          setTotalRecords(data.total || data.records.length || 0);
+        } else if (data.data?.records) {
+          records = data.data.records;
+          setTotalRecords(data.data.total || data.data.records.length || 0);
+        } else {
+          records = data;
+          setTotalRecords(data.length || 0);
+        }
+        
+        setAttendance(records);
+        
+        // Also fetch summary
+        await fetchSummary();
+      } else {
+        const error = await response.json();
+        console.error("API Error:", error);
+        setAttendance([]);
+        setTotalRecords(0);
+      }
+    } catch (error) {
+      console.error("Fetch attendance error:", error);
+      setAttendance([]);
+      setTotalRecords(0);
+    }
+  };
+  
   const fetchSummary = async () => {
     try {
-      const params = new URLSearchParams({
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        ...(filters.employeeId && { employeeId: filters.employeeId })
+      const tokenInfo = getToken();
+      if (!tokenInfo) return;
+      
+      const query = new URLSearchParams({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        ...(isAdmin && filters.employeeId && !filters.showAllEmployees && { employeeId: filters.employeeId })
+      }).toString();
+      
+      const endpoint = isAdmin 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/summary?${query}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/attendance/summary?${query}`;
+      
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${tokenInfo.token}`,
+          "Content-Type": "application/json"
+        }
       });
-
-      const endpoint = isAdmin
-        ? `${API_URL}/attendance/admin/summary`
-        : `${API_URL}/attendance/summary`;
-
-      const response = await fetch(`${endpoint}?${params}`, {
-        headers: getAuthHeaders()
-      });
-
+      
       if (response.ok) {
         const data = await response.json();
         setSummary(data.summary || data);
       }
     } catch (error) {
-      console.error("Error fetching summary:", error);
+      console.error("Fetch summary error:", error);
+      setSummary(null);
     }
   };
-
-  const fetchEmployees = async () => {
-  if (!isAdmin) return;
   
-  try {
-    const response = await fetch(`${API_URL}/admin/getAll-user`, {
-      headers: getAuthHeaders()
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      // Handle different response structures
-      let employeesArray = [];
-      
-      if (Array.isArray(data)) {
-        employeesArray = data;
-      } else if (data.users && Array.isArray(data.users)) {
-        employeesArray = data.users;
-      } else if (data.data && Array.isArray(data.data)) {
-        employeesArray = data.data;
-      }
-      
-      const formattedEmployees = employeesArray
-        .filter(emp => emp && typeof emp === 'object')
-        .map(emp => ({
-          _id: emp._id || emp.id || '',
-          firstName: emp.firstName || emp.first_name || '',
-          lastName: emp.lastName || emp.last_name || '',
-          email: emp.email || '',
-          employeeId: emp.employeeId || emp.employee_id || '',
-          department: emp.department || 'No Department',
-          position: emp.position || emp.designation || '',
-          phone: emp.phone || emp.phone_number || '',
-          status: emp.status || 'active',
-          shiftTiming: emp.shiftTiming || null, // Shift timing যোগ করুন
-          role: emp.role || 'employee'
-        }));
-      
-      setEmployees(formattedEmployees);
-    }
-  } catch (error) {
-    console.error("Error fetching employees:", error);
-  }
-};
-
-  const fetchSystemInfo = async () => {
+  const fetchAnalytics = async () => {
     try {
-      // Get IP Address
-      let ipAddress = "Unknown";
-      try {
-        const ipResponse = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipResponse.json();
-        ipAddress = ipData.ip;
-      } catch (ipError) {
-        console.log("Could not fetch public IP");
-      }
-
-      // Get device info
-      const userAgent = navigator.userAgent;
-      let deviceType = 'desktop';
-      let os = 'Unknown';
-      let browser = 'Unknown';
-
-      if (/Mobile|Android|iPhone|iPad|iPod/i.test(userAgent)) {
-        deviceType = 'mobile';
-      } else if (/Tablet|iPad/i.test(userAgent)) {
-        deviceType = 'tablet';
-      }
-
-      if (/Windows/i.test(userAgent)) {
-        os = 'Windows';
-      } else if (/Mac/i.test(userAgent)) {
-        os = 'MacOS';
-      } else if (/Linux/i.test(userAgent)) {
-        os = 'Linux';
-      } else if (/Android/i.test(userAgent)) {
-        os = 'Android';
-      } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
-        os = 'iOS';
-      }
-
-      if (/Chrome/i.test(userAgent) && !/Edg/i.test(userAgent)) {
-        browser = 'Chrome';
-      } else if (/Firefox/i.test(userAgent)) {
-        browser = 'Firefox';
-      } else if (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent)) {
-        browser = 'Safari';
-      } else if (/Edg/i.test(userAgent)) {
-        browser = 'Edge';
-      }
-
-      // Get battery info if available
-      let batteryInfo = null;
-      if ('getBattery' in navigator) {
-        try {
-          const battery = await navigator.getBattery();
-          batteryInfo = {
-            level: Math.round(battery.level * 100),
-            charging: battery.charging,
-            chargingTime: battery.chargingTime,
-            dischargingTime: battery.dischargingTime
-          };
-        } catch (e) {
-          // Battery API not supported
+      const tokenInfo = getToken();
+      if (!tokenInfo) return;
+      
+      const query = new URLSearchParams({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        ...(isAdmin && filters.employeeId && !filters.showAllEmployees && { employeeId: filters.employeeId })
+      }).toString();
+      
+      const endpoint = isAdmin 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/analytics?${query}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/attendance/analytics?${query}`;
+      
+      const response = await fetch(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${tokenInfo.token}`,
+          "Content-Type": "application/json"
         }
-      }
-
-      // Get connection info
-      let connectionInfo = null;
-      if ('connection' in navigator) {
-        connectionInfo = {
-          type: navigator.connection.type,
-          effectiveType: navigator.connection.effectiveType,
-          downlink: navigator.connection.downlink,
-          rtt: navigator.connection.rtt
-        };
-      }
-
-      // Get location
-      let location = "Office";
-      if (navigator.geolocation) {
-        try {
-          const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: false,
-              timeout: 5000,
-              maximumAge: 0
-            });
-          });
-          
-          const { latitude, longitude } = position.coords;
-          location = `Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`;
-          
-          // Try reverse geocoding
-          try {
-            const geoResponse = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-            );
-            const geoData = await geoResponse.json();
-            if (geoData.display_name) {
-              location = geoData.display_name.split(',').slice(0, 2).join(',');
-            }
-          } catch (geoError) {
-            // Silently fail reverse geocoding
-          }
-        } catch (locError) {
-          // Location permission denied or error
-          console.log("Location access denied or error:", locError);
-        }
-      }
-
-      setSystemInfo({
-        ipAddress,
-        location,
-        device: {
-          type: deviceType,
-          os,
-          browser,
-          userAgent: userAgent.substring(0, 100)
-        },
-        battery: batteryInfo,
-        connection: connectionInfo,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
-
-    } catch (error) {
-      console.error("Error fetching system info:", error);
-    }
-  };
-
-  const fetchWeather = async () => {
-    try {
-      // This is a mock weather function. Replace with actual API
-      const mockWeather = {
-        temp: 28,
-        condition: "Sunny",
-        humidity: 65,
-        wind: 12,
-        icon: "☀️"
-      };
-      setWeather(mockWeather);
-    } catch (error) {
-      console.error("Error fetching weather:", error);
-    }
-  };
-
-  // ===================== ATTENDANCE ACTIONS =====================
-const handleClockIn = async () => {
-  try {
-    const shiftTiming = getUserShiftTiming(userData);
-    const now = new Date();
-    const shiftStart = parseTime(shiftTiming.start);
-    
-    let isLate = false;
-    let isEarly = false;
-    let lateMinutes = 0;
-    let earlyMinutes = 0;
-    let status = "Present";
-    let statusType = "OnTime";
-    
-    if (shiftStart) {
-      const diffMinutes = Math.floor((now - shiftStart) / (1000 * 60));
       
-      // ১. EARLY (1+ minutes BEFORE shift)
-      if (diffMinutes < 0) {
-        const minutesBefore = Math.abs(diffMinutes);
-        if (minutesBefore >= 1) {
-          isEarly = true;
-          earlyMinutes = minutesBefore;
-          status = "Present";
-          statusType = "Early";
-        }
-      }
-      // ২. LATE (5+ minutes AFTER shift)
-      else if (diffMinutes > 5) {
-        isLate = true;
-        lateMinutes = diffMinutes;
-        status = "Present";
-        statusType = "Late";
-      }
-      // ৩. ON-TIME (0 to 5 minutes)
-      else {
-        status = "Present";
-        statusType = "OnTime";
-      }
-    }
-
-    // API call (পুরানো ফাংশনের মত অন্যান্য ফিল্ড যোগ করুন)
-    const response = await fetch(`${API_URL}/clock-in`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        timestamp: now.toISOString(),
-        location: systemInfo.location,
-        ipAddress: systemInfo.ipAddress,
-        device: systemInfo.device,
-        shiftStart: shiftTiming.start,
-        shiftEnd: shiftTiming.end,
-        shiftName: shiftTiming.name,
-        isLate: isLate,
-        isEarly: isEarly,
-        lateMinutes: lateMinutes,
-        earlyMinutes: earlyMinutes,
-        status: status,
-        statusType: statusType,
-        expectedClockIn: shiftTiming.start
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      toast.success(data.message || "Clocked in successfully");
-      await fetchTodayStatus();
-      await fetchAttendanceRecords();
-      await fetchSummary();
-    } else {
-      const error = await response.json();
-      toast.error(error.message || "Failed to clock in");
-    }
-  } catch (error) {
-    console.error("Error clocking in:", error);
-    toast.error("Failed to clock in");
-  }
-};
-
-const handleClockOut = async () => {
-  try {
-    // Get user's shift timing
-    const shiftTiming = getUserShiftTiming(userData);
-    
-    // Check if user is leaving early
-    const now = new Date();
-    const shiftEnd = parseTime(shiftTiming.end);
-    
-    let isEarly = false;
-    let earlyMinutes = 0;
-    let status = "Present";
-    
-    if (shiftEnd && now < shiftEnd) {
-      const diffMinutes = Math.floor((shiftEnd - now) / (1000 * 60));
-      if (diffMinutes > shiftTiming.earlyThreshold && shiftTiming.earlyThreshold >= 0) {
-        isEarly = true;
-        earlyMinutes = diffMinutes;
-        status = "Early";
-      }
-    }
-
-    const response = await fetch(`${API_URL}/clock-out`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        timestamp: new Date().toISOString(),
-        location: systemInfo.location,
-        ipAddress: systemInfo.ipAddress,
-        device: systemInfo.device,
-        shiftStart: shiftTiming.start,
-        shiftEnd: shiftTiming.end,
-        shiftName: shiftTiming.name,
-        isEarly: isEarly,
-        earlyMinutes: earlyMinutes,
-        status: status,
-        expectedClockOut: shiftTiming.end
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      toast.success(data.message || "Clocked out successfully");
-      await fetchTodayStatus();
-      await fetchAttendanceRecords();
-      await fetchSummary();
-    } else {
-      const error = await response.json();
-      toast.error(error.message || "Failed to clock out");
-    }
-  } catch (error) {
-    console.error("Error clocking out:", error);
-    toast.error("Failed to clock out");
-  }
-};
-
-  const handleCreateManualAttendance = async () => {
-    if (!manualForm.employeeId && !selectedEmployee?._id) {
-      toast.error("Please select an employee");
-      return;
-    }
-
-    try {
-      const payload = {
-        ...manualForm,
-        employeeId: selectedEmployee?._id || manualForm.employeeId,
-        clockIn: manualForm.clockIn ? `${manualForm.date}T${manualForm.clockIn}:00` : null,
-        clockOut: manualForm.clockOut ? `${manualForm.date}T${manualForm.clockOut}:00` : null,
-        ipAddress: systemInfo.ipAddress,
-        device: systemInfo.device
-      };
-
-      const response = await fetch(`${API_URL}/attendance/admin/manual`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
-      });
-
       if (response.ok) {
         const data = await response.json();
-        toast.success(data.message || "Attendance created successfully");
-        setShowManualModal(false);
-        resetManualForm();
-        await fetchAttendanceRecords();
-        await fetchSummary();
+        setAnalytics(data.analytics || data.data?.analytics || {});
+      }
+    } catch (error) {
+      console.error("Fetch analytics error:", error);
+    }
+  };
+  
+  const fetchEmployees = async () => {
+    if (!isAdmin) return;
+    
+    try {
+      const tokenInfo = getToken();
+      if (!tokenInfo) return;
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`, {
+        headers: { 
+          Authorization: `Bearer ${tokenInfo.token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const employeesArray = Array.isArray(data) ? data : 
+                              data.users || data.data || data.employees || [];
+        
+        const validEmployees = employeesArray
+          .filter(emp => emp && typeof emp === 'object')
+          .map(emp => ({
+            _id: emp._id || emp.id || '',
+            firstName: emp.firstName || emp.first_name || emp.name?.split(' ')[0] || '',
+            lastName: emp.lastName || emp.last_name || emp.name?.split(' ').slice(1).join(' ') || '',
+            email: emp.email || '',
+            employeeId: emp.employeeId || emp.employee_id || emp._id?.slice(-6) || '',
+            department: emp.department || emp.department_name || 'No Department',
+            position: emp.position || emp.job_title || '',
+            status: emp.status || 'active',
+            phone: emp.phone || '',
+            profileImage: emp.profileImage || ''
+          }))
+          .filter(emp => emp._id);
+        
+        setEmployees(validEmployees);
+      }
+    } catch (error) {
+      console.error("Fetch employees error:", error);
+      setEmployees([]);
+    }
+  };
+  
+  // ===================== ATTENDANCE ACTIONS =====================
+  
+  const handleClockIn = async () => {
+    if (userRole !== "employee") {
+      toast.error("Only employees can clock in");
+      return;
+    }
+    
+    // Check if already clocked in
+    if (todayStatus.clockedIn) {
+      toast.error("Already clocked in today");
+      return;
+    }
+    
+    // Check if it's a working day
+    if (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay) {
+      toast.error(`Cannot clock in on ${todayStatus.dayStatus.status}`);
+      return;
+    }
+    
+    // Check if before shift start (1 hour before shift start)
+    const now = new Date();
+    const [shiftHour, shiftMinute] = shiftTiming.start.split(':').map(Number);
+    const shiftStartTime = new Date(now);
+    shiftStartTime.setHours(shiftHour, shiftMinute, 0, 0);
+    const oneHourBeforeShift = new Date(shiftStartTime);
+    oneHourBeforeShift.setHours(shiftHour - 1, shiftMinute, 0, 0);
+    
+    if (now < oneHourBeforeShift) {
+      toast.error(`Clock in available from ${oneHourBeforeShift.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const tokenInfo = getToken();
+      if (!tokenInfo) return;
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/clock-in`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenInfo.token}`
+        },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          location: userLocation.address,
+          ipAddress: realIpAddress,
+          device: deviceInfo
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Calculate late/early
+        const clockInTime = new Date();
+        const [shiftStartHour, shiftStartMinute] = shiftTiming.start.split(':').map(Number);
+        const shiftStart = new Date(clockInTime);
+        shiftStart.setHours(shiftStartHour, shiftStartMinute, 0, 0);
+        
+        const diffMinutes = Math.round((clockInTime - shiftStart) / (1000 * 60));
+        let message = `Clocked in successfully!`;
+        
+        if (diffMinutes > shiftTiming.lateThreshold) {
+          const lateMinutes = diffMinutes - shiftTiming.lateThreshold;
+          message += ` ${lateMinutes} minutes late`;
+        } else if (diffMinutes < shiftTiming.earlyThreshold) {
+          const earlyMinutes = Math.abs(diffMinutes - shiftTiming.earlyThreshold);
+          message += ` ${earlyMinutes} minutes early`;
+        }
+        
+        toast.success(message);
+        await fetchTodayStatus();
+        await fetchAttendanceData();
       } else {
         const error = await response.json();
-        toast.error(error.message || "Failed to create attendance");
+        toast.error(error.message || "Failed to clock in");
       }
     } catch (error) {
-      console.error("Error creating manual attendance:", error);
-      toast.error("Failed to create attendance");
+      console.error("Clock in error:", error);
+      toast.error("Clock in failed");
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleCreateBulkAttendance = async () => {
-    if (!bulkForm.employeeId && !selectedEmployee?._id) {
-      toast.error("Please select an employee");
+  
+  const handleClockOut = async () => {
+    if (userRole !== "employee") {
+      toast.error("Only employees can clock out");
       return;
     }
-
+    
+    if (!todayStatus.clockedIn || todayStatus.clockedOut) {
+      toast.error("Clock in first or already clocked out");
+      return;
+    }
+    
+    setLoading(true);
     try {
-      const payload = {
-        ...bulkForm,
-        employeeId: selectedEmployee?._id || bulkForm.employeeId,
-        employeeName: selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : bulkForm.employeeName
-      };
-
-      const response = await fetch(`${API_URL}/attendance/admin/bulk`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
+      const tokenInfo = getToken();
+      if (!tokenInfo) return;
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/clock-out`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenInfo.token}`
+        },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          location: userLocation.address,
+          ipAddress: realIpAddress,
+          device: deviceInfo
+        })
       });
-
+      
       if (response.ok) {
         const data = await response.json();
-        toast.success(data.message || "Bulk attendance created successfully");
-        setShowBulkModal(false);
-        resetBulkForm();
-        await fetchAttendanceRecords();
-        await fetchSummary();
+        toast.success(`Clocked out successfully!`);
+        await fetchTodayStatus();
+        await fetchAttendanceData();
+      } else {
+        const error = await response.json();
+        toast.error(error.message || "Failed to clock out");
+      }
+    } catch (error) {
+      console.error("Clock out error:", error);
+      toast.error("Clock out failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // ===================== ADMIN FUNCTIONS =====================
+  
+  const handleCreateManualAttendance = async () => {
+    setLoading(true);
+    try {
+      const tokenInfo = getToken();
+      if (!tokenInfo || !isAdmin) {
+        toast.error("Admin access required");
+        return;
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/manual`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenInfo.token}`
+        },
+        body: JSON.stringify(manualAttendanceData)
+      });
+      
+      if (response.ok) {
+        toast.success("Manual attendance created!");
+        setShowManualAttendanceModal(false);
+        await fetchAttendanceData();
+      } else {
+        const error = await response.json();
+        toast.error(error.message || "Failed to create manual attendance");
+      }
+    } catch (error) {
+      console.error("Create manual attendance error:", error);
+      toast.error("Failed to create manual attendance");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleCreateBulkAttendance = async () => {
+    setLoading(true);
+    try {
+      const tokenInfo = getToken();
+      if (!tokenInfo || !isAdmin) {
+        toast.error("Admin access required");
+        return;
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/bulk-v2`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenInfo.token}`
+        },
+        body: JSON.stringify(bulkAttendanceData)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Bulk attendance created: ${data.results?.created || 0} records`);
+        setShowBulkAttendanceModal(false);
+        await fetchAttendanceData();
       } else {
         const error = await response.json();
         toast.error(error.message || "Failed to create bulk attendance");
       }
     } catch (error) {
-      console.error("Error creating bulk attendance:", error);
+      console.error("Create bulk attendance error:", error);
       toast.error("Failed to create bulk attendance");
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleUpdateAttendance = async (id, updates) => {
+  
+  const handleCorrectAttendance = async (recordId, updatedData) => {
+    setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/attendance/admin/update/${id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updates)
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(data.message || "Attendance updated successfully");
-        setShowEditModal(false);
-        setEditingRecord(null);
-        await fetchAttendanceRecords();
-        await fetchSummary();
-      } else {
-        const error = await response.json();
-        toast.error(error.message || "Failed to update attendance");
+      const tokenInfo = getToken();
+      if (!tokenInfo || !isAdmin) {
+        toast.error("Admin access required");
+        return;
       }
-    } catch (error) {
-      console.error("Error updating attendance:", error);
-      toast.error("Failed to update attendance");
-    }
-  };
-
-  const handleDeleteAttendance = async (id) => {
-    if (!confirm("Are you sure you want to delete this attendance record?")) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_URL}/attendance/admin/delete/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ reason: "Deleted by admin" })
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/correct/${recordId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenInfo.token}`
+        },
+        body: JSON.stringify(updatedData)
       });
-
+      
       if (response.ok) {
-        const data = await response.json();
-        toast.success(data.message || "Attendance deleted successfully");
-        await fetchAttendanceRecords();
-        await fetchSummary();
-      } else {
-        const error = await response.json();
-        toast.error(error.message || "Failed to delete attendance");
-      }
-    } catch (error) {
-      console.error("Error deleting attendance:", error);
-      toast.error("Failed to delete attendance");
-    }
-  };
-
-  const handleCorrectAttendance = async (id) => {
-    try {
-      const response = await fetch(`${API_URL}/attendance/admin/correct/${id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(editingRecord)
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(data.message || "Attendance corrected successfully");
-        setShowEditModal(false);
-        setEditingRecord(null);
-        await fetchAttendanceRecords();
-        await fetchSummary();
+        toast.success("Attendance corrected!");
+        setSelectedAttendanceRecord(null);
+        await fetchAttendanceData();
       } else {
         const error = await response.json();
         toast.error(error.message || "Failed to correct attendance");
       }
     } catch (error) {
-      console.error("Error correcting attendance:", error);
+      console.error("Correct attendance error:", error);
       toast.error("Failed to correct attendance");
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleExportData = async (format = 'csv') => {
+  
+  const handleUpdateShift = async (employeeId, shiftData) => {
+    setLoading(true);
     try {
-      const params = new URLSearchParams({
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        format,
-        ...(filters.employeeId && { employeeId: filters.employeeId }),
-        ...(filters.department && { department: filters.department })
+      const tokenInfo = getToken();
+      if (!tokenInfo || !isAdmin) {
+        toast.error("Admin access required");
+        return;
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/update-shift`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenInfo.token}`
+        },
+        body: JSON.stringify({
+          employeeId,
+          ...shiftData
+        })
       });
-
-      const endpoint = isAdmin
-        ? `${API_URL}/attendance/admin/export`
-        : `${API_URL}/attendance/export`;
-
-      const response = await fetch(`${endpoint}?${params}`, {
-        headers: getAuthHeaders()
-      });
-
+      
       if (response.ok) {
-        if (format === 'csv') {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `attendance_${filters.startDate}_to_${filters.endDate}.csv`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          toast.success("CSV exported successfully!");
-        } else {
-          const data = await response.json();
-          const jsonString = JSON.stringify(data, null, 2);
-          const blob = new Blob([jsonString], { type: 'application/json' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `attendance_${filters.startDate}_to_${filters.endDate}.json`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          toast.success("JSON exported successfully!");
-        }
+        toast.success("Shift updated!");
+        await fetchAttendanceData();
+      } else {
+        const error = await response.json();
+        toast.error(error.message || "Failed to update shift");
       }
     } catch (error) {
-      console.error("Error exporting data:", error);
-      toast.error("Failed to export data");
+      console.error("Update shift error:", error);
+      toast.error("Failed to update shift");
+    } finally {
+      setLoading(false);
     }
   };
-const triggerAutoAbsentMarking = async (reason) => {
-  try {
-    const shiftTiming = getUserShiftTiming(userData);
-    
-    const response = await fetch(`${API_URL}/attendance/auto-mark-absent`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        date: new Date().toISOString().split('T')[0],
-        reason: reason,
-        markedBy: "System Auto",
-        shiftTiming: shiftTiming,
-        ruleType: reason.includes('5 hours') ? '5_hour_rule' : 'shift_start_rule'
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log("Auto absent marked:", data.message);
-      
-      // Refresh data
-      fetchTodayStatus();
-      fetchAttendanceRecords();
-      fetchSummary();
-    }
-  } catch (error) {
-    console.error("Error in auto absent marking:", error);
-  }
-};
-  // Admin trigger functions
+  
   const handleTriggerAutoClockOut = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/attendance/admin/trigger-auto-clockout`, {
-        method: 'POST',
-        headers: getAuthHeaders()
+      const tokenInfo = getToken();
+      if (!tokenInfo || !isAdmin) {
+        toast.error("Admin access required");
+        return;
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/trigger-auto-clockout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenInfo.token}`
+        }
       });
-
+      
       if (response.ok) {
         const data = await response.json();
-        toast.success(data.message || "Auto clock out triggered");
-        await fetchAttendanceRecords();
-        await fetchSummary();
+        toast.success(`Auto clock out triggered: ${data.results?.autoClockOuts || 0} employees`);
+        await fetchAttendanceData();
+      } else {
+        const error = await response.json();
+        toast.error(error.message || "Failed to trigger auto clock out");
       }
     } catch (error) {
-      console.error("Error triggering auto clock out:", error);
+      console.error("Trigger auto clock out error:", error);
       toast.error("Failed to trigger auto clock out");
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleTriggerAbsentMarking = async () => {
-    try {
-      const response = await fetch(`${API_URL}/attendance/admin/trigger-absent-marking`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(data.message || "Absent marking triggered");
-        await fetchAttendanceRecords();
-        await fetchSummary();
-      }
-    } catch (error) {
-      console.error("Error triggering absent marking:", error);
-      toast.error("Failed to trigger absent marking");
-    }
-  };
-
-  const handleTriggerTomorrowRecords = async () => {
-    try {
-      const response = await fetch(`${API_URL}/attendance/admin/trigger-tomorrow-records`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(data.message || "Tomorrow records generated");
-        await fetchAttendanceRecords();
-        await fetchSummary();
-      }
-    } catch (error) {
-      console.error("Error triggering tomorrow records:", error);
-      toast.error("Failed to generate tomorrow records");
-    }
-  };
-
-  // ===================== HELPER FUNCTIONS ===================== 
-// Calculate if 5 hours passed since shift start
-const checkFiveHoursPassed = (record) => {
-  if (!record.clockIn && record.shiftStart) {
-    const now = new Date();
-    const shiftStartTime = parseTime(record.shiftStart);
-    
-    if (shiftStartTime) {
-      // Set shift start time for today
-      const todayShiftStart = new Date();
-      todayShiftStart.setHours(shiftStartTime.getHours(), shiftStartTime.getMinutes(), 0, 0);
-      
-      // Calculate difference in hours
-      const diffHours = (now - todayShiftStart) / (1000 * 60 * 60);
-      
-      return diffHours >= 5;
-    }
-  }
-  return false;
-};
-
-// Check if 5 hours passed since shift start (for today)
-const checkFiveHoursFromShiftStart = () => {
-  if (!userData || isAdmin) return false;
   
-  const shiftTiming = getUserShiftTiming(userData);
-  if (!shiftTiming) return false;
+  // ===================== UTILITY FUNCTIONS =====================
   
-  const now = new Date();
-  const shiftStartTime = parseTime(shiftTiming.start);
-  
-  if (!shiftStartTime || todayStatus.clockedIn) return false;
-  
-  // Set shift start time for today
-  const todayShiftStart = new Date();
-  todayShiftStart.setHours(shiftStartTime.getHours(), shiftStartTime.getMinutes(), 0, 0);
-  
-  // Calculate difference in hours
-  const diffHours = (now - todayShiftStart) / (1000 * 60 * 60);
-  
-  return {
-    passed: diffHours >= 5,
-    hoursPassed: diffHours,
-    shiftStartTime: todayShiftStart
-  };
-};
-const getUserShiftTiming = (user) => {
-  if (!user || !user.shiftTiming) {
-    return {
-      start: "09:00",
-      end: "18:00",
-      lateThreshold: 5,
-      earlyThreshold: -1,
-      autoClockOutDelay: 10,
-      name: "Default Shift",
-      shiftType: "regular"
-    };
-  }
-
-  // Check if assigned shift is active
-  if (user.shiftTiming.assignedShift && user.shiftTiming.assignedShift.isActive) {
-    return {
-      start: user.shiftTiming.assignedShift.start || "09:00",
-      end: user.shiftTiming.assignedShift.end || "18:00",
-      lateThreshold: user.shiftTiming.assignedShift.lateThreshold || 5,
-      earlyThreshold: user.shiftTiming.assignedShift.earlyThreshold || -1,
-      autoClockOutDelay: user.shiftTiming.assignedShift.autoClockOutDelay || 10,
-      name: user.shiftTiming.assignedShift.name || "Assigned Shift",
-      shiftType: "assigned"
-    };
-  }
-
-  // Otherwise use default shift
-  return {
-    start: user.shiftTiming.defaultShift.start || "09:00",
-    end: user.shiftTiming.defaultShift.end || "18:00",
-    lateThreshold: user.shiftTiming.defaultShift.lateThreshold || 5,
-    earlyThreshold: user.shiftTiming.defaultShift.earlyThreshold || -1,
-    autoClockOutDelay: user.shiftTiming.defaultShift.autoClockOutDelay || 10,
-    name: user.shiftTiming.defaultShift.name || "Regular Shift",
-    shiftType: "default"
-  };
-};
-
-// Parse time string to Date object
-const parseTime = (timeString) => {
-  if (!timeString) return null;
-  const [hours, minutes] = timeString.split(':').map(Number);
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
-  return date;
-};
-
-// Calculate auto clock out time
-const getAutoClockOutTime = (shiftEnd, delayMinutes) => {
-  const shiftEndTime = parseTime(shiftEnd);
-  if (!shiftEndTime) return null;
-  shiftEndTime.setMinutes(shiftEndTime.getMinutes() + delayMinutes);
-  return shiftEndTime;
-};
-
-  const resetManualForm = () => {
-    setManualForm({
-      employeeId: "",
-      employeeName: "",
-      date: new Date().toISOString().split('T')[0],
-      clockIn: "09:00",
-      clockOut: "18:00",
-      status: "Present",
-      shiftStart: "09:00",
-      shiftEnd: "18:00",
-      remarks: "",
-      ipAddress: systemInfo.ipAddress,
-      location: systemInfo.location,
-      deviceType: "desktop",
-      isHoliday: false,
-      holidayType: null
+  const formatTime = (date) => {
+    if (!date) return "-";
+    return new Date(date).toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
     });
-    setSelectedEmployee(null);
   };
-
-  const resetBulkForm = () => {
-    setBulkForm({
-      employeeId: "",
-      employeeName: "",
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
-      defaultShiftStart: "09:00",
-      defaultShiftEnd: "18:00",
-      holidays: [],
-      leaveDates: [],
-      workingDays: [],
-      markAllAsPresent: false,
-      skipWeekends: true
+  
+  const formatDate = (dateString) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
-    setSelectedEmployee(null);
   };
-
-  const handleSelectEmployee = (employee) => {
-    setSelectedEmployee(employee);
-    if (showManualModal) {
-      setManualForm(prev => ({
-        ...prev,
-        employeeId: employee._id,
-        employeeName: `${employee.firstName} ${employee.lastName}`
-      }));
-    }
-    if (showBulkModal) {
-      setBulkForm(prev => ({
-        ...prev,
-        employeeId: employee._id,
-        employeeName: `${employee.firstName} ${employee.lastName}`
-      }));
-    }
-    setShowEmployeeSelector(false);
-  };
-
-  const openEditModal = (record) => {
-    setEditingRecord({
-      ...record,
-      clockIn: record.clockIn ? formatTime(record.clockIn).replace(' ', '') : '',
-      clockOut: record.clockOut ? formatTime(record.clockOut).replace(' ', '') : '',
-      date: record.date ? record.date.split('T')[0] : new Date().toISOString().split('T')[0]
+  
+  const formatDateShort = (dateString) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
     });
-    setShowEditModal(true);
   };
-
-  // Add holiday/leave date management functions
-  const addHoliday = () => {
-    const date = prompt("Enter holiday date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
-    const type = prompt("Enter holiday type (Govt Holiday/Weekly Off/Other):", "Govt Holiday");
-   
-    if (date && type) {
-      setBulkForm(prev => ({
-        ...prev,
-        holidays: [...prev.holidays, { date, type }]
-      }));
-      toast.success(`Added holiday: ${date} - ${type}`);
-    }
-  };
-
-  const addLeaveDate = () => {
-    const date = prompt("Enter leave date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
-   
-    if (date) {
-      setBulkForm(prev => ({
-        ...prev,
-        leaveDates: [...prev.leaveDates, date]
-      }));
-      toast.success(`Added leave date: ${date}`);
-    }
-  };
-
-  const addWorkingDay = () => {
-    const date = prompt("Enter working date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
-   
-    if (date) {
-      setBulkForm(prev => ({
-        ...prev,
-        workingDays: [...prev.workingDays, date]
-      }));
-      toast.success(`Added working day: ${date}`);
-    }
-  };
-
-  const generateBulkAttendanceData = () => {
-    const month = parseInt(bulkForm.month);
-    const year = parseInt(bulkForm.year);
-    
-    if (isNaN(month) || isNaN(year)) return [];
-    
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const attendanceRecords = [];
-    
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month - 1, day);
-      const dateString = date.toISOString().split('T')[0];
-      const dayOfWeek = date.getDay();
-      const dayStatus = getDayStatus(dateString);
-      
-      // Skip weekends if option is enabled
-      if (bulkForm.skipWeekends && (dayOfWeek === 5 || dayOfWeek === 6)) {
-        continue;
-      }
-      
-      // Check if it's a holiday
-      const isHoliday = bulkForm.holidays.some(h => h.date === dateString);
-      const isLeave = bulkForm.leaveDates.includes(dateString);
-      const isWorkingDay = bulkForm.workingDays.includes(dateString);
-      
-      let status = 'Present';
-      let remarks = 'Bulk created by admin';
-      
-      if (isHoliday) {
-        status = 'Govt Holiday';
-        remarks = 'Holiday - Bulk created';
-      } else if (isLeave) {
-        status = 'Leave';
-        remarks = 'Leave - Bulk created';
-      } else if (isWorkingDay) {
-        status = 'Present';
-        remarks = 'Working Day - Bulk created';
-      } else if (bulkForm.markAllAsPresent) {
-        status = 'Present';
-        remarks = 'Marked present - Bulk created';
-      } else if (!dayStatus.isWorkingDay) {
-        // For non-working days (like holidays/weekly offs that weren't in the list)
-        status = dayStatus.status;
-        remarks = `${dayStatus.description} - Bulk created`;
-      }
-      
-      // Auto-clear clock in/out for non-working days
-      const clockIn = (status === 'Present') ? bulkForm.defaultShiftStart : null;
-      const clockOut = (status === 'Present') ? bulkForm.defaultShiftEnd : null;
-      
-      attendanceRecords.push({
-        date: dateString,
-        clockIn,
-        clockOut,
-        status,
-        shiftStart: bulkForm.defaultShiftStart,
-        shiftEnd: bulkForm.defaultShiftEnd,
-        remarks,
-        isHoliday: status === 'Govt Holiday',
-        holidayType: status === 'Govt Holiday' ? 'Bulk Holiday' : null,
-        autoGenerated: status !== 'Present',
-        isWorkingDay: dayStatus.isWorkingDay
-      });
-    }
-    
-    return attendanceRecords;
-  }; 
-
-  // ===================== EFFECTS =====================
-  useEffect(() => {
-    const init = async () => {
-      await fetchUserProfile();
-      await fetchSystemInfo();
-      await fetchEmployees();
-      await fetchTodayStatus();
-      await fetchAttendanceRecords();
-      await fetchSummary();
-      await fetchWeather();
+  
+  const getStatusColor = (status) => {
+    const statusMap = {
+      'Present': 'bg-gradient-to-r from-emerald-500 to-green-500 text-white',
+      'Absent': 'bg-gradient-to-r from-rose-600 to-pink-600 text-white',
+      'Leave': 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
+      'Late': 'bg-gradient-to-r from-amber-500 to-orange-500 text-white',
+      'Early': 'bg-gradient-to-r from-violet-500 to-purple-500 text-white',
+      'Govt Holiday': 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white',
+      'Weekly Off': 'bg-gradient-to-r from-slate-500 to-gray-600 text-white',
+      'Off Day': 'bg-gradient-to-r from-gray-500 to-slate-600 text-white',
+      'Half Day': 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white',
+      'Unpaid Leave': 'bg-gradient-to-r from-red-500 to-rose-600 text-white',
+      'Half Paid Leave': 'bg-gradient-to-r from-yellow-400 to-amber-400 text-white',
+      'Clocked In': 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white',
+      'Not Clocked': 'bg-gradient-to-r from-slate-400 to-gray-500 text-white'
     };
-    init();
-  }, [pagination.currentPage, filters]);
-
-  // Update time every second
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-// Check if already auto-marked today
-const checkAlreadyAutoMarkedToday = () => {
-  const todayStr = new Date().toISOString().split('T')[0];
-  return attendanceRecords.some(record => {
-    const recordDate = new Date(record.date).toISOString().split('T')[0];
-    return recordDate === todayStr && record.status === 'Absent' && record.autoMarked;
-  });
-};
-
-// Auto operations based on user's shift timing
-useEffect(() => {
-  const checkAutoOperations = () => {
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const currentHours = now.getHours();
-  const currentMinutes = now.getMinutes();
+    return statusMap[status] || 'bg-gradient-to-r from-gray-400 to-slate-500 text-white';
+  };
   
-  // Get user's shift timing
-  const shiftTiming = getUserShiftTiming(userData);
+  const getStatusIcon = (status) => {
+    const iconMap = {
+      'Present': CheckCircle,
+      'Absent': XCircle,
+      'Leave': CalendarX,
+      'Late': Clock,
+      'Early': TrendingDown,
+      'Govt Holiday': Calendar,
+      'Weekly Off': CalendarDays,
+      'Off Day': CalendarRange,
+      'Half Day': Clock12,
+      'Clocked In': LogIn,
+      'Not Clocked': Clock
+    };
+    return iconMap[status] || AlertCircle;
+  };
   
-  if (!shiftTiming || !userData || isAdmin) return;
-  
-  // Parse shift times
-  const shiftStartTime = parseTime(shiftTiming.start);
-  const shiftEndTime = parseTime(shiftTiming.end);
-  
-  if (!shiftStartTime || !shiftEndTime) return;
-  
-  // Calculate only necessary times
-  const fiveHourMarkTime = new Date(shiftStartTime);
-  fiveHourMarkTime.setHours(fiveHourMarkTime.getHours() + 5);
-  
-  const autoClockOutTime = new Date(shiftEndTime);
-  autoClockOutTime.setMinutes(autoClockOutTime.getMinutes() + shiftTiming.autoClockOutDelay);
-  
-  const lateNotificationTime = new Date(shiftStartTime);
-  lateNotificationTime.setMinutes(lateNotificationTime.getMinutes() + 5);
-  
-  const fiveHourWarningTime = new Date(fiveHourMarkTime);
-  fiveHourWarningTime.setMinutes(fiveHourWarningTime.getMinutes() - 30);
-  
-  // Get today's status
-  const todayDayStatus = getDayStatus(todayStr);
-  const isWorkingDay = todayDayStatus.isWeekend === false && todayDayStatus.status === 'Working Day';
-  const alreadyMarked = checkAlreadyAutoMarkedToday();
-  
-  // ✅ 1. Auto Clock Out
-  if (currentHours === autoClockOutTime.getHours() && currentMinutes === autoClockOutTime.getMinutes()) {
-    if (todayStatus.clockedIn && !todayStatus.clockedOut && !isAdmin) {
-      if (lastAutoCheck.date !== todayStr || lastAutoCheck.type !== 'clockout') {
-        toast.info(`Auto clock out triggered at ${autoClockOutTime.getHours()}:${autoClockOutTime.getMinutes().toString().padStart(2, '0')}`);
-        setLastAutoCheck({ date: todayStr, type: 'clockout' });
-      }
-    }
-  }
-  
-  // ✅ 2. Auto Absent Marking - শুধু ৫-ঘন্টা রুল
-  const isFiveHourMarkTime = 
-    currentHours === fiveHourMarkTime.getHours() && 
-    currentMinutes === fiveHourMarkTime.getMinutes();
-  
-  if (isFiveHourMarkTime && isWorkingDay) {
-    if (!todayStatus.clockedIn && !isAdmin && !alreadyMarked) {
-      const timeType = `5-Hour Rule (${fiveHourMarkTime.getHours()}:${fiveHourMarkTime.getMinutes().toString().padStart(2, '0')})`;
-      const reason = "No clock in detected within 5 hours of shift start";
+  const calculateLateEarlyMinutes = (clockInTime, shiftStart) => {
+    if (!clockInTime || !shiftStart) return { isLate: false, isEarly: false, minutes: 0, details: '' };
+    
+    const clockIn = new Date(clockInTime);
+    const [shiftHour, shiftMinute] = shiftStart.split(':').map(Number);
+    const shiftTime = new Date(clockIn);
+    shiftTime.setHours(shiftHour, shiftMinute, 0, 0);
+    
+    const diffMinutes = Math.round((clockIn - shiftTime) / (1000 * 60));
+    
+    if (diffMinutes > 5) { // 5 minutes after shift start is late
+      const lateMinutes = diffMinutes - 5;
+      const hours = Math.floor(lateMinutes / 60);
+      const minutes = lateMinutes % 60;
+      let details = '';
+      if (hours > 0) details = `${hours}h ${minutes}m late`;
+      else details = `${minutes}m late`;
       
-      toast.error(`Auto Absent marked at ${timeType} - ${reason}`);
-      triggerAutoAbsentMarking(reason);
+      return { isLate: true, isEarly: false, minutes: lateMinutes, details };
+    } else if (diffMinutes < -1) { // 1 minute before shift start is early
+      const earlyMinutes = Math.abs(diffMinutes + 1);
+      const hours = Math.floor(earlyMinutes / 60);
+      const minutes = earlyMinutes % 60;
+      let details = '';
+      if (hours > 0) details = `${hours}h ${minutes}m early`;
+      else details = `${minutes}m early`;
       
-      setLastAutoCheck({ date: todayStr, type: '5hour-real-time' });
+      return { isLate: false, isEarly: true, minutes: earlyMinutes, details };
     }
-  }
-  
-  // ✅ 3. Warning Notifications
-  // 5-hour rule warning (30 minutes before)
-  if (currentHours === fiveHourWarningTime.getHours() && currentMinutes === fiveHourWarningTime.getMinutes()) {
-    if (!todayStatus.clockedIn && !isAdmin && isWorkingDay && lastAutoCheck.type !== '5hour-warning') {
-      showFiveHourWarningToast(shiftTiming.start, handleClockIn);
-      setLastAutoCheck({ date: todayStr, type: '5hour-warning' });
-    }
-  }
-  
-  // Late arrival notification (5 minutes after shift start)
-  if (currentHours === lateNotificationTime.getHours() && currentMinutes === lateNotificationTime.getMinutes()) {
-    if (!todayStatus.clockedIn && !isAdmin && isWorkingDay && lastAutoCheck.type !== 'late-notification') {
-      showLateNotificationToast(shiftTiming, handleClockIn);
-      setLastAutoCheck({ date: todayStr, type: 'late-notification' });
-    }
-  }
-  
-  // ✅ 4. Real-time 5-hour check (backup check)
-  const fiveHourCheck = checkFiveHoursFromShiftStart();
-  if (fiveHourCheck.passed && fiveHourCheck.hoursPassed >= 5 && fiveHourCheck.hoursPassed < 5.1) {
-    if (!alreadyMarked && !todayStatus.clockedIn && isWorkingDay && lastAutoCheck.type !== '5hour-real-time') {
-      toast.error(`5-Hour Rule Applied! Marked as Absent (No clock in within 5 hours of shift start)`);
-      triggerAutoAbsentMarking("No clock in detected within 5 hours of shift start");
-      setLastAutoCheck({ date: todayStr, type: '5hour-real-time' });
-    }
-  }
-  
-  // ✅ 5. Non-working day notification
-  if (!isWorkingDay && (lastAutoCheck.date !== todayStr || lastAutoCheck.type !== 'nonworking')) {
-    const dayMessage = formatDayMessage(todayStr);
-    toast.info(`${dayMessage} - No attendance required today`);
-    setLastAutoCheck({ date: todayStr, type: 'nonworking' });
-  }
-};
-  
-  // Helper toast functions for cleaner code
-  const showFiveHourWarningToast = (shiftStartTime, handleClockIn) => {
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-2 p-2">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="text-red-600" size={20} />
-            <div className="font-bold">🚨 5-Hour Rule Warning</div>
-          </div>
-          <div className="text-sm">You haven't clocked in today!</div>
-          <div className="text-xs text-gray-600">
-            Shift started at: {shiftStartTime}
-          </div>
-          <div className="text-xs text-red-600 font-semibold">
-            ⚠️ You'll be marked Absent in 30 minutes (5-hour rule)
-          </div>
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                handleClockIn();
-              }}
-              className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
-            >
-              Clock In Now
-            </button>
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      ),
-      { 
-        duration: 10000,
-        id: '5hour-warning'
-      }
-    );
+    
+    return { isLate: false, isEarly: false, minutes: 0, details: 'On time' };
   };
   
-  const showAutoAbsentWarningToast = (shiftTiming, handleClockIn) => {
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-2 p-2">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="text-yellow-600" size={20} />
-            <div className="font-bold">⚠️ Auto Absent Warning</div>
-          </div>
-          <div className="text-sm">You haven't clocked in today!</div>
-          <div className="text-xs text-gray-600">
-            Shift: {shiftTiming.start} - {shiftTiming.end}
-          </div>
-          <div className="text-xs text-red-600">
-            System will mark you as Absent in 5 minutes
-          </div>
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                handleClockIn();
-              }}
-              className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
-            >
-              Clock In Now
-            </button>
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      ),
-      { 
-        duration: 10000,
-        id: 'absent-warning'
-      }
-    );
+  const getDeviceIcon = (deviceType) => {
+    switch(deviceType?.toLowerCase()) {
+      case 'mobile': return Smartphone;
+      case 'tablet': return Tablet;
+      case 'desktop': return Monitor;
+      case 'laptop': return Laptop;
+      default: return Smartphone;
+    }
   };
   
-  const showLateNotificationToast = (shiftTiming, handleClockIn) => {
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-2 p-2">
-          <div className="flex items-center gap-2">
-            <Clock className="text-yellow-600" size={20} />
-            <div className="font-bold">⏰ Running Late?</div>
-          </div>
-          <div className="text-sm">You haven't clocked in yet</div>
-          <div className="text-xs text-gray-600">
-            Shift started at: {shiftTiming.start}
-          </div>
-          <div className="text-xs text-yellow-600">
-            You'll be marked Late after {shiftTiming.lateThreshold} minutes
-          </div>
-          <button
-            onClick={() => {
-              toast.dismiss(t.id);
-              handleClockIn();
-            }}
-            className="mt-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-          >
-            Clock In Now
-          </button>
-        </div>
-      ),
-      { 
-        duration: 8000,
-        id: 'late-notification'
-      }
-    );
+  const getBrowserIcon = (browser) => {
+    switch(browser?.toLowerCase()) {
+      case 'chrome': return Globe;
+      case 'firefox': return Flame;
+      case 'safari': return Compass;
+      case 'edge': return Navigation;
+      default: return Globe;
+    }
   };
   
-  // Check every 5 minutes for real-time monitoring
-  const interval = setInterval(checkAutoOperations, 300000); // 5 minutes
+  // Pagination
+  const totalPages = Math.ceil(totalRecords / itemsPerPage);
   
-  return () => clearInterval(interval);
-}, [todayStatus, isAdmin, userData, lastAutoCheck, attendanceRecords]);
- 
-
-  // ===================== COMPONENTS =====================
-  const SystemInfoBar = () => (
-    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-4 mb-6 border border-blue-100 shadow-sm">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center">
-            <Network className="text-white" size={20} />
+  const paginate = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    fetchAttendanceData();
+  };
+  
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
+      fetchAttendanceData();
+    }
+  };
+  
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+      fetchAttendanceData();
+    }
+  };
+  
+  // Filter functions
+  const applyFilters = () => {
+    setCurrentPage(1);
+    fetchAttendanceData();
+  };
+  
+  const clearFilters = () => {
+    setFilters({
+      status: 'all',
+      employeeId: '',
+      department: '',
+      date: '',
+      month: '',
+      year: '',
+      search: '',
+      lateOnly: false,
+      earlyOnly: false,
+      showAllEmployees: false
+    });
+    setCurrentPage(1);
+    fetchAttendanceData();
+  };
+  
+  // Filter by specific date
+  const handleDateFilter = (date) => {
+    setFilters(prev => ({ 
+      ...prev, 
+      date: date,
+      month: '',
+      year: '',
+      showAllEmployees: false 
+    }));
+    setCurrentPage(1);
+  };
+  
+  // Filter by month and year
+  const handleMonthYearFilter = (month, year) => {
+    setFilters(prev => ({ 
+      ...prev, 
+      month, 
+      year,
+      date: '',
+      showAllEmployees: false 
+    }));
+    setCurrentPage(1);
+  };
+  
+  // Toggle show all employees
+  const toggleShowAllEmployees = () => {
+    setFilters(prev => ({ 
+      ...prev, 
+      showAllEmployees: !prev.showAllEmployees,
+      employeeId: !prev.showAllEmployees ? '' : prev.employeeId 
+    }));
+    setCurrentPage(1);
+  };
+  
+  // ===================== RENDER COMPONENTS =====================
+  
+  if (loading && !userRole) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-24 h-24 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse mx-auto mb-4"></div>
+            <Loader2 className="w-16 h-16 animate-spin text-white absolute top-4 left-4" />
           </div>
-          <div>
-            <div className="text-sm font-medium text-gray-700">System Information</div>
-            <div className="flex flex-wrap gap-4 mt-1">
-              <div className="flex items-center gap-1">
-                <Wifi size={14} className="text-blue-500" />
-                <span className="text-sm text-gray-600">IP: <span className="font-mono font-semibold">{systemInfo.ipAddress}</span></span>
-              </div>
-              <div className="flex items-center gap-1">
-                <MapPin size={14} className="text-green-500" />
-                <span className="text-sm text-gray-600">Location: {systemInfo.location}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Smartphone size={14} className="text-purple-500" />
-                <span className="text-sm text-gray-600">Device: {systemInfo.device.os} ({systemInfo.device.type})</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Server size={14} className="text-orange-500" />
-                <span className="text-sm text-gray-600">Browser: {systemInfo.device.browser}</span>
-              </div>
-              {systemInfo.battery && (
-                <div className="flex items-center gap-1">
-                  {systemInfo.battery.charging ? (
-                    <BatteryCharging size={14} className="text-green-500" />
-                  ) : (
-                    <Battery size={14} className="text-yellow-500" />
-                  )}
-                  <span className="text-sm text-gray-600">Battery: {systemInfo.battery.level}%</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={fetchSystemInfo}
-            className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm flex items-center gap-1"
-          >
-            <RefreshCw size={14} />
-            Refresh Info
-          </button>
+          <p className="text-gray-600 mt-4 font-medium">Loading Attendance System...</p>
+          <p className="text-sm text-gray-400 mt-2">Please wait while we set up your dashboard</p>
         </div>
       </div>
-    </div>
-  );
-
-const TodayStatusCard = () => {
-  if (isAdmin) return null;
-
-  // Get user's shift timing
-  const shiftTiming = getUserShiftTiming(userData);
-  
-  // Calculate auto clock out time
-  const autoClockOutTime = getAutoClockOutTime(shiftTiming.end, shiftTiming.autoClockOutDelay);
-  
-  // Parse current time and shift times
-  const now = new Date();
-  const shiftStartTime = parseTime(shiftTiming.start);
-  const shiftEndTime = parseTime(shiftTiming.end);
-  
-  // Calculate remaining time until shift end
-  let remainingTime = null;
-  let isShiftActive = false;
-  
-  if (shiftStartTime && shiftEndTime) {
-    if (now >= shiftStartTime && now <= shiftEndTime) {
-      isShiftActive = true;
-      remainingTime = Math.max(0, Math.floor((shiftEndTime - now) / (1000 * 60)));
-    }
+    );
   }
-
-  // Check 5-hour rule status
-  const fiveHourCheck = checkFiveHoursFromShiftStart();
-
+  
   return (
-    <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-xl border border-gray-100 mb-8">
-      <div className="flex flex-col md:flex-row items-center justify-between">
-        <div className="mb-4 md:mb-0">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Clock className="text-purple-600" size={24} />
-            Today's Attendance
-            {shiftTiming.name && (
-              <span className="text-sm font-normal text-gray-500 ml-2">
-                ({shiftTiming.name})
-              </span>
-            )}
-          </h2>
-          <p className="text-gray-500 text-sm mt-1">
-            {formatDate(new Date().toISOString())}
-            <span className="ml-2 text-xs text-purple-500">
-              • Shift: {shiftTiming.start} - {shiftTiming.end}
-            </span>
-            {autoClockOutTime && (
-              <span className="ml-2 text-xs text-red-500">
-                • Auto clock-out at {autoClockOutTime.getHours()}:{autoClockOutTime.getMinutes().toString().padStart(2, '0')}
-              </span>
-            )}
-          </p>
+    <>
+      <Toaster 
+        position="top-right" 
+        toastOptions={{
+          style: {
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            border: '1px solid rgba(255,255,255,0.1)',
+          },
+        }}
+      />
+      
+      {/* Enhanced System Info Bar */}
+      <div className="bg-gradient-to-r from-purple-900 via-purple-800 to-pink-800 rounded-2xl p-4 mb-6 shadow-xl border border-purple-700/50">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                <Server className="text-white" size={24} />
+              </div>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-purple-200">System Status - Live Monitoring</div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium text-white">
+                    IP: <span className="font-mono text-purple-200">{realIpAddress}</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin size={12} className="text-pink-300" />
+                  <span className="text-xs text-white">
+                    {userLocation.city || userLocation.address}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const DeviceIcon = getDeviceIcon(deviceInfo.type);
+                    return <DeviceIcon size={12} className="text-blue-300" />;
+                  })()}
+                  <span className="text-xs text-white">
+                    {deviceInfo.type} • {deviceInfo.os}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const BrowserIcon = getBrowserIcon(deviceInfo.browser);
+                    return <BrowserIcon size={12} className="text-cyan-300" />;
+                  })()}
+                  <span className="text-xs text-white">
+                    {deviceInfo.browser} {deviceInfo.browserVersion}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
           
-          {/* Shift Info Box */}
-          <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
-            <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden lg:block">
+              <div className="text-xs text-purple-200 font-medium">Current Time</div>
+              <div className="text-xl font-bold text-white bg-black/20 px-3 py-1 rounded-lg">
+                {formatTime(currentTime)}
+              </div>
+              <div className="text-xs text-purple-300 mt-1">
+                {formatDate(currentTime.toISOString())}
+              </div>
+            </div>
+            
+            <button
+              onClick={() => {
+                getRealIPAddress();
+                getUserDetailedLocation();
+                getDetailedDeviceInfo();
+                fetchAttendanceData();
+                toast.success("System refreshed!");
+              }}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl backdrop-blur-sm transition-all"
+            >
+              <RefreshCw size={20} className="text-white" />
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Main Content */}
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4 md:p-6">
+        
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Clock className="text-white" size={24} />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                    Attendance Management System
+                  </h1>
+                  <p className="text-gray-600 mt-1">
+                    {isAdmin ? "👑 Admin Dashboard - Manage all employee attendance" : "📊 Track and manage your attendance"}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-2 mt-4">
+                <div className="px-3 py-1 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full text-sm text-purple-700 flex items-center gap-1">
+                  <UserCircle size={14} />
+                  <span>{userData?.firstName} {userData?.lastName}</span>
+                </div>
+                <div className="px-3 py-1 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-full text-sm text-blue-700 flex items-center gap-1">
+                  <Briefcase size={14} />
+                  <span>{userData?.department || "No Department"}</span>
+                </div>
+                <div className="px-3 py-1 bg-gradient-to-r from-emerald-100 to-green-100 rounded-full text-sm text-emerald-700 flex items-center gap-1">
+                  <Target size={14} />
+                  <span>{userData?.employeeId || "No ID"}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 mt-4 lg:mt-0">
+              {!isAdmin && (
+                <div className="bg-gradient-to-r from-white to-purple-50 border border-purple-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                      <Clock className="text-white" size={24} />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-gray-900">{formatTime(currentTime)}</div>
+                      <div className="text-xs text-gray-500">{formatDateShort(new Date().toISOString())}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="p-3 bg-white border border-purple-200 rounded-xl hover:bg-purple-50 transition-colors shadow-sm"
+                  title="Print Report"
+                >
+                  <Printer size={20} className="text-purple-600" />
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setLoading(true);
+                    fetchAttendanceData().finally(() => setLoading(false));
+                  }}
+                  disabled={loading}
+                  className="p-3 bg-white border border-purple-200 rounded-xl hover:bg-purple-50 transition-colors shadow-sm disabled:opacity-50"
+                  title="Refresh Data"
+                >
+                  <RefreshCw size={20} className={`text-purple-600 ${loading ? "animate-spin" : ""}`} />
+                </button>
+                
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowAdminActionsMenu(!showAdminActionsMenu)}
+                    className="px-5 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all shadow-lg flex items-center gap-2 hover:shadow-xl"
+                  >
+                    <MoreVertical size={20} />
+                    <span className="font-semibold">Admin Actions</span>
+                    <ChevronDown size={16} className={`transition-transform ${showAdminActionsMenu ? "rotate-180" : ""}`} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Admin Actions Menu */}
+          {showAdminActionsMenu && isAdmin && (
+            <div className="absolute right-6 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-purple-200 z-50 overflow-hidden">
+              <div className="p-2">
+                <div className="px-3 py-2 border-b border-purple-100">
+                  <div className="text-sm font-semibold text-purple-900">Quick Actions</div>
+                  <div className="text-xs text-gray-500">Manage attendance records</div>
+                </div>
+                
+                <div className="space-y-1 mt-2">
+                  <button
+                    onClick={() => {
+                      fetchEmployees();
+                      setShowManualAttendanceModal(true);
+                      setShowAdminActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-700 rounded-xl transition-all group"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center group-hover:from-purple-200 group-hover:to-pink-200">
+                      <PlusCircle className="text-purple-600" size={18} />
+                    </div>
+                    <span className="font-medium">Manual Attendance</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      fetchEmployees();
+                      setShowBulkAttendanceModal(true);
+                      setShowAdminActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-700 rounded-xl transition-all group"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center group-hover:from-purple-200 group-hover:to-pink-200">
+                      <FileSpreadsheet className="text-purple-600" size={18} />
+                    </div>
+                    <span className="font-medium">Bulk Attendance</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      handleTriggerAutoClockOut();
+                      setShowAdminActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-700 rounded-xl transition-all group"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center group-hover:from-purple-200 group-hover:to-pink-200">
+                      <Clock4 className="text-purple-600" size={18} />
+                    </div>
+                    <span className="font-medium">Trigger Auto Clock Out</span>
+                  </button>
+                  
+                  <div className="border-t border-purple-100 my-2"></div>
+                  
+                  <button
+                    onClick={() => {
+                      fetchEmployees();
+                      toast.success("Employees list refreshed!");
+                      setShowAdminActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-700 rounded-xl transition-all group"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center group-hover:from-purple-200 group-hover:to-pink-200">
+                      <RefreshCw className="text-purple-600" size={18} />
+                    </div>
+                    <span className="font-medium">Refresh Employees</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      // Export function implementation
+                      toast.success("Export feature coming soon!");
+                      setShowAdminActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-700 rounded-xl transition-all group"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center group-hover:from-purple-200 group-hover:to-pink-200">
+                      <Download className="text-purple-600" size={18} />
+                    </div>
+                    <span className="font-medium">Export Data</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Clock In/Out Section (Employees Only) */}
+        {!isAdmin && (
+          <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl p-6 mb-8 shadow-lg relative overflow-hidden">
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full -translate-y-16 translate-x-16 opacity-50"></div>
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-purple-100 to-pink-100 rounded-full translate-y-12 -translate-x-12 opacity-50"></div>
+            
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-6 relative z-10">
+              <div className="mb-6 lg:mb-0">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Clock className="text-white" size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Today's Attendance</h2>
+                    <p className="text-gray-500 text-sm">
+                      {formatDate(new Date().toISOString())}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <MapPin size={16} className="text-purple-500" />
+                    <span className="font-medium">Location:</span>
+                    <span>{userLocation.address}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-1">
+                      {(() => {
+                        const DeviceIcon = getDeviceIcon(deviceInfo.type);
+                        return <DeviceIcon size={16} className="text-blue-500" />;
+                      })()}
+                      <span className="font-medium">Device:</span>
+                      <span>{deviceInfo.type} ({deviceInfo.os})</span>
+                    </div>
+                    <div className="flex items-center gap-1 ml-4">
+                      {(() => {
+                        const BrowserIcon = getBrowserIcon(deviceInfo.browser);
+                        return <BrowserIcon size={16} className="text-green-500" />;
+                      })()}
+                      <span className="font-medium">Browser:</span>
+                      <span>{deviceInfo.browser}</span>
+                    </div>
+                  </div>
+                  {todayStatus.shiftDetails && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Clock size={16} className="text-amber-500" />
+                      <span className="font-medium">Shift:</span>
+                      <span>{todayStatus.shiftDetails.start} - {todayStatus.shiftDetails.end}</span>
+                      {todayStatus.shiftDetails.isNightShift && (
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">🌙 Night Shift</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex flex-col lg:flex-row items-start lg:items-center gap-6 relative z-10">
+                {/* Status Indicators */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className={`p-4 rounded-xl border-2 transition-all ${todayStatus.clockedIn ? 'border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-sm' : 'border-gray-200 bg-white'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${todayStatus.clockedIn ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gray-100'}`}>
+                        <Sun className={todayStatus.clockedIn ? "text-white" : "text-gray-400"} size={20} />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-700">Clock In</div>
+                        <div className="mt-1">
+                          {todayStatus.clockedIn ? (
+                            <div className="text-green-700 font-bold text-lg">
+                              {formatTime(todayStatus.clockInTime)}
+                            </div>
+                          ) : (
+                            <div className="text-gray-500">Not yet</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className={`p-4 rounded-xl border-2 transition-all ${todayStatus.clockedOut ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm' : 'border-gray-200 bg-white'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${todayStatus.clockedOut ? 'bg-gradient-to-r from-blue-500 to-cyan-500' : 'bg-gray-100'}`}>
+                        <Moon className={todayStatus.clockedOut ? "text-white" : "text-gray-400"} size={20} />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-700">Clock Out</div>
+                        <div className="mt-1">
+                          {todayStatus.clockedOut ? (
+                            <div className="text-blue-700 font-bold text-lg">
+                              {formatTime(todayStatus.clockOutTime)}
+                            </div>
+                          ) : (
+                            <div className="text-gray-500">Pending</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={handleClockIn}
+                    disabled={todayStatus.clockedIn || loading || (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)}
+                    className={`px-8 py-4 rounded-xl font-bold flex items-center gap-3 transition-all shadow-lg ${
+                      todayStatus.clockedIn
+                        ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
+                        : (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)
+                        ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl hover:scale-[1.02]'
+                    }`}
+                  >
+                    <LogIn size={24} />
+                    {todayStatus.clockedIn ? "✅ Clocked In" : "⏰ Clock In"}
+                  </button>
+                  
+                  <button
+                    onClick={handleClockOut}
+                    disabled={!todayStatus.clockedIn || todayStatus.clockedOut || loading}
+                    className={`px-8 py-4 rounded-xl font-bold flex items-center gap-3 transition-all shadow-lg ${
+                      !todayStatus.clockedIn || todayStatus.clockedOut
+                        ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-xl hover:scale-[1.02]'
+                    }`}
+                  >
+                    <LogOut size={24} />
+                    {todayStatus.clockedOut ? "✅ Clocked Out" : "🚪 Clock Out"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Status Message and Auto Clock Out Timer */}
+            <div className="mt-6 relative z-10">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-md ${getStatusColor(todayStatus.status)}`}>
+                    {(() => {
+                      const StatusIcon = getStatusIcon(todayStatus.status);
+                      return <StatusIcon size={16} className="mr-2" />;
+                    })()}
+                    {todayStatus.status === "Not Clocked" ? "🟡 Ready to Clock In" : `📊 Status: ${todayStatus.status}`}
+                  </div>
+                  
+                  {autoClockOutTimer && todayStatus.clockedIn && !todayStatus.clockedOut && (
+                    <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Timer size={16} className="text-amber-600" />
+                        <span className="text-sm font-semibold text-amber-800">Auto Clock Out:</span>
+                        <span className="text-lg font-bold text-amber-900">
+                          {autoClockOutTimer.hours > 0 ? `${autoClockOutTimer.hours}h ` : ''}
+                          {autoClockOutTimer.minutes}m
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Auto Operations Info */}
+                <div className="text-sm text-gray-600 flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 px-3 py-1 bg-purple-50 rounded-full">
+                    <AlertTriangle size={14} className="text-purple-500" />
+                    <span className="font-medium text-purple-700">Late:</span>
+                    <span className="text-gray-700">After {shiftTiming.lateThreshold} mins</span>
+                  </div>
+                  <div className="flex items-center gap-1 px-3 py-1 bg-green-50 rounded-full">
+                    <TrendingDown size={14} className="text-green-500" />
+                    <span className="font-medium text-green-700">Early:</span>
+                    <span className="text-gray-700">Before {Math.abs(shiftTiming.earlyThreshold)} mins</span>
+                  </div>
+                  <div className="flex items-center gap-1 px-3 py-1 bg-red-50 rounded-full">
+                    <Clock4 size={14} className="text-red-500" />
+                    <span className="font-medium text-red-700">Auto Out:</span>
+                    <span className="text-gray-700">{shiftTiming.autoClockOutDelay} mins after shift</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Admin Stats (Admin Only) */}
+        {isAdmin && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Total Employees</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{summary?.totalEmployees || 0}</p>
+                  <p className="text-xs text-green-600 mt-1">Active</p>
+                </div>
+                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Users className="text-white" size={24} />
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Present Today</p>
+                  <p className="text-3xl font-bold text-green-600 mt-2">{summary?.presentToday || 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {summary?.totalEmployees ? `${Math.round((summary.presentToday / summary.totalEmployees) * 100)}%` : '0%'} attendance
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <CheckCircle className="text-white" size={24} />
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-white to-red-50 border border-red-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Absent Today</p>
+                  <p className="text-3xl font-bold text-red-600 mt-2">{summary?.absentToday || 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {summary?.totalEmployees ? `${Math.round((summary.absentToday / summary.totalEmployees) * 100)}%` : '0%'} absent rate
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <XCircle className="text-white" size={24} />
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-white to-amber-50 border border-amber-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Pending Clock Out</p>
+                  <p className="text-3xl font-bold text-amber-600 mt-2">{summary?.pendingClockOut || 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">Will auto clock out</p>
+                </div>
+                <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Clock className="text-white" size={24} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Enhanced Filters and Controls */}
+        <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Filter className="text-purple-600" size={24} />
+                Attendance Records
+              </h2>
+              <p className="text-gray-500 text-sm">
+                {isAdmin ? "All employee records with advanced filtering" : "Your attendance history with detailed analysis"}
+              </p>
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              {/* View Mode Toggle */}
+              <div className="flex bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-1 border border-purple-200">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-600 hover:text-purple-600'}`}
+                >
+                  <List size={18} />
+                  <span className="text-sm font-medium">List</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('calendar')}
+                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all ${viewMode === 'calendar' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-600 hover:text-purple-600'}`}
+                >
+                  <Calendar size={18} />
+                  <span className="text-sm font-medium">Calendar</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-600 hover:text-purple-600'}`}
+                >
+                  <Grid size={18} />
+                  <span className="text-sm font-medium">Grid</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setViewMode('analytics');
+                    fetchAnalytics();
+                  }}
+                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all ${viewMode === 'analytics' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-600 hover:text-purple-600'}`}
+                >
+                  <BarChart3 size={18} />
+                  <span className="text-sm font-medium">Analytics</span>
+                </button>
+              </div>
+              
+              {/* Date Range */}
+              <div className="flex gap-2">
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
+                  <input
+                    type="date"
+                    value={dateRange.startDate}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                    className="pl-10 pr-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
+                  <input
+                    type="date"
+                    value={dateRange.endDate}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                    className="pl-10 pr-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    setCurrentPage(1);
+                    fetchAttendanceData();
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 shadow-sm font-medium"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Enhanced Filters - আরও উন্নত ফিল্টারিং */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <div className="text-sm font-medium text-gray-700">Shift Details</div>
-                <div className="text-xs text-gray-600">
-                  {shiftTiming.name} • Late after {shiftTiming.lateThreshold} min
-                  {isShiftActive && remainingTime !== null && (
-                    <span className="ml-2 text-green-600">
-                      • {remainingTime} min remaining
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status Filter</label>
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                  className="w-full px-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="Present">✅ Present</option>
+                  <option value="Absent">❌ Absent</option>
+                  <option value="Late">⏰ Late</option>
+                  <option value="Early">⬇️ Early</option>
+                  <option value="Leave">🏖️ Leave</option>
+                  <option value="Govt Holiday">🎉 Govt Holiday</option>
+                  <option value="Weekly Off">📅 Weekly Off</option>
+                  <option value="Off Day">🌴 Off Day</option>
+                  <option value="Clocked In">🟡 Clocked In</option>
+                </select>
+              </div>
+              
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Employee Filter</label>
+                  <select
+                    value={filters.employeeId}
+                    onChange={(e) => setFilters(prev => ({ 
+                      ...prev, 
+                      employeeId: e.target.value,
+                      showAllEmployees: false 
+                    }))}
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">Select Employee</option>
+                    {employees.map(emp => (
+                      <option key={emp._id} value={emp._id}>
+                        {emp.firstName} {emp.lastName} ({emp.employeeId})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Specific Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
+                  <input
+                    type="date"
+                    value={filters.date}
+                    onChange={(e) => handleDateFilter(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
+                  <input
+                    type="text"
+                    value={filters.search}
+                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                    placeholder="Search records..."
+                    className="w-full pl-10 pr-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Month and Year Filter */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
+                  <select
+                    value={filters.month}
+                    onChange={(e) => handleMonthYearFilter(e.target.value, filters.year || new Date().getFullYear())}
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">All Months</option>
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {new Date(2000, i, 1).toLocaleString('default', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                  <select
+                    value={filters.year}
+                    onChange={(e) => handleMonthYearFilter(filters.month || '', e.target.value)}
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">All Years</option>
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const year = new Date().getFullYear() - 5 + i;
+                      return <option key={year} value={year}>{year}</option>;
+                    })}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex flex-col justify-end">
+                {isAdmin && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="showAllEmployees"
+                      checked={filters.showAllEmployees}
+                      onChange={toggleShowAllEmployees}
+                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                    />
+                    <label htmlFor="showAllEmployees" className="text-sm text-gray-700">
+                      Show all employees together
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="lateOnly"
+                  checked={filters.lateOnly}
+                  onChange={(e) => setFilters(prev => ({ 
+                    ...prev, 
+                    lateOnly: e.target.checked, 
+                    earlyOnly: false 
+                  }))}
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                />
+                <label htmlFor="lateOnly" className="text-sm text-gray-700">
+                  Show only Late records
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="earlyOnly"
+                  checked={filters.earlyOnly}
+                  onChange={(e) => setFilters(prev => ({ 
+                    ...prev, 
+                    earlyOnly: e.target.checked, 
+                    lateOnly: false 
+                  }))}
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                />
+                <label htmlFor="earlyOnly" className="text-sm text-gray-700">
+                  Show only Early records
+                </label>
+              </div>
+              
+              <div className="flex-1"></div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={applyFilters}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm"
+                >
+                  Apply Filters
+                </button>
+                <button
+                  onClick={clearFilters}
+                  className="px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 font-medium"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+            
+            {/* Active Filters Display */}
+            {(filters.status !== 'all' || filters.date || filters.month || filters.year || filters.search || filters.lateOnly || filters.earlyOnly || (isAdmin && filters.employeeId && !filters.showAllEmployees)) && (
+              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg">
+                <div className="text-sm font-medium text-blue-800 mb-2">Active Filters:</div>
+                <div className="flex flex-wrap gap-2">
+                  {filters.status !== 'all' && (
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                      Status: {filters.status}
+                    </span>
+                  )}
+                  {filters.date && (
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                      Date: {new Date(filters.date).toLocaleDateString()}
+                    </span>
+                  )}
+                  {filters.month && filters.year && (
+                    <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
+                      {new Date(2000, parseInt(filters.month)-1, 1).toLocaleString('default', { month: 'long' })} {filters.year}
+                    </span>
+                  )}
+                  {filters.search && (
+                    <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs">
+                      Search: "{filters.search}"
+                    </span>
+                  )}
+                  {filters.lateOnly && (
+                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">
+                      Late Only
+                    </span>
+                  )}
+                  {filters.earlyOnly && (
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                      Early Only
+                    </span>
+                  )}
+                  {isAdmin && filters.employeeId && !filters.showAllEmployees && (
+                    <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs">
+                      Employee: {employees.find(e => e._id === filters.employeeId)?.firstName || 'Selected'}
+                    </span>
+                  )}
+                  {isAdmin && filters.showAllEmployees && (
+                    <span className="px-2 py-1 bg-pink-100 text-pink-800 rounded-full text-xs">
+                      Showing All Employees
                     </span>
                   )}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-lg font-bold text-purple-600">
-                  {shiftTiming.start} - {shiftTiming.end}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
         
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            onClick={handleClockIn}
-            disabled={todayStatus.clockedIn || todayStatus.clockedOut}
-            className="group px-6 py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <LogIn size={20} className="group-hover:translate-x-1 transition-transform" />
-            {todayStatus.clockedIn ? "Clocked In" : "Clock In"}
-          </button>
-          
-          <button
-            onClick={handleClockOut}
-            disabled={!todayStatus.clockedIn || todayStatus.clockedOut}
-            className="group px-6 py-3.5 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
-            {todayStatus.clockedOut ? "Clocked Out" : "Clock Out"}
-          </button>
-          
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="group px-4 py-3.5 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            {showDetails ? (
-              <>
-                <Eye size={20} className="group-hover:scale-110 transition-transform" />
-                Hide Details
-              </>
-            ) : (
-              <>
-                <Eye size={20} className="group-hover:scale-110 transition-transform" />
-                Show Details
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-      
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className={`p-4 rounded-xl border transition-all duration-300 ${
-          todayStatus.clockedIn
-            ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200'
-            : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200'
-        }`}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Sun className={todayStatus.clockedIn ? "text-green-600" : "text-gray-400"} size={20} />
-              <span className="font-medium text-gray-700">Clock In</span>
-            </div>
-            {todayStatus.clockedIn && (
-              <CheckCircle className="text-green-600 animate-pulse" size={20} />
-            )}
-          </div>
-          <div className="text-sm">
-            {todayStatus.clockedIn ? (
+        {/* Attendance Records Section */}
+        <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl overflow-hidden shadow-sm">
+          {/* Header */}
+          <div className="p-6 border-b border-purple-100">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
-                <div className="font-semibold text-green-700">✓ Completed</div>
-                <div className="text-green-600 mt-1 font-mono">
-                  {formatTime(todayStatus.clockInTime)}
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {viewMode === 'list' ? '📋 List View' : 
+                   viewMode === 'calendar' ? '📅 Calendar View' : 
+                   viewMode === 'grid' ? '🟦 Grid View' : 
+                   '📊 Analytics View'}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Showing {attendance.length} of {totalRecords} records
+                  {filters.status !== 'all' && ` • Filtered by: ${filters.status}`}
+                  {filters.lateOnly && ' • Showing only Late records'}
+                  {filters.earlyOnly && ' • Showing only Early records'}
+                  {isAdmin && filters.showAllEmployees && ' • Showing all employees together'}
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-gray-500">
+                  Page <span className="font-bold text-purple-700">{currentPage}</span> of <span className="font-bold text-purple-700">{totalPages}</span>
                 </div>
-                {shiftStartTime && (
-                  <div className="text-xs mt-2">
-                    <span className="text-gray-500">Expected: </span>
-                    <span className="font-medium">{shiftTiming.start}</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500">Not clocked in yet</div>
-            )}
-          </div>
-        </div>
-
-        <div className={`p-4 rounded-xl border transition-all duration-300 ${
-          todayStatus.clockedOut
-            ? 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200'
-            : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200'
-        }`}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Moon className={todayStatus.clockedOut ? "text-blue-600" : "text-gray-400"} size={20} />
-              <span className="font-medium text-gray-700">Clock Out</span>
-            </div>
-            {todayStatus.clockedOut && (
-              <CheckCircle className="text-blue-600" size={20} />
-            )}
-          </div>
-          <div className="text-sm">
-            {todayStatus.clockedOut ? (
-              <div>
-                <div className="font-semibold text-blue-700">✓ Completed</div>
-                <div className="text-blue-600 mt-1 font-mono">
-                  {formatTime(todayStatus.clockOutTime)}
+                <div className="flex gap-1">
+                  <button
+                    onClick={prevPage}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 border border-purple-200 rounded-lg disabled:opacity-50 hover:bg-purple-50 transition-colors"
+                  >
+                    <ChevronLeft size={18} className="text-purple-600" />
+                  </button>
+                  <button
+                    onClick={nextPage}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 border border-purple-200 rounded-lg disabled:opacity-50 hover:bg-purple-50 transition-colors"
+                  >
+                    <ChevronRightIcon size={18} className="text-purple-600" />
+                  </button>
                 </div>
-                {shiftEndTime && (
-                  <div className="text-xs mt-2">
-                    <span className="text-gray-500">Expected: </span>
-                    <span className="font-medium">{shiftTiming.end}</span>
-                  </div>
-                )}
-              </div>
-            ) : todayStatus.clockedIn ? (
-              <div className="text-yellow-600 flex items-center gap-1">
-                <Clock size={14} />
-                Waiting to clock out
-                {remainingTime !== null && (
-                  <span className="ml-2 text-xs">
-                    ({remainingTime} min left)
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500">Clock in first</div>
-            )}
-          </div>
-        </div>
-
-        <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:border-purple-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Activity className="text-purple-600" size={20} />
-              <span className="font-medium text-gray-700">Today's Status</span>
-            </div>
-            <div className={`w-3 h-3 rounded-full animate-pulse ${
-              todayStatus.clockedOut ? 'bg-blue-500' :
-              todayStatus.clockedIn ? 'bg-green-500' : 'bg-gray-400'
-            }`}></div>
-          </div>
-          <div className="text-sm">
-            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-              getStatusColor(todayStatus.status).bg
-            } ${
-              getStatusColor(todayStatus.status).text
-            }`}>
-              {todayStatus.status}
-            </div>
-            {todayStatus.clockedIn && todayStatus.clockedOut && (
-              <div className="text-xs text-gray-500 mt-2">
-                ✅ Attendance completed for today
-              </div>
-            )}
-            
-            {/* Auto absent warnings - Fixed version */}
-            {!todayStatus.clockedIn && (
-  <div className="space-y-1 mt-2">
-    {/* 5-hour rule */} 
-    <div className="ml-3 text-xs text-red-500">
-      • Auto absent after 5 hours from shift start
-    </div>
-    
-    {/* Show countdown if 5-hour rule not passed yet */}
-    {fiveHourCheck && !fiveHourCheck.passed && fiveHourCheck.hoursPassed > 0 && (
-      <div className="ml-3 text-xs text-yellow-600">
-        ⏰ {(5 - fiveHourCheck.hoursPassed).toFixed(1)} hours remaining
-      </div>
-    )}
-    
-    {/* Show warning if 5-hour rule has passed */}
-    {fiveHourCheck && fiveHourCheck.passed && (
-      <div className="ml-3 text-xs text-red-600 font-medium">
-        ⚠️ 5-hour rule already passed!
-      </div>
-    )}
-  </div>
-)}
-          </div>
-        </div>
-      </div>
-
-      {showDetails && (
-        <div className="mt-6 pt-6 border-t border-gray-100">
-          <h4 className="font-medium text-gray-700 mb-4">Attendance Details</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-xs text-gray-500">Shift Type</div>
-              <div className="text-sm font-medium capitalize">{shiftTiming.shiftType}</div>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-xs text-gray-500">Late Threshold</div>
-              <div className="text-sm font-medium">{shiftTiming.lateThreshold} minutes</div>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-xs text-gray-500">Auto Clock Out Delay</div>
-              <div className="text-sm font-medium">{shiftTiming.autoClockOutDelay} minutes</div>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-xs text-gray-500">Shift Status</div>
-              <div className="text-sm font-medium">
-                {isShiftActive ? 'Active' : 'Inactive'}
-                {remainingTime !== null && (
-                  <span className="text-xs text-green-600 ml-2">
-                    ({remainingTime} min left)
-                  </span>
-                )}
               </div>
             </div>
           </div>
           
-          {/* 5-hour rule details */}
-          {fiveHourCheck && !todayStatus.clockedIn && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h5 className="text-sm font-medium text-yellow-800 mb-2 flex items-center gap-1">
-                <AlertCircle size={14} />
-                5-Hour Rule Status
-              </h5>
-              <div className="text-xs text-yellow-700">
-                <p>Shift started at: {shiftTiming.start}</p>
-                <p>Time passed since shift start: {fiveHourCheck.hoursPassed.toFixed(2)} hours</p>
-                {!fiveHourCheck.passed && (
-                  <p className="font-medium mt-1">
-                    ⚠️ Auto absent in {(5 - fiveHourCheck.hoursPassed).toFixed(2)} hours
-                  </p>
-                )}
-                {fiveHourCheck.passed && (
-                  <p className="font-medium mt-1 text-red-600">
-                    ⚠️ 5-hour rule already passed!
-                  </p>
-                )}
+          {/* Loading State */}
+          {loading ? (
+            <div className="p-12 text-center">
+              <div className="relative">
+                <div className="w-20 h-20 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full mx-auto mb-4"></div>
+                <Loader2 className="w-12 h-12 animate-spin text-purple-600 absolute top-4 left-1/2 transform -translate-x-1/2" />
               </div>
+              <p className="text-gray-600 font-medium">Loading records...</p>
+              <p className="text-sm text-gray-400 mt-2">Please wait while we fetch the data</p>
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-  const AdminDashboardCard = () => {
-    if (!isAdmin) return null;
-
-    return (
-      <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-6 shadow-xl border border-purple-100 mb-8">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-            <Shield className="text-white" size={24} />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Admin Dashboard</h2>
-            <p className="text-gray-600 text-sm mt-1">
-              View and manage all employee attendance records
-            </p>
-            <div className="flex items-center gap-2 mt-2 text-xs">
-              <div className="flex items-center gap-1 text-purple-600">
-                <Clock size={12} />
-                <span>Auto Operations:</span>
+          ) : attendance.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="w-24 h-24 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calendar className="text-purple-400" size={48} />
               </div>
-              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded">1:00 AM (Non-working days)</span>
-              <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded">12:10 PM (Absent marking)</span>
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded">6:10 PM (Auto clock out)</span>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No records found</h3>
+              <p className="text-gray-500">No attendance records for the selected filters</p>
+              <button
+                onClick={clearFilters}
+                className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:from-purple-200 hover:to-pink-200"
+              >
+                Clear filters
+              </button>
             </div>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="p-4 bg-white rounded-xl border border-gray-200 hover:border-purple-200 transition-all duration-300">
-            <div className="flex items-center gap-2 mb-1">
-              <Users className="text-gray-500" size={16} />
-              <div className="text-sm text-gray-500">Total Employees</div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{employees.length}</div>
-          </div>
-          
-          <div className="p-4 bg-white rounded-xl border border-gray-200 hover:border-green-200 transition-all duration-300">
-            <div className="flex items-center gap-2 mb-1">
-              <UserCheck className="text-green-500" size={16} />
-              <div className="text-sm text-gray-500">Present Today</div>
-            </div>
-            <div className="text-2xl font-bold text-green-600 mt-1">{summary?.presentToday || 0}</div>
-          </div>
-          
-          <div className="p-4 bg-white rounded-xl border border-gray-200 hover:border-red-200 transition-all duration-300">
-            <div className="flex items-center gap-2 mb-1">
-              <UserX className="text-red-500" size={16} />
-              <div className="text-sm text-gray-500">Absent Today</div>
-            </div>
-            <div className="text-2xl font-bold text-red-600 mt-1">{summary?.absentToday || 0}</div>
-          </div>
-          
-          <div className="p-4 bg-white rounded-xl border border-gray-200 hover:border-yellow-200 transition-all duration-300">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="text-yellow-500" size={16} />
-              <div className="text-sm text-gray-500">Pending Clock Out</div>
-            </div>
-            <div className="text-2xl font-bold text-yellow-600 mt-1">{summary?.pendingClockOut || 0}</div>
-          </div>
-        </div>
-        
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => setShowManualModal(true)}
-            className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <Plus size={18} />
-            Manual Attendance
-          </button>
-          
-          <button
-            onClick={() => setShowBulkModal(true)}
-            className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <FileSpreadsheet size={18} />
-            Bulk Attendance
-          </button>
-          
-          <button
-            onClick={handleTriggerAutoClockOut}
-            className="px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <Clock4 size={18} />
-            Trigger Auto Clock Out
-          </button>
-          
-          <button
-            onClick={handleTriggerAbsentMarking}
-            className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <UserX size={18} />
-            Trigger Absent Marking
-          </button>
-          
-          <button
-            onClick={handleTriggerTomorrowRecords}
-            className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <Calendar size={18} />
-            Generate Tomorrow Records
-          </button>
-          
-          <button
-            onClick={handleExportData}
-            className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <Download size={18} />
-            Export Data
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const SummaryCards = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Days Present</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{summary?.presentDays || 0}</p>
-            <p className="text-xs text-green-500 mt-1 flex items-center">
-              <TrendingUp size={12} className="mr-1" />
-              Current period
-            </p>
-          </div>
-          <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-            <CheckCircle className="text-white" size={24} />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Days Absent</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{summary?.absentDays || 0}</p>
-            <p className="text-xs text-red-500 mt-1">Auto marked at 12:10 PM</p>
-          </div>
-          <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-600 rounded-xl flex items-center justify-center">
-            <XCircle className="text-white" size={24} />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Total Hours</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{summary?.totalHours?.toFixed(2) || "0.00"}</p>
-            <p className="text-xs text-blue-500 mt-1">Total for period</p>
-          </div>
-          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center">
-            <Clock className="text-white" size={24} />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Attendance Rate</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{summary?.attendanceRate?.toFixed(1) || "0.0"}%</p>
-            <p className="text-xs text-purple-500 mt-1 flex items-center">
-              <BarChart3 size={12} className="mr-1" />
-              Performance
-            </p>
-          </div>
-          <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-            <BarChart3 className="text-white" size={24} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const FiltersSection = () => (
-    <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-bold text-gray-900">Filters</h3>
-          <p className="text-gray-500 text-sm">Filter attendance records</p>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex gap-2">
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                className="pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none w-40"
-              />
-            </div>
-            
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                className="pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none w-40"
-              />
-            </div>
-          </div>
-          
-          {isAdmin && (
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-              className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-            >
-              <option value="all">All Status</option>
-              <option value="Present">Present</option>
-              <option value="Absent">Absent</option>
-              <option value="Late">Late</option>
-              <option value="Early">Early</option>
-              <option value="Leave">Leave</option>
-              <option value="Govt Holiday">Govt Holiday</option>
-              <option value="Weekly Off">Weekly Off</option>
-              <option value="Half Day">Half Day</option>
-            </select>
-          )}
-          
-          <button
-            onClick={() => {
-              setPagination(prev => ({ ...prev, currentPage: 1 }));
-              fetchAttendanceRecords();
-            }}
-            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2"
-          >
-            <Filter size={18} />
-            Apply Filters
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const AttendanceTable = () => {
-    const getStatusDisplay = (record) => {
-  if (record.statusType === "Early") {
-    return {
-      text: "Early-Present",
-      color: "bg-blue-100 text-blue-800"
-    };
-  } else if (record.statusType === "Late") {
-    return {
-      text: "Late-Present", 
-      color: "bg-yellow-100 text-yellow-800"
-    };
-  } else {
-    return {
-      text: "Present",
-      color: "bg-green-100 text-green-800"
-    };
-  }
-}; 
-
-  // Function to show auto-generated info
-  const getAutoGeneratedInfo = (record) => {
-  if (record.autoGenerated) {
-    return {
-      text: "Auto-generated",
-      tooltip: "Record was automatically generated by the system",
-      color: "text-blue-600",
-      icon: "⚡"
-    };
-  }
-  if (record.markedAbsent) {
-    if (record.absentReason?.includes('5 hours')) {
-      return {
-        text: "5-Hour Rule Absent",
-        tooltip: "Marked absent after 5 hours from shift start (no clock in)",
-        color: "text-red-700",
-        icon: "⏰"
-      };
-    }
-    return {
-      text: "Auto-marked Absent",
-      tooltip: "Automatically marked as Absent",
-      color: "text-red-600",
-      icon: "⚠️"
-    };
-  }
-  if (record.autoClockOut) {
-    return {
-      text: "Auto clocked out",
-      tooltip: "Automatically clocked out at shift end + delay",
-      color: "text-orange-600",
-      icon: "🔄"
-    };
-  }
-  return null;
-};
-
-  // Get shift display info
-  const getShiftDisplay = (record) => {
-    if (record.shiftName && record.shiftStart && record.shiftEnd) {
-      return {
-        name: record.shiftName,
-        time: `${formatTime(record.shiftStart)} - ${formatTime(record.shiftEnd)}`,
-        color: record.shiftName.includes('Morning') ? 'text-blue-600' : 
-               record.shiftName.includes('Evening') ? 'text-purple-600' : 
-               record.shiftName.includes('Night') ? 'text-indigo-600' : 
-               'text-gray-600'
-      };
-    }
-    return null;
-  };
-
-  return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-      <div className="p-6 border-b border-gray-100">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">Attendance Records</h3>
-            <p className="text-gray-500 text-sm">
-              Showing {attendanceRecords.length} of {pagination.totalItems} records
-              {isAdmin && (
-                <>
-                  <span className="ml-2 text-purple-600">
-                    • {attendanceRecords.filter(r => r.autoGenerated).length} auto-generated
-                  </span>
-                  <span className="ml-2 text-blue-600">
-                    • {attendanceRecords.filter(r => r.autoClockOut).length} auto clock-out
-                  </span>
-                </>
-              )}
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => window.print()}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300 flex items-center gap-2"
-            >
-              <Printer size={18} />
-              Print
-            </button>
-            
-            <button
-              onClick={() => handleExportData('csv')}
-              className="px-4 py-2 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 transition-all duration-300 flex items-center gap-2"
-            >
-              <Download size={18} />
-              Export
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="py-3 px-6 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
-              {isAdmin && <th className="py-3 px-6 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Employee</th>}
-              <th className="py-3 px-6 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Clock In</th>
-              <th className="py-3 px-6 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Clock Out</th>
-              <th className="py-3 px-6 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Hours</th>
-              {isAdmin && <th className="py-3 px-6 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Shift</th>}
-              <th className="py-3 px-6 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-              <th className="py-3 px-6 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          
-          <tbody className="divide-y divide-gray-100">
-            {loading ? (
-              <tr>
-                <td colSpan={isAdmin ? 8 : 7} className="py-8 text-center">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600" />
-                  <p className="text-gray-500 mt-2">Loading records...</p>
-                </td>
-              </tr>
-            ) : attendanceRecords.length === 0 ? (
-              <tr>
-                <td colSpan={isAdmin ? 8 : 7} className="py-12 text-center">
-                  <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 font-medium">No records found</p>
-                  <p className="text-gray-500 text-sm mt-1">Try adjusting your filters</p>
-                </td>
-              </tr>
-            ) : (
-              attendanceRecords.map((record) => {
-                const autoInfo = getAutoGeneratedInfo(record);
-                const dayStatus = getDayStatus(record.date);
-                const shiftInfo = getShiftDisplay(record);
-                
-                return (
-                  <tr key={record._id} className="hover:bg-gray-50">
-                    <td className="py-4 px-6">
-                      <div className="font-medium text-gray-900">
-                        {formatDateTime(record.date)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {dayStatus.dayName}
-                        {dayStatus.isWorkingDay ? (
-                          <span className="ml-1 text-green-600">• Working Day</span>
-                        ) : (
-                          <span className="ml-1 text-purple-600">• {dayStatus.status}</span>
-                        )}
-                      </div>
-                      {autoInfo && (
-                        <div className={`text-xs ${autoInfo.color} mt-1 flex items-center gap-1`} title={autoInfo.tooltip}>
-                          {autoInfo.icon} {autoInfo.text}
-                        </div>
-                      )}
-                    </td>
-                    
+          ) : viewMode === 'list' ? (
+            /* Enhanced List View */
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gradient-to-r from-purple-50 to-pink-50">
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">📅 Date & Day</th>
                     {isAdmin && (
-                      <td className="py-4 px-6">
-                        <div className="font-medium text-gray-900">
-                          {record.employee?.firstName} {record.employee?.lastName}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {record.employee?.employeeId}
-                        </div>
-                        {record.employee?.department && (
-                          <div className="text-xs text-blue-600">
-                            {record.employee.department}
-                          </div>
-                        )}
-                      </td>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">👤 Employee</th>
                     )}
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">⏰ Clock In</th>
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">🚪 Clock Out</th>
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">⏱️ Total Hours</th>
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">📊 Status</th>
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">🔧 Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-purple-100">
+                  {attendance.map((record) => {
+                    const lateEarly = calculateLateEarlyMinutes(record.clockIn, record.shift?.start);
+                    const StatusIcon = getStatusIcon(record.status);
+                    const date = new Date(record.date);
                     
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <Sun className="w-4 h-4 text-yellow-500" />
-                        <span className="font-medium">{formatTime(record.clockIn)}</span>
-                      </div>
-                      {record.shiftStart && (
-                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                          <Clock size={12} />
-                          Expected: {formatTime(record.shiftStart)}
-                          {record.isLate && record.lateMinutes > 0 && (
-                            <span className="text-red-600 ml-1">
-                              ({record.lateMinutes} min late)
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <Moon className="w-4 h-4 text-indigo-500" />
-                        <span className="font-medium">{formatTime(record.clockOut)}</span>
-                        {record.autoClockOut && (
-                          <span className="text-xs text-orange-600 ml-1" title="Auto clocked out">
-                            (Auto)
-                          </span>
-                        )}
-                      </div>
-                      {record.shiftEnd && (
-                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                          <Clock size={12} />
-                          Expected: {formatTime(record.shiftEnd)}
-                          {record.isEarly && record.earlyMinutes > 0 && (
-                            <span className="text-green-600 ml-1">
-                              ({record.earlyMinutes} min early)
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    
-                    <td className="py-4 px-6">
-                      <div className="font-bold text-gray-900">
-                        {record.totalHours?.toFixed(2) || "-"}
-                        <span className="text-sm font-normal text-gray-600 ml-1">hrs</span>
-                      </div>
-                      {record.overtimeHours > 0 && (
-                        <div className="text-xs text-orange-600">
-                          +{record.overtimeHours} OT hours
-                        </div>
-                      )}
-                      {record.expectedHours && record.totalHours && (
-                        <div className={`text-xs ${record.totalHours >= record.expectedHours ? 'text-green-600' : 'text-red-600'}`}>
-                          {record.totalHours >= record.expectedHours ? '✓' : '✗'} {record.expectedHours} hrs expected
-                        </div>
-                      )}
-                    </td>
-                    
-                    {isAdmin && (
-                      <td className="py-4 px-6">
-                        {shiftInfo ? (
-                          <div className="flex flex-col gap-1">
-                            <div className={`text-sm font-medium ${shiftInfo.color}`}>
-                              {shiftInfo.name}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              {shiftInfo.time}
-                            </div>
+                    return (
+                      <tr key={record._id} className="hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-pink-50/50 transition-colors group">
+                        <td className="py-4 px-4">
+                          <div className="font-bold text-gray-900">{formatDateShort(record.date)}</div>
+                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                            <Calendar size={12} />
+                            {date.toLocaleDateString('en-US', { weekday: 'long' })}
                           </div>
-                        ) : (
-                          <div className="text-sm text-gray-400">
-                            No shift info
-                          </div>
+                          {record.autoGenerated && (
+                            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1">
+                              <Database size={10} />
+                              Auto-generated
+                            </div>
+                          )}
+                          {record.markedAbsent && (
+                            <div className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1">
+                              <AlertOctagon size={10} />
+                              Auto-marked absent
+                            </div>
+                          )}
+                        </td>
+                        
+                        {isAdmin && record.employee && (
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                                {record.employee.firstName?.[0]}{record.employee.lastName?.[0]}
+                              </div>
+                              <div>
+                                <div className="font-semibold text-gray-900">
+                                  {record.employee.firstName} {record.employee.lastName}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {record.employee.employeeId} • {record.employee.department}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
                         )}
-                      </td>
-                    )}
-                    
-                    <td className="py-4 px-6">
-                      <div className="flex flex-col gap-2">
-                            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${
-                            getStatusColor(record.status, record.statusType).bg
-                          } ${
-                            getStatusColor(record.status, record.statusType).text
-                          } ${
-                            getStatusColor(record.status, record.statusType).border
-                          }`}>
-                            <div className="flex items-center gap-1">
-                              {getStatusColor(record.status, record.statusType).displayText || record.status}
-                              {record.markedAbsent && (
-                                <span className="text-xs opacity-75 ml-1">(Auto)</span>
+                        
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-center">
+                              <Sun size={20} className="text-amber-600" />
+                            </div>
+                            <div>
+                              <div className={`font-bold text-lg ${
+                                lateEarly.isLate ? 'text-red-600' :
+                                lateEarly.isEarly ? 'text-green-600' :
+                                'text-gray-900'
+                              }`}>
+                                {formatTime(record.clockIn)}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Shift: {record.shift?.start || '09:00'}
+                              </div>
+                              {lateEarly.isLate && (
+                                <div className="text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded-full mt-1">
+                                  ⏰ {lateEarly.details}
+                                </div>
+                              )}
+                              {lateEarly.isEarly && (
+                                <div className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full mt-1">
+                                  ⬇️ {lateEarly.details}
+                                </div>
                               )}
                             </div>
-                          </div> 
-                        {record.ruleType === '5_hour_rule' && (
-                          <div className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded mt-1" 
-                              title="Marked absent after 5 hours from shift start">
-                            ⏰ 5-Hour Rule
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 flex items-center justify-center">
+                              <Moon size={20} className="text-blue-600" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-lg text-gray-900">
+                                {formatTime(record.clockOut)}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Shift: {record.shift?.end || '18:00'}
+                              </div>
+                              {record.autoClockOut && (
+                                <div className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full mt-1">
+                                  🤖 Auto clocked out
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4">
+                          <div className="font-bold text-xl text-purple-700">
+                            {record.totalHours?.toFixed(2) || "0.00"} hrs
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {record.shift?.isNightShift && (
+                              <span className="text-purple-600">🌙 Night Shift</span>
+                            )}
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col gap-2">
+                            <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold shadow-sm ${getStatusColor(record.status)}`}>
+                              <StatusIcon size={14} className="mr-2" />
+                              {record.status}
+                            </div>
+                            <div className="text-xs space-y-1">
+                              {record.remarks && (
+                                <div className="text-gray-600 truncate max-w-[150px]" title={record.remarks}>
+                                  💬 {record.remarks}
+                                </div>
+                              )}
+                              {record.correctedByAdmin && (
+                                <div className="text-purple-600 flex items-center gap-1">
+                                  <Edit size={10} />
+                                  Admin corrected
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setClockDetails(record);
+                                setShowRecentDetails(true);
+                              }}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors group"
+                              title="View Details"
+                            >
+                              <Eye size={18} />
+                            </button>
+                            {isAdmin && (
+                              <>
+                                <button
+                                  onClick={() => setSelectedAttendanceRecord(record)}
+                                  className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors group"
+                                  title="Edit Record"
+                                >
+                                  <Edit size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateShift(record.employee?._id, record.shift)}
+                                  className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors group"
+                                  title="Update Shift"
+                                >
+                                  <Settings size={18} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : viewMode === 'calendar' ? (
+            /* Enhanced Calendar View */
+            <div className="p-6">
+              <div className="grid grid-cols-7 gap-2">
+                {/* Calendar Headers */}
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center text-sm font-bold text-purple-900 py-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
+                    {day}
+                  </div>
+                ))}
+                
+                {/* Calendar Days */}
+                {Array.from({ length: 42 }, (_, i) => {
+                  const date = new Date();
+                  date.setDate(date.getDate() - 21 + i);
+                  const dateStr = date.toISOString().split('T')[0];
+                  const dayRecords = attendance.filter(r => 
+                    new Date(r.date).toISOString().split('T')[0] === dateStr
+                  );
+                  const isToday = dateStr === new Date().toISOString().split('T')[0];
+                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                  
+                  return (
+                    <div key={i} className={`min-h-32 border rounded-xl p-3 transition-all hover:shadow-md ${
+                      isToday 
+                        ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50' 
+                        : isWeekend
+                        ? 'border-gray-200 bg-gray-50'
+                        : 'border-purple-100 bg-white'
+                    }`}>
+                      <div className={`flex justify-between items-center mb-2 ${
+                        isToday ? 'text-purple-700' : 'text-gray-700'
+                      }`}>
+                        <div className={`font-bold ${isToday ? 'text-lg' : ''}`}>{date.getDate()}</div>
+                        {isToday && (
+                          <div className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full">
+                            Today
                           </div>
                         )}
-                        
-                        <div className="flex flex-wrap gap-1">
-                          {record.isLate && (
-                            <div className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" title={`${record.lateMinutes} minutes late`}>
-                              ⏰ Late
-                            </div>
-                          )}
-                          
-                          {record.isEarly && (
-                            <div className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded" title={`${record.earlyMinutes} minutes early`}>
-                              🏃 Early
-                            </div>
-                          )}
-                          
-                          {record.autoClockOut && (
-                            <div className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded" title="Auto clocked out">
-                              🔄 Auto
-                            </div>
-                          )}
-                          
-                          {record.markedAbsent && (
-                            <div className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded" title="Auto marked absent">
-                              ⚠️ Auto Absent
-                            </div>
-                          )}
-                          
-                          {record.correctedByAdmin && (
-                            <div className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" title="Corrected by admin">
-                              ✏️ Corrected
-                            </div>
-                          )}
-                        </div>
                       </div>
-                    </td>
-                    
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSelectedRecord(record)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View Details"
-                        >
-                          <Eye size={18} />
-                        </button>
-                        
-                        {isAdmin && (
-                          <>
-                            <button
-                              onClick={() => openEditModal(record)}
-                              className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            
-                            <button
-                              onClick={() => handleDeleteAttendance(record._id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-      
-      {pagination.totalPages > 1 && (
-        <div className="border-t border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">
-              Page {pagination.currentPage} of {pagination.totalPages}
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
-                disabled={pagination.currentPage === 1}
-                className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              
-              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                let pageNum;
-                if (pagination.totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (pagination.currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                  pageNum = pagination.totalPages - 4 + i;
-                } else {
-                  pageNum = pagination.currentPage - 2 + i;
-                }
-                
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPagination(prev => ({ ...prev, currentPage: pageNum }))}
-                    className={`w-10 h-10 rounded-lg transition-colors ${
-                      pagination.currentPage === pageNum
-                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-              
-              <button
-                onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
-                disabled={pagination.currentPage === pagination.totalPages}
-                className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-            
-            <div className="text-sm text-gray-500">
-              {pagination.itemsPerPage} per page
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-  const ManualAttendanceModal = () => {
-  const [employeeSearch, setEmployeeSearch] = useState("");
-  const [filteredEmployees, setFilteredEmployees] = useState([]);
-
-  useEffect(() => {
-    if (employeeSearch) {
-      const filtered = employees.filter(employee => {
-        const fullName = `${employee.firstName} ${employee.lastName}`.toLowerCase();
-        const employeeId = (employee.employeeId || '').toLowerCase();
-        const searchTerm = employeeSearch.toLowerCase();
-        
-        return fullName.includes(searchTerm) ||
-               employeeId.includes(searchTerm) ||
-               employee.email.toLowerCase().includes(searchTerm);
-      });
-      setFilteredEmployees(filtered);
-    } else {
-      setFilteredEmployees([]);
-    }
-  }, [employeeSearch, employees]);
-
-  const dayStatus = getDayStatus(manualForm.date);
-
-  // When employee is selected, fetch their shift timing
-  const handleSelectEmployee = (employee) => {
-    setSelectedEmployee(employee);
-    
-    // Get employee's shift timing
-    const shiftTiming = getUserShiftTiming(employee);
-    
-    if (showManualModal) {
-      setManualForm(prev => ({
-        ...prev,
-        employeeId: employee._id,
-        employeeName: `${employee.firstName} ${employee.lastName}`,
-        shiftStart: shiftTiming.start,
-        shiftEnd: shiftTiming.end,
-        clockIn: shiftTiming.start,
-        clockOut: shiftTiming.end
-      }));
-    }
-    if (showBulkModal) {
-      setBulkForm(prev => ({
-        ...prev,
-        employeeId: employee._id,
-        employeeName: `${employee.firstName} ${employee.lastName}`,
-        defaultShiftStart: shiftTiming.start,
-        defaultShiftEnd: shiftTiming.end
-      }));
-    }
-    setShowEmployeeSelector(false);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Create Manual Attendance</h2>
-          <button
-            onClick={() => {
-              setShowManualModal(false);
-              resetManualForm();
-            }}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <X size={24} />
-          </button>
-        </div>
-        
-        <div className="space-y-6">
-          {/* Employee Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Employee *
-            </label>
-            {selectedEmployee ? (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900">
-                        {selectedEmployee.firstName} {selectedEmployee.lastName}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        ID: {selectedEmployee.employeeId} • {selectedEmployee.department}
-                      </div>
-                      {selectedEmployee.shiftTiming && (
-                        <div className="text-xs text-purple-600 mt-1">
-                          Shift: {getUserShiftTiming(selectedEmployee).start} - {getUserShiftTiming(selectedEmployee).end}
+                      {dayRecords.map(record => {
+                        const StatusIcon = getStatusIcon(record.status);
+                        return (
+                          <div key={record._id} className="mt-2">
+                            <div className={`text-xs px-2 py-1.5 rounded flex items-center gap-1 ${getStatusColor(record.status)}`}>
+                              <StatusIcon size={10} />
+                              <span className="truncate">{record.status}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 truncate mt-1">
+                              {formatTime(record.clockIn)} - {formatTime(record.clockOut)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {dayRecords.length === 0 && (
+                        <div className="text-xs text-gray-400 italic mt-4 text-center">
+                          No records
                         </div>
                       )}
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : viewMode === 'grid' ? (
+            /* Enhanced Grid View */
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {attendance.map(record => {
+                  const lateEarly = calculateLateEarlyMinutes(record.clockIn, record.shift?.start);
+                  const StatusIcon = getStatusIcon(record.status);
+                  const date = new Date(record.date);
+                  
+                  return (
+                    <div key={record._id} className="border border-purple-200 rounded-xl p-4 hover:border-purple-300 hover:shadow-lg transition-all bg-gradient-to-br from-white to-purple-50/30">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="font-bold text-gray-900 text-lg">
+                            {formatDateShort(record.date)}
+                          </div>
+                          <div className="text-sm text-gray-500 flex items-center gap-1">
+                            <Calendar size={12} />
+                            {date.toLocaleDateString('en-US', { weekday: 'long' })}
+                          </div>
+                        </div>
+                        <div className={`px-3 py-1.5 rounded-full text-sm font-bold shadow-sm ${getStatusColor(record.status)}`}>
+                          <StatusIcon size={14} className="inline mr-1" />
+                          {record.status}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-center">
+                              <Sun size={16} className="text-amber-600" />
+                            </div>
+                            <span className="text-sm font-medium">Clock In</span>
+                          </div>
+                          <div className={`font-bold ${
+                            lateEarly.isLate ? 'text-red-600' :
+                            lateEarly.isEarly ? 'text-green-600' : ''
+                          }`}>
+                            {formatTime(record.clockIn)}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 flex items-center justify-center">
+                              <Moon size={16} className="text-blue-600" />
+                            </div>
+                            <span className="text-sm font-medium">Clock Out</span>
+                          </div>
+                          <span className="font-bold">{formatTime(record.clockOut)}</span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 flex items-center justify-center">
+                              <Clock size={16} className="text-purple-600" />
+                            </div>
+                            <span className="text-sm font-medium">Total Hours</span>
+                          </div>
+                          <span className="font-bold text-lg text-purple-700">
+                            {record.totalHours?.toFixed(2)} hrs
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {(lateEarly.isLate || lateEarly.isEarly) && (
+                        <div className={`mt-3 text-sm px-3 py-2 rounded-lg ${
+                          lateEarly.isLate 
+                            ? 'bg-red-50 text-red-700 border border-red-100' 
+                            : 'bg-green-50 text-green-700 border border-green-100'
+                        }`}>
+                          {lateEarly.isLate ? '⏰ Late:' : '⬇️ Early:'} {lateEarly.details}
+                        </div>
+                      )}
+                      
+                      {record.remarks && (
+                        <div className="mt-3 text-xs text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+                          💬 {record.remarks}
+                        </div>
+                      )}
+                      
+                      <div className="mt-4 flex items-center justify-between">
+                        <div className="text-xs text-gray-500">
+                          {record.autoGenerated && '🤖 Auto-generated • '}
+                          {record.markedAbsent && '⚠️ Auto-absent • '}
+                          {record.autoClockOut && '🤖 Auto-out'}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setClockDetails(record);
+                            setShowRecentDetails(true);
+                          }}
+                          className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                        >
+                          View Details →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Analytics View */
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Status Distribution */}
+                <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>
+                  <div className="space-y-4">
+                    {Object.entries(analytics.statusDistribution || {}).map(([status, count]) => (
+                      <div key={status} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`}></div>
+                          <span className="font-medium text-gray-700">{status}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900">{count}</span>
+                          <span className="text-sm text-gray-500">
+                            ({Math.round((count / attendance.length) * 100)}%)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedEmployee(null);
-                      setManualForm(prev => ({ ...prev, employeeId: "", employeeName: "" }));
-                    }}
-                    className="text-gray-400 hover:text-red-500"
-                  >
-                    <X size={20} />
-                  </button>
+                </div>
+                
+                {/* Monthly Overview */}
+                <div className="bg-gradient-to-br from-white to-pink-50 border border-pink-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Overview</h3>
+                  <div className="space-y-3">
+                    {(analytics.monthlyData || []).slice(0, 6).map((month, index) => (
+                      <div key={index} className="flex items-center gap-3">
+                        <div className="text-sm font-medium text-gray-600 w-24">{month.month}</div>
+                        <div className="flex-1 h-6 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                            style={{ width: `${(month.totalHours / 200) * 100}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-sm font-bold text-gray-900">{month.totalHours.toFixed(1)}h</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Summary Stats */}
+                <div className="lg:col-span-2 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Summary</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg">
+                      <div className="text-sm text-gray-600">Present Days</div>
+                      <div className="text-2xl font-bold text-green-700">{summary?.presentDays || 0}</div>
+                    </div>
+                    
+                    <div className="p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-lg">
+                      <div className="text-sm text-gray-600">Absent Days</div>
+                      <div className="text-2xl font-bold text-red-700">{summary?.absentDays || 0}</div>
+                    </div>
+                    
+                    <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg">
+                      <div className="text-sm text-gray-600">Total Hours</div>
+                      <div className="text-2xl font-bold text-purple-700">{summary?.totalHours?.toFixed(2) || "0.00"}</div>
+                    </div>
+                    
+                    <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg">
+                      <div className="text-sm text-gray-600">Attendance Rate</div>
+                      <div className="text-2xl font-bold text-blue-700">{summary?.attendanceRate?.toFixed(1) || "0.0"}%</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  value={employeeSearch}
-                  onChange={(e) => setEmployeeSearch(e.target.value)}
-                  placeholder="Search employee by name or ID..."
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                />
-                
-                {employeeSearch && filteredEmployees.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                    {filteredEmployees.map((employee) => {
-                      const empShift = getUserShiftTiming(employee);
+            </div>
+          )}
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="border-t border-purple-100 p-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="text-sm text-gray-500">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalRecords)} of {totalRecords} records
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={prevPage}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  >
+                    Previous
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
                       return (
                         <button
-                          key={employee._id}
-                          onClick={() => handleSelectEmployee(employee)}
-                          className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center gap-3"
+                          key={pageNum}
+                          onClick={() => paginate(pageNum)}
+                          className={`w-10 h-10 rounded-lg font-medium transition-all ${
+                            currentPage === pageNum
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                              : 'border border-purple-200 text-gray-700 hover:bg-purple-50'
+                          }`}
                         >
-                          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                            {employee.firstName?.[0]}{employee.lastName?.[0]}
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {employee.firstName} {employee.lastName}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {employee.employeeId} • {employee.department}
-                            </div>
-                            {empShift && (
-                              <div className="text-xs text-purple-600 mt-1">
-                                Shift: {empShift.start} - {empShift.end}
-                              </div>
-                            )}
-                          </div>
+                          {pageNum}
                         </button>
                       );
                     })}
                   </div>
-                )}
+                  
+                  <button
+                    onClick={nextPage}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-          
-          {/* ... Rest of the Modal remains the same ... */}
+            </div>
+          )}
         </div>
         
-        <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-          <button
-            onClick={() => {
-              setShowManualModal(false);
-              resetManualForm();
-            }}
-            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300"
-          >
-            Cancel
-          </button>
-          
-          <button
-            onClick={handleCreateManualAttendance}
-            disabled={!selectedEmployee}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
-          >
-            <Plus size={20} />
-            Create Attendance
-          </button>
-        </div>
+        {/* Enhanced Summary Stats */}
+        {summary && (
+          <div className="mt-8 bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <BarChart3 className="text-purple-600" size={24} />
+              Detailed Statistics
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+                <div className="text-sm text-gray-600 flex items-center gap-2">
+                  <CheckCircle size={14} className="text-green-500" />
+                  Present Days
+                </div>
+                <div className="text-2xl font-bold text-purple-700 mt-2">{summary.presentDays || 0}</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {summary.totalDays ? `${Math.round((summary.presentDays / summary.totalDays) * 100)}% of total` : ''}
+                </div>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-xl border border-red-100">
+                <div className="text-sm text-gray-600 flex items-center gap-2">
+                  <XCircle size={14} className="text-red-500" />
+                  Absent Days
+                </div>
+                <div className="text-2xl font-bold text-red-700 mt-2">{summary.absentDays || 0}</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {summary.totalDays ? `${Math.round((summary.absentDays / summary.totalDays) * 100)}% of total` : ''}
+                </div>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
+                <div className="text-sm text-gray-600 flex items-center gap-2">
+                  <Clock size={14} className="text-blue-500" />
+                  Total Hours
+                </div>
+                <div className="text-2xl font-bold text-blue-700 mt-2">{summary.totalHours?.toFixed(2) || "0.00"}</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Avg: {summary.averageHours?.toFixed(2) || "0.00"} hrs/day
+                </div>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                <div className="text-sm text-gray-600 flex items-center gap-2">
+                  <Percent size={14} className="text-green-500" />
+                  Attendance Rate
+                </div>
+                <div className="text-2xl font-bold text-green-700 mt-2">{summary.attendanceRate?.toFixed(1) || "0.0"}%</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Based on working days
+                </div>
+              </div>
+            </div>
+            
+            {/* Additional Stats Row */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+              <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-100">
+                <div className="text-sm text-gray-600">Late Days</div>
+                <div className="text-xl font-bold text-amber-700">{summary.lateDays || 0}</div>
+                <div className="text-xs text-gray-500">
+                  Avg: {summary.averageLateMinutes?.toFixed(1) || "0.0"} mins
+                </div>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100">
+                <div className="text-sm text-gray-600">Early Days</div>
+                <div className="text-xl font-bold text-violet-700">{summary.earlyDays || 0}</div>
+                <div className="text-xs text-gray-500">
+                  Avg: {summary.averageEarlyMinutes?.toFixed(1) || "0.0"} mins
+                </div>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-br from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+                <div className="text-sm text-gray-600">Total Days</div>
+                <div className="text-xl font-bold text-gray-700">{summary.totalDays || 0}</div>
+                <div className="text-xs text-gray-500">
+                  Working days: {summary.workingDays || 0}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
-};
-
-  const EmployeeSelectorModal = () => {
-    const [searchTerm, setSearchTerm] = useState("");
-
-    const filteredEmployees = employees.filter(employee => {
-      const fullName = `${employee.firstName} ${employee.lastName}`.toLowerCase();
-      const employeeId = (employee.employeeId || '').toLowerCase();
-      const search = searchTerm.toLowerCase();
       
-      return fullName.includes(search) ||
-             employeeId.includes(search) ||
-             employee.email.toLowerCase().includes(search);
-    });
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Select Employee</h2>
-            <button
-              onClick={() => setShowEmployeeSelector(false)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search employees..."
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-              />
-            </div>
-          </div>
-          
-          <div className="overflow-y-auto max-h-[60vh]">
-            <div className="space-y-2">
-              {filteredEmployees.length === 0 ? (
-                <div className="text-center py-8">
-                  <UserIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No employees found</p>
-                  {searchTerm && (
-                    <p className="text-gray-500 text-sm mt-1">Try a different search term</p>
-                  )}
-                </div>
-              ) : (
-                filteredEmployees.map((employee) => (
-                  <button
-                    key={employee._id}
-                    onClick={() => handleSelectEmployee(employee)}
-                    className="w-full flex items-center gap-4 p-4 hover:bg-purple-50 rounded-xl transition-all duration-300 text-left"
-                  >
-                    <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {employee.firstName?.[0]}{employee.lastName?.[0]}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900">
-                        {employee.firstName} {employee.lastName}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {employee.employeeId} • {employee.department || 'No Department'}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {employee.email}
-                      </div>
-                    </div>
-                    {selectedEmployee?._id === employee._id && (
-                      <CheckCircle className="text-green-500" size={20} />
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const RecordDetailsModal = () => {
-    if (!selectedRecord) return null;
-
-    const dayStatus = getDayStatus(selectedRecord.date);
-    const isAutoGenerated = selectedRecord.autoGenerated || selectedRecord.markedAbsent || selectedRecord.autoClockOut;
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Attendance Details</h2>
-            <button
-              onClick={() => setSelectedRecord(null)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+      {/* ===================== MODALS ===================== */}
+      
+      {/* Manual Attendance Modal */}
+      {showManualAttendanceModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                <div className="p-3 bg-gray-50 rounded-xl">
-                  {formatDate(selectedRecord.date)}
-                  <div className="text-sm text-gray-600 mt-1">
-                    {dayStatus.dayName} • {dayStatus.isWorkingDay ? 'Working Day' : dayStatus.status}
-                  </div>
-                  {isAutoGenerated && (
-                    <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                      <Zap size={12} />
-                      Auto-generated by system
-                    </div>
-                  )}
-                </div>
+                <h2 className="text-2xl font-bold text-gray-900">Create Manual Attendance</h2>
+                <p className="text-gray-500">Create attendance record for specific employee</p>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Clock In</label>
-                <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-2">
-                  <Sun className="text-yellow-500" size={18} />
-                  {formatTime(selectedRecord.clockIn)}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Clock Out</label>
-                <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-2">
-                  <Moon className="text-indigo-500" size={18} />
-                  {formatTime(selectedRecord.clockOut)}
-                  {selectedRecord.autoClockOut && (
-                    <span className="text-xs text-orange-600 ml-2">(Auto)</span>
-                  )}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Total Hours</label>
-                <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-2">
-                  <Clock className="text-blue-500" size={18} />
-                  {selectedRecord.totalHours?.toFixed(2) || "0.00"} hours
-                  {selectedRecord.overtimeHours > 0 && (
-                    <span className="ml-2 text-sm text-orange-600">
-                      (+{selectedRecord.overtimeHours} OT)
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <div className={`p-3 rounded-xl ${
-                  getStatusColor(selectedRecord.status).bg
-                } ${
-                  getStatusColor(selectedRecord.status).text
-                } ${
-                  getStatusColor(selectedRecord.status).border
-                } border`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{selectedRecord.status}</span>
-                    {selectedRecord.markedAbsent && (
-                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-                        Auto-marked Absent
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              {selectedRecord.isLate && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Late Minutes</label>
-                  <div className="p-3 bg-yellow-50 text-yellow-700 rounded-xl">
-                    {selectedRecord.lateMinutes} minutes late
-                  </div>
-                </div>
-              )}
-              
-              {selectedRecord.isEarly && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Early Minutes</label>
-                  <div className="p-3 bg-orange-50 text-orange-700 rounded-xl">
-                    {selectedRecord.earlyMinutes} minutes early
-                  </div>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-2">
-                  <MapPin className="text-green-500" size={18} />
-                  {selectedRecord.location || "Office"}
-                </div>
-              </div>
-              
-              {selectedRecord.device && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Device</label>
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Smartphone className="text-purple-500" size={18} />
-                      <span>{selectedRecord.device.type || "Desktop"}</span>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {selectedRecord.device.os} • {selectedRecord.device.browser}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {selectedRecord.remarks && (
-            <div className="mt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                {selectedRecord.remarks}
-              </div>
-            </div>
-          )}
-          
-          {selectedRecord.correctedByAdmin && (
-            <div className="mt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Admin Correction</label>
-              <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <Edit className="text-yellow-600" size={18} />
-                  <span className="font-medium">Corrected by Administrator</span>
-                </div>
-                <div className="text-sm text-gray-600 mt-1">
-                  {selectedRecord.correctionReason || "No reason provided"}
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-            <button
-              onClick={() => setSelectedRecord(null)}
-              className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300"
-            >
-              Close
-            </button>
-            
-            {isAdmin && (
               <button
-                onClick={() => {
-                  setEditingRecord(selectedRecord);
-                  setShowEditModal(true);
-                  setSelectedRecord(null);
-                }}
-                className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2"
+                onClick={() => setShowManualAttendanceModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <Edit size={18} />
-                Edit Record
+                <X size={24} />
               </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const EditAttendanceModal = () => {
-    if (!editingRecord) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Edit Attendance Record</h2>
-            <button
-              onClick={() => {
-                setShowEditModal(false);
-                setEditingRecord(null);
-              }}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            </div>
+            
+            <div className="space-y-4">
+              {/* Employee Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                <input
-                  type="date"
-                  value={editingRecord.date}
-                  onChange={(e) => setEditingRecord(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee</label>
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      fetchEmployees();
+                      setShowEmployeeSelector(true);
+                    }}
+                    className="w-full px-4 py-3 border-2 border-purple-200 rounded-xl text-left flex items-center justify-between hover:border-purple-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {selectedEmployee ? (
+                        <>
+                          <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                            {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {selectedEmployee.firstName} {selectedEmployee.lastName}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {selectedEmployee.employeeId} • {selectedEmployee.department}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-gray-500">Select employee</div>
+                      )}
+                    </div>
+                    <ChevronDown size={20} />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Date and Status */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={manualAttendanceData.date}
+                    onChange={(e) => setManualAttendanceData(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <select
+                    value={manualAttendanceData.status}
+                    onChange={(e) => setManualAttendanceData(prev => ({ ...prev, status: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="Present">Present</option>
+                    <option value="Absent">Absent</option>
+                    <option value="Late">Late</option>
+                    <option value="Early">Early</option>
+                    <option value="Leave">Leave</option>
+                    <option value="Govt Holiday">Govt Holiday</option>
+                    <option value="Weekly Off">Weekly Off</option>
+                  </select>
+                </div>
+              </div>
+              
+              {/* Clock Times */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Clock In Time</label>
+                  <input
+                    type="time"
+                    value={manualAttendanceData.clockIn}
+                    onChange={(e) => setManualAttendanceData(prev => ({ ...prev, clockIn: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Clock Out Time</label>
+                  <input
+                    type="time"
+                    value={manualAttendanceData.clockOut}
+                    onChange={(e) => setManualAttendanceData(prev => ({ ...prev, clockOut: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+              
+              {/* Remarks */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+                <textarea
+                  value={manualAttendanceData.remarks}
+                  onChange={(e) => setManualAttendanceData(prev => ({ ...prev, remarks: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  rows="3"
+                  placeholder="Add any remarks or notes..."
                 />
               </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-8">
+              <button
+                onClick={() => setShowManualAttendanceModal(false)}
+                className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateManualAttendance}
+                disabled={!selectedEmployee}
+                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm disabled:opacity-50"
+              >
+                Create Attendance
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Bulk Attendance Modal */}
+      {showBulkAttendanceModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Create Bulk Attendance</h2>
+                <p className="text-gray-500">Create attendance records for multiple dates</p>
+              </div>
+              <button
+                onClick={() => setShowBulkAttendanceModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Employee Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee</label>
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      fetchEmployees();
+                      setShowEmployeeSelector(true);
+                    }}
+                    className="w-full px-4 py-3 border-2 border-purple-200 rounded-xl text-left flex items-center justify-between hover:border-purple-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {selectedEmployee ? (
+                        <>
+                          <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                            {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {selectedEmployee.firstName} {selectedEmployee.lastName}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {selectedEmployee.employeeId} • {selectedEmployee.department}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-gray-500">Select employee</div>
+                      )}
+                    </div>
+                    <ChevronDown size={20} />
+                  </button>
+                </div>
+              </div>
               
+              {/* Month and Year */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Month</label>
+                  <select
+                    value={bulkAttendanceData.month}
+                    onChange={(e) => setBulkAttendanceData(prev => ({ ...prev, month: parseInt(e.target.value) }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                      <option key={month} value={month}>
+                        {new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                  <input
+                    type="number"
+                    value={bulkAttendanceData.year}
+                    onChange={(e) => setBulkAttendanceData(prev => ({ ...prev, year: parseInt(e.target.value) }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                    min="2000"
+                    max="2100"
+                  />
+                </div>
+              </div>
+              
+              {/* Shift Timing */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Shift Start Time</label>
+                  <input
+                    type="time"
+                    value={bulkAttendanceData.defaultShiftStart}
+                    onChange={(e) => setBulkAttendanceData(prev => ({ ...prev, defaultShiftStart: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Shift End Time</label>
+                  <input
+                    type="time"
+                    value={bulkAttendanceData.defaultShiftEnd}
+                    onChange={(e) => setBulkAttendanceData(prev => ({ ...prev, defaultShiftEnd: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+              
+              {/* Options */}
+              <div className="flex items-center gap-6">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="skipWeekends"
+                    checked={bulkAttendanceData.skipWeekends}
+                    onChange={(e) => setBulkAttendanceData(prev => ({ ...prev, skipWeekends: e.target.checked }))}
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  />
+                  <label htmlFor="skipWeekends" className="ml-2 text-sm text-gray-700">
+                    Skip weekends (Saturday & Sunday)
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="markAllAsPresent"
+                    checked={bulkAttendanceData.markAllAsPresent}
+                    onChange={(e) => setBulkAttendanceData(prev => ({ ...prev, markAllAsPresent: e.target.checked }))}
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  />
+                  <label htmlFor="markAllAsPresent" className="ml-2 text-sm text-gray-700">
+                    Mark all as Present
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-8">
+              <button
+                onClick={() => setShowBulkAttendanceModal(false)}
+                className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateBulkAttendance}
+                disabled={!selectedEmployee}
+                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm disabled:opacity-50"
+              >
+                Create Bulk Attendance
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Employee Selector Modal */}
+      {showEmployeeSelector && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Select Employee</h2>
+                <p className="text-gray-500">Choose an employee for the attendance record</p>
+              </div>
+              <button
+                onClick={() => setShowEmployeeSelector(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {/* Search */}
+            <div className="mb-6">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  value={employeeSearch}
+                  onChange={(e) => setEmployeeSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 border-2 border-purple-200 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  placeholder="Search employees by name, ID, or department..."
+                />
+              </div>
+            </div>
+            
+            {/* Employee List */}
+            <div className="overflow-y-auto max-h-[50vh] pr-2">
+              <div className="grid gap-2">
+                {employees
+                  .filter(emp => 
+                    `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                    emp.employeeId.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                    emp.department.toLowerCase().includes(employeeSearch.toLowerCase())
+                  )
+                  .map(employee => (
+                    <button
+                      key={employee._id}
+                      onClick={() => {
+                        setSelectedEmployee(employee);
+                        setManualAttendanceData(prev => ({
+                          ...prev,
+                          employeeId: employee._id,
+                          employeeName: `${employee.firstName} ${employee.lastName}`
+                        }));
+                        setBulkAttendanceData(prev => ({
+                          ...prev,
+                          employeeId: employee._id,
+                          employeeName: `${employee.firstName} ${employee.lastName}`
+                        }));
+                        setShowEmployeeSelector(false);
+                      }}
+                      className="w-full p-4 text-left hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 rounded-xl transition-all group border border-transparent hover:border-purple-200"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                          {employee.firstName?.[0]}{employee.lastName?.[0]}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900 group-hover:text-purple-700">
+                            {employee.firstName} {employee.lastName}
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            <div className="flex items-center gap-3">
+                              <span>ID: {employee.employeeId}</span>
+                              <span>•</span>
+                              <span>{employee.department}</span>
+                              <span>•</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                employee.status === 'active' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {employee.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="text-gray-400 group-hover:text-purple-500" size={20} />
+                      </div>
+                    </button>
+                  ))}
+              </div>
+              
+              {employees.filter(emp => 
+                `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                emp.employeeId.toLowerCase().includes(employeeSearch.toLowerCase())
+              ).length === 0 && (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <UserX className="text-gray-400" size={32} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No employees found</h3>
+                  <p className="text-gray-500">Try adjusting your search terms</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Attendance Details Modal */}
+      {showRecentDetails && clockDetails && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Attendance Details</h2>
+                <p className="text-gray-500">Detailed view of attendance record</p>
+              </div>
+              <button
+                onClick={() => setShowRecentDetails(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl">
+                  <div className="text-sm text-gray-500">Date</div>
+                  <div className="font-bold text-lg text-gray-900">{formatDate(clockDetails.date)}</div>
+                </div>
+                
+                <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl">
+                  <div className="text-sm text-gray-500">Status</div>
+                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold mt-1 ${getStatusColor(clockDetails.status)}`}>
+                    {(() => {
+                      const StatusIcon = getStatusIcon(clockDetails.status);
+                      return <StatusIcon size={14} className="mr-2" />;
+                    })()}
+                    {clockDetails.status}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Clock Times */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 border border-purple-100 rounded-xl">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-center">
+                      <Sun className="text-amber-600" size={20} />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Clock In</div>
+                      <div className="font-bold text-lg text-gray-900">{formatTime(clockDetails.clockIn)}</div>
+                    </div>
+                  </div>
+                  {clockDetails.shift?.start && (
+                    <div className="text-xs text-gray-500">
+                      Shift start: {clockDetails.shift.start}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="p-4 border border-blue-100 rounded-xl">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 flex items-center justify-center">
+                      <Moon className="text-blue-600" size={20} />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Clock Out</div>
+                      <div className="font-bold text-lg text-gray-900">{formatTime(clockDetails.clockOut)}</div>
+                    </div>
+                  </div>
+                  {clockDetails.shift?.end && (
+                    <div className="text-xs text-gray-500">
+                      Shift end: {clockDetails.shift.end}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Total Hours */}
+              <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl text-center">
+                <div className="text-sm text-gray-500 mb-2">Total Working Hours</div>
+                <div className="text-4xl font-bold text-purple-700">
+                  {clockDetails.totalHours?.toFixed(2) || "0.00"} hours
+                </div>
+                {clockDetails.shift?.isNightShift && (
+                  <div className="text-sm text-purple-600 mt-2">🌙 Night Shift Record</div>
+                )}
+              </div>
+              
+              {/* Late/Early Calculation */}
+              {clockDetails.clockIn && clockDetails.shift?.start && (
+                <div className="p-4 border border-amber-100 rounded-xl">
+                  <div className="text-sm font-medium text-gray-700 mb-2">Late/Early Calculation</div>
+                  {(() => {
+                    const lateEarly = calculateLateEarlyMinutes(clockDetails.clockIn, clockDetails.shift.start);
+                    return (
+                      <div className={`text-lg font-bold ${
+                        lateEarly.isLate ? 'text-red-600' :
+                        lateEarly.isEarly ? 'text-green-600' :
+                        'text-gray-700'
+                      }`}>
+                        {lateEarly.details}
+                      </div>
+                    );
+                  })()}
+                  <div className="text-xs text-gray-500 mt-1">
+                    Shift: {clockDetails.shift.start} • Late threshold: +5 mins • Early threshold: -1 min
+                  </div>
+                </div>
+              )}
+              
+              {/* Additional Information */}
+              {clockDetails.remarks && (
+                <div className="p-4 border border-gray-100 rounded-xl">
+                  <div className="text-sm font-medium text-gray-700 mb-2">Remarks</div>
+                  <div className="text-gray-600">{clockDetails.remarks}</div>
+                </div>
+              )}
+              
+              {/* System Flags */}
+              <div className="space-y-2">
+                {clockDetails.markedAbsent && (
+                  <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+                    <div className="flex items-center gap-2 text-red-700 font-medium">
+                      <AlertOctagon size={18} />
+                      Auto-marked as absent
+                    </div>
+                    <div className="text-sm text-red-600 mt-1">
+                      System automatically marked as absent (No clock in within required time)
+                    </div>
+                  </div>
+                )}
+                
+                {clockDetails.autoGenerated && (
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div className="flex items-center gap-2 text-blue-700 font-medium">
+                      <Database size={18} />
+                      Auto-generated record
+                    </div>
+                    <div className="text-sm text-blue-600 mt-1">
+                      System automatically generated this record for non-working day
+                    </div>
+                  </div>
+                )}
+                
+                {clockDetails.correctedByAdmin && (
+                  <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                    <div className="flex items-center gap-2 text-purple-700 font-medium">
+                      <Edit size={18} />
+                      Admin corrected record
+                    </div>
+                    <div className="text-sm text-purple-600 mt-1">
+                      This record was manually corrected by administrator
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Edit Attendance Modal */}
+      {selectedAttendanceRecord && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Edit Attendance Record</h2>
+                <p className="text-gray-500">Modify attendance details</p>
+              </div>
+              <button
+                onClick={() => setSelectedAttendanceRecord(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Clock Times */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Clock In Time</label>
+                  <input
+                    type="time"
+                    value={selectedAttendanceRecord.clockIn ? formatTime(selectedAttendanceRecord.clockIn).replace(' ', '').slice(0, 5) : ''}
+                    onChange={(e) => setSelectedAttendanceRecord(prev => ({ ...prev, clockIn: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Clock Out Time</label>
+                  <input
+                    type="time"
+                    value={selectedAttendanceRecord.clockOut ? formatTime(selectedAttendanceRecord.clockOut).replace(' ', '').slice(0, 5) : ''}
+                    onChange={(e) => setSelectedAttendanceRecord(prev => ({ ...prev, clockOut: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+              
+              {/* Status */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select
-                  value={editingRecord.status}
-                  onChange={(e) => setEditingRecord(prev => ({ ...prev, status: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  value={selectedAttendanceRecord.status}
+                  onChange={(e) => setSelectedAttendanceRecord(prev => ({ ...prev, status: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                 >
                   <option value="Present">Present</option>
                   <option value="Absent">Absent</option>
@@ -3168,580 +3341,40 @@ const TodayStatusCard = () => {
                   <option value="Leave">Leave</option>
                   <option value="Govt Holiday">Govt Holiday</option>
                   <option value="Weekly Off">Weekly Off</option>
-                  <option value="Half Day">Half Day</option>
+                  <option value="Off Day">Off Day</option>
                 </select>
               </div>
               
+              {/* Remarks */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Clock In Time</label>
-                <input
-                  type="time"
-                  value={editingRecord.clockIn || ''}
-                  onChange={(e) => setEditingRecord(prev => ({ ...prev, clockIn: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Clock Out Time</label>
-                <input
-                  type="time"
-                  value={editingRecord.clockOut || ''}
-                  onChange={(e) => setEditingRecord(prev => ({ ...prev, clockOut: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+                <textarea
+                  value={selectedAttendanceRecord.remarks || ''}
+                  onChange={(e) => setSelectedAttendanceRecord(prev => ({ ...prev, remarks: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  rows="3"
+                  placeholder="Add remarks or correction reason..."
                 />
               </div>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
-              <textarea
-                value={editingRecord.remarks || ''} 
-                onChange={(e) => setEditingRecord(prev => ({ ...prev, remarks: e.target.value }))}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                rows="3"
-                placeholder="Enter remarks..."
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Correction Reason</label>
-              <input
-                type="text"
-                value={editingRecord.correctionReason || ''}
-                onChange={(e) => setEditingRecord(prev => ({ ...prev, correctionReason: e.target.value }))}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                placeholder="Reason for correction..."
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-            <button
-              onClick={() => {
-                setShowEditModal(false);
-                setEditingRecord(null);
-              }}
-              className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300"
-            >
-              Cancel
-            </button>
-            
-            <button
-              onClick={() => handleCorrectAttendance(editingRecord._id)}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2"
-            >
-              <Save size={18} />
-              Save Changes
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const BulkAttendanceModal = () => {
-    const [employeeSearch, setEmployeeSearch] = useState("");
-    const [filteredEmployees, setFilteredEmployees] = useState([]);
-
-    useEffect(() => {
-      if (employeeSearch) {
-        const filtered = employees.filter(employee => {
-          const fullName = `${employee.firstName} ${employee.lastName}`.toLowerCase();
-          const employeeId = (employee.employeeId || '').toLowerCase();
-          const searchTerm = employeeSearch.toLowerCase();
-          
-          return fullName.includes(searchTerm) ||
-                 employeeId.includes(searchTerm) ||
-                 employee.email.toLowerCase().includes(searchTerm);
-        });
-        setFilteredEmployees(filtered);
-      } else {
-        setFilteredEmployees([]);
-      }
-    }, [employeeSearch, employees]);
-
-    const generatePreview = () => {
-      const records = generateBulkAttendanceData();
-      toast.success(
-        <div>
-          <p className="font-bold">Bulk Preview Generated</p>
-          <p>Total Records: {records.length}</p>
-          <p>Present: {records.filter(r => r.status === 'Present').length}</p>
-          <p>Holidays: {records.filter(r => r.status === 'Govt Holiday').length}</p>
-          <p>Leaves: {records.filter(r => r.status === 'Leave').length}</p>
-        </div>,
-        { duration: 5000 }
-      );
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Create Bulk Attendance</h2>
-            <button
-              onClick={() => {
-                setShowBulkModal(false);
-                resetBulkForm();
-              }}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          
-          <div className="space-y-6">
-            {/* Employee Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Employee *
-              </label>
-              {selectedEmployee ? (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
-                        {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {selectedEmployee.firstName} {selectedEmployee.lastName}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          ID: {selectedEmployee.employeeId} • {selectedEmployee.department}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedEmployee(null);
-                        setBulkForm(prev => ({ ...prev, employeeId: "", employeeName: "" }));
-                      }}
-                      className="text-gray-400 hover:text-red-500"
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="text"
-                    value={employeeSearch}
-                    onChange={(e) => setEmployeeSearch(e.target.value)}
-                    placeholder="Search employee by name or ID..."
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  />
-                  
-                  {employeeSearch && filteredEmployees.length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                      {filteredEmployees.map((employee) => (
-                        <button
-                          key={employee._id}
-                          onClick={() => handleSelectEmployee(employee)}
-                          className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center gap-3"
-                        >
-                          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                            {employee.firstName?.[0]}{employee.lastName?.[0]}
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {employee.firstName} {employee.lastName}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {employee.employeeId} • {employee.department}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {/* Month and Year Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
-                <select
-                  value={bulkForm.month}
-                  onChange={(e) => setBulkForm(prev => ({ ...prev, month: parseInt(e.target.value) }))}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                >
-                  {Array.from({length: 12}, (_, i) => i + 1).map(month => (
-                    <option key={month} value={month}>
-                      {new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
-                <input
-                  type="number"
-                  value={bulkForm.year}
-                  onChange={(e) => setBulkForm(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  placeholder="YYYY"
-                  min="2000"
-                  max="2100"
-                />
-              </div>
-            </div>
-            
-            {/* Default Shift Timings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Default Shift Start *</label>
-                <input
-                  type="time"
-                  value={bulkForm.defaultShiftStart}
-                  onChange={(e) => setBulkForm(prev => ({ ...prev, defaultShiftStart: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Default Shift End *</label>
-                <input
-                  type="time"
-                  value={bulkForm.defaultShiftEnd}
-                  onChange={(e) => setBulkForm(prev => ({ ...prev, defaultShiftEnd: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                />
-              </div>
-            </div>
-            
-            {/* Options */}
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="skipWeekends"
-                  checked={bulkForm.skipWeekends}
-                  onChange={(e) => setBulkForm(prev => ({ ...prev, skipWeekends: e.target.checked }))}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <label htmlFor="skipWeekends" className="ml-2 text-sm text-gray-700">
-                  Skip Saturdays and Sundays
-                </label>
-              </div>
-              
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="markAllAsPresent"
-                  checked={bulkForm.markAllAsPresent}
-                  onChange={(e) => setBulkForm(prev => ({ ...prev, markAllAsPresent: e.target.checked }))}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <label htmlFor="markAllAsPresent" className="ml-2 text-sm text-gray-700">
-                  Mark all days as Present
-                </label>
-              </div>
-            </div>
-            
-            {/* Special Dates Management */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <h3 className="font-medium text-gray-700 mb-3">Special Dates Management</h3>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={addHoliday}
-                  className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm"
-                >
-                  + Add Holiday
-                </button>
-                <button
-                  type="button"
-                  onClick={addLeaveDate}
-                  className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
-                >
-                  + Add Leave Date
-                </button>
-                <button
-                  type="button"
-                  onClick={addWorkingDay}
-                  className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
-                >
-                  + Add Working Day
-                </button>
-              </div>
-              
-              {/* Display added dates */}
-              {(bulkForm.holidays.length > 0 || bulkForm.leaveDates.length > 0 || bulkForm.workingDays.length > 0) && (
-                <div className="mt-4 space-y-2">
-                  {bulkForm.holidays.length > 0 && (
-                    <div>
-                      <span className="text-sm font-medium text-purple-600">Holidays:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {bulkForm.holidays.map((holiday, index) => (
-                          <span key={index} className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded">
-                            {holiday.date} ({holiday.type})
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {bulkForm.leaveDates.length > 0 && (
-                    <div>
-                      <span className="text-sm font-medium text-blue-600">Leave Dates:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {bulkForm.leaveDates.map((date, index) => (
-                          <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
-                            {date}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {bulkForm.workingDays.length > 0 && (
-                    <div>
-                      <span className="text-sm font-medium text-green-600">Working Days:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {bulkForm.workingDays.map((date, index) => (
-                          <span key={index} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
-                            {date}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {/* Preview Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Calendar className="text-blue-600" size={20} />
-                <p className="text-sm font-medium text-blue-800">Preview Summary</p>
-              </div>
-              <div className="text-sm text-blue-700 space-y-1">
-                <p>
-                  <span className="font-medium">Employee:</span> {selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : 'Not selected'}
-                </p>
-                <p>
-                  <span className="font-medium">Period:</span> {new Date(bulkForm.year, bulkForm.month - 1, 1).toLocaleString('default', { month: 'long' })} {bulkForm.year}
-                </p>
-                <p>
-                  <span className="font-medium">Shift:</span> {bulkForm.defaultShiftStart} - {bulkForm.defaultShiftEnd}
-                </p>
-                <p>
-                  <span className="font-medium">Total Days:</span> {new Date(bulkForm.year, bulkForm.month, 0).getDate()}
-                </p>
-                <button
-                  onClick={generatePreview}
-                  className="mt-3 w-full px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
-                >
-                  Generate Preview
-                </button>
-              </div>
-            </div>
-            
-            {/* Warning Note */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertCircle className="text-yellow-600" size={20} />
-                <p className="text-sm font-medium text-yellow-800">Important Note</p>
-              </div>
-              <ul className="text-sm text-yellow-700 space-y-1 list-disc pl-4">
-                <li>This will create or update attendance records for all days in the selected month</li>
-                <li>Existing records will be updated with new data</li>
-                <li>New records will be created for missing dates</li>
-                <li>Weekends and holidays will be automatically marked</li>
-                <li>This action cannot be undone easily</li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-            <button
-              onClick={() => {
-                setShowBulkModal(false);
-                resetBulkForm();
-              }}
-              className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300"
-            >
-              Cancel
-            </button>
-            
-            <button
-              onClick={handleCreateBulkAttendance}
-              disabled={!selectedEmployee}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
-            >
-              <FileSpreadsheet size={20} />
-              Create Bulk Attendance
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ===================== MAIN RENDER =====================
-  if (loading && !userData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-20 h-20 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4 mx-auto"></div>
-          <p className="text-gray-600 font-medium">Loading attendance system...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <Toaster position="top-right" />
-      
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 p-4 md:p-6">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Attendance Management
-              </h1>
-              <div className="flex items-center gap-2 mt-2">
-                <p className="text-gray-600">
-                  {isAdmin ? "Manage all employee attendance" : "Track your daily attendance"}
-                </p>
-                {userRole && (
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
-                    isAdmin
-                      ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800'
-                      : 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800'
-                  }`}>
-                    {isAdmin ? <Shield size={12} /> : <UserIcon size={12} />}
-                    {userRole.toUpperCase()}
-                  </span>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-sm text-gray-500">Current Time</div>
-                <div className="text-xl font-bold text-purple-700">
-                  {currentTime.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                  })}
-                </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {formatDate(new Date().toISOString())}
-                </div>
-              </div>
-              
+            <div className="flex justify-end gap-3 mt-8">
               <button
-                onClick={() => {
-                  fetchAttendanceRecords();
-                  fetchSummary();
-                  fetchTodayStatus();
-                }}
-                className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300"
+                onClick={() => setSelectedAttendanceRecord(null)}
+                className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
               >
-                <RefreshCw size={20} />
+                Cancel
               </button>
-              
               <button
-                onClick={() => window.print()}
-                className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300"
+                onClick={() => handleCorrectAttendance(selectedAttendanceRecord._id, selectedAttendanceRecord)}
+                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm"
               >
-                <Printer size={20} />
+                Save Changes
               </button>
             </div>
           </div>
         </div>
-        
-        {/* System Info */}
-        <SystemInfoBar />
-        
-        {/* Today Status */}
-        <TodayStatusCard />
-        
-        {/* Admin Dashboard */}
-        <AdminDashboardCard />
-        
-        {/* Summary Cards */}
-        <SummaryCards />
-        
-        {/* Filters */}
-        <FiltersSection />
-        
-        {/* Main Table */}
-        <div className="mb-8">
-          <AttendanceTable />
-        </div>
-        
-        {/* Summary Sidebar */}
-        {summary && (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Summary Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 bg-gray-50 rounded-xl">
-                <div className="text-sm text-gray-500">Working Days</div>
-                <div className="text-2xl font-bold text-gray-900">{summary.workingDays || 0}</div>
-              </div>
-              
-              <div className="p-4 bg-gray-50 rounded-xl">
-                <div className="text-sm text-gray-500">Late Days</div>
-                <div className="text-2xl font-bold text-yellow-600">{summary.lateDays || 0}</div>
-              </div>
-              
-              <div className="p-4 bg-gray-50 rounded-xl">
-                <div className="text-sm text-gray-500">Early Days</div>
-                <div className="text-2xl font-bold text-orange-600">{summary.earlyDays || 0}</div>
-              </div>
-              
-              <div className="p-4 bg-gray-50 rounded-xl">
-                <div className="text-sm text-gray-500">Avg Hours/Day</div>
-                <div className="text-2xl font-bold text-blue-600">{summary.averageHours?.toFixed(2) || "0.00"}</div>
-              </div>
-            </div>
-            
-            <div className="mt-6 pt-6 border-t border-gray-100">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600 font-medium">Attendance Rate</span>
-                <span className="font-bold text-lg text-purple-700">{summary.attendanceRate?.toFixed(1) || "0.0"}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 h-2.5 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(summary.attendanceRate || 0, 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {/* Modals */}
-      {showManualModal && <ManualAttendanceModal />}
-      {showBulkModal && <BulkAttendanceModal />}
-      {showEmployeeSelector && <EmployeeSelectorModal />}
-      {selectedRecord && <RecordDetailsModal />}
-      {showEditModal && <EditAttendanceModal />}
+      )}
     </>
   );
-};
-
-export default AttendanceManagement;
-
-// Export different views
-export function AdminAttendancePage() {
-  return <AttendanceManagement isAdminView={true} />;
-}
-
-export function EmployeeAttendancePage({ userId }) {
-  return <AttendanceManagement userId={userId} isAdminView={false} />;
 }
