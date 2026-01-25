@@ -53,6 +53,7 @@ export default function Sidebar() {
   const [isMobile, setIsMobile] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [openSubmenus, setOpenSubmenus] = useState({});
   const sidebarRef = useRef(null);
   const router = useRouter();
@@ -62,9 +63,9 @@ export default function Sidebar() {
   const [userData, setUserData] = useState({
     name: "Loading...",
     role: "employee",
-    email: "",
-    phone: "",
-    employeeId: "",
+    email: "example.longemailaddress@company.com",
+    phone: "+880 1234 567890",
+    employeeId: "EMP202400012345",
     picture: null,
     permissions: [],
     isSuperAdmin: false,
@@ -148,153 +149,116 @@ export default function Sidebar() {
   };
 
   // Fetch user data from localStorage
-useEffect(() => {
-  const fetchUserData = () => {
-    try {
-      if (typeof window !== 'undefined') {
-        // সব possible data sources check করুন
-        const adminData = localStorage.getItem('adminData');
-        const employeeData = localStorage.getItem('employeeData');
-        const moderatorData = localStorage.getItem('moderatorData');
-        const userData = localStorage.getItem('userData');
-        
-        let userInfo = {
-          name: "User",
-          role: "employee",
-          email: "",
-          phone: "",
-          employeeId: "",
-          picture: null,
-          permissions: [],
-          isSuperAdmin: false,
-          moderatorLevel: "junior",
-          canModerateUsers: false,
-          canModerateContent: true,
-          canViewReports: true,
-          canManageReports: false
-        };
-
-        // Priority order: adminData > moderatorData > employeeData > userData
-        let parsedData = null;
-        
-        if (adminData) {
-          try {
-            parsedData = JSON.parse(adminData);
-            userInfo.role = 'admin';
-          } catch (e) { console.error("Error parsing adminData:", e); }
-        }
-        
-        if (!parsedData && moderatorData) {
-          try {
-            parsedData = JSON.parse(moderatorData);
-            userInfo.role = 'moderator';
-          } catch (e) { console.error("Error parsing moderatorData:", e); }
-        }
-        
-        if (!parsedData && employeeData) {
-          try {
-            parsedData = JSON.parse(employeeData);
-            userInfo.role = 'employee';
-          } catch (e) { console.error("Error parsing employeeData:", e); }
-        }
-        
-        if (!parsedData && userData) {
-          try {
-            parsedData = JSON.parse(userData);
-          } catch (e) { console.error("Error parsing userData:", e); }
-        }
-
-        // যদি parsed data থাকে, তাহলে merge করুন
-        if (parsedData) {
-          // Ensure name field exists
-          if (parsedData.name || parsedData.fullName || parsedData.username) {
-            userInfo.name = parsedData.name || parsedData.fullName || parsedData.username;
-          }
+  useEffect(() => {
+    const fetchUserData = () => {
+      try {
+        if (typeof window !== 'undefined') {
+          const adminData = localStorage.getItem('adminData');
+          const employeeData = localStorage.getItem('employeeData');
+          const moderatorData = localStorage.getItem('moderatorData');
+          const userData = localStorage.getItem('userData');
           
-          // অন্যান্য ফিল্ডগুলো merge করুন
-          userInfo = { 
-            ...userInfo, 
-            ...parsedData,
-            // Override role if specifically mentioned in data
-            role: parsedData.role || userInfo.role
+          let userInfo = {
+            name: "User",
+            role: "employee",
+            email: "",
+            phone: "",
+            employeeId: "",
+            picture: null,
+            permissions: [],
+            isSuperAdmin: false,
+            moderatorLevel: "junior",
+            canModerateUsers: false,
+            canModerateContent: true,
+            canViewReports: true,
+            canManageReports: false
           };
-        } else {
-          // No data found, check if there's a token but no data
-          const hasToken = localStorage.getItem('adminToken') || 
-                          localStorage.getItem('employeeToken') || 
-                          localStorage.getItem('moderatorToken') ||
-                          localStorage.getItem('authToken');
+
+          let parsedData = null;
           
-          if (hasToken) {
-            console.warn("Token found but no user data in localStorage");
-            // You might want to fetch from API here
-          } else {
-            console.log("No authentication found, redirecting to login...");
-            router.push('/');
-            return;
+          if (adminData) {
+            try {
+              parsedData = JSON.parse(adminData);
+              userInfo.role = 'admin';
+            } catch (e) { console.error("Error parsing adminData:", e); }
           }
+          
+          if (!parsedData && moderatorData) {
+            try {
+              parsedData = JSON.parse(moderatorData);
+              userInfo.role = 'moderator';
+            } catch (e) { console.error("Error parsing moderatorData:", e); }
+          }
+          
+          if (!parsedData && employeeData) {
+            try {
+              parsedData = JSON.parse(employeeData);
+              userInfo.role = 'employee';
+            } catch (e) { console.error("Error parsing employeeData:", e); }
+          }
+          
+          if (!parsedData && userData) {
+            try {
+              parsedData = JSON.parse(userData);
+            } catch (e) { console.error("Error parsing userData:", e); }
+          }
+
+          if (parsedData) {
+            if (parsedData.name || parsedData.fullName || parsedData.username) {
+              userInfo.name = parsedData.name || parsedData.fullName || parsedData.username;
+            }
+            
+            userInfo = { 
+              ...userInfo, 
+              ...parsedData,
+              role: parsedData.role || userInfo.role
+            };
+          } else {
+            const hasToken = localStorage.getItem('adminToken') || 
+                            localStorage.getItem('employeeToken') || 
+                            localStorage.getItem('moderatorToken') ||
+                            localStorage.getItem('authToken');
+            
+            if (hasToken) {
+              console.warn("Token found but no user data in localStorage");
+            } else {
+              console.log("No authentication found, redirecting to login...");
+              router.push('/');
+              return;
+            }
+          }
+
+          console.log("Loaded user data:", userInfo);
+          setUserData(userInfo);
         }
-
-        console.log("Loaded user data:", userInfo); // Debug log
-        setUserData(userInfo);
+      } catch (error) {
+        console.error("Error in fetchUserData:", error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error in fetchUserData:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  fetchUserData();
-  
-  // Listen for custom event for data updates
-  const handleUserUpdate = () => fetchUserData();
-  window.addEventListener('userDataUpdated', handleUserUpdate);
-  
-  return () => {
-    window.removeEventListener('userDataUpdated', handleUserUpdate);
-  };
-}, [router]);
+    fetchUserData();
+    
+    const handleUserUpdate = () => fetchUserData();
+    window.addEventListener('userDataUpdated', handleUserUpdate);
+    
+    return () => {
+      window.removeEventListener('userDataUpdated', handleUserUpdate);
+    };
+  }, [router]);
 
-  // Check user roles
   const isAdmin = userData.role === 'admin' || userData.role === 'superAdmin';
   const isModerator = userData.role === 'moderator';
   const isEmployee = userData.role === 'employee';
   const isSuperAdmin = userData.isSuperAdmin;
 
-  // Check permissions
-  const canManageUsers = userData.permissions?.includes('manage_users') || isAdmin;
-  const canManageContent = userData.permissions?.includes('manage_content') || isModerator || isAdmin;
-  const canViewReports = userData.permissions?.includes('view_reports') || isModerator || isAdmin;
-  const canViewAuditLogs = userData.permissions?.includes('view_audit') || isAdmin;
-
-  // Common menus for all roles
+  // Common menus for all roles (ONLY Profile)
   const commonMenus = [
-    { 
-      name: "Dashboard", 
-      icon: <Home size={20} />, 
-      path: "/dashboard", 
-      roles: ['admin', 'moderator', 'employee'],
-      showForAll: true
-    },
     { 
       name: "Profile", 
       icon: <UserCog size={20} />, 
       path: "/profile", 
-      roles: ['admin', 'moderator', 'employee'],
-      showForAll: true
-    },
-    { 
-      name: "Attendance", 
-      icon: <Clock size={20} />, 
-      path: "/attendance", 
-      roles: ['admin', 'moderator', 'employee'],
-      showForAll: true
-    },
-    { 
-      name: "Leave Management", 
-      icon: <Calendar size={20} />, 
-      path: "/leave", 
       roles: ['admin', 'moderator', 'employee'],
       showForAll: true
     },
@@ -303,142 +267,196 @@ useEffect(() => {
   // Employee specific menus
   const employeeMenus = [
     { 
+      name: "Dashboard", 
+      icon: <Home size={20} />, 
+      path: "/dashboard", 
+      roles: ['employee'],
+    },
+    { 
+      name: "Attendance", 
+      icon: <Clock size={20} />, 
+      path: "/attendance", 
+      roles: ['employee'],
+    },
+    { 
+      name: "Leave Management", 
+      icon: <Calendar size={20} />, 
+      path: "/leave", 
+      roles: ['employee'],
+    },
+    { 
       name: "Payroll", 
       icon: <Wallet size={20} />, 
       path: "/payroll", 
-      roles: ['admin', 'employee'],
-      showForAll: true
+      roles: ['employee'],
     },
     { 
-      name: "office Schedule", 
-      icon: <Wallet size={20} />, 
+      name: "Office Schedule", 
+      icon: <Calendar size={20} />, 
       path: "/officeSchedule", 
-      roles: ['admin', 'employee'],
-      showForAll: true
+      roles: ['employee'],
     },
     { 
       name: "Holiday", 
       icon: <Award size={20} />, 
       path: "/holiday", 
-      roles: ['admin', 'moderator', 'employee'],
-      showForAll: true
+      roles: ['employee'],
     },
-    { 
-      name: "Salary Rule", 
-      icon: <CreditCard size={20} />, 
-      path: "/salaryRule", 
-      roles: ['admin', 'moderator', 'employee'],
-      showForAll: true
-    },
-  ];
-
-  // Admin & Moderator specific menus
-  const adminModeratorMenus = [
-    { 
-      name: "Reports", 
-      icon: <BarChart3 size={20} />, 
-      path: "/reports", 
-      roles: ['admin', 'moderator'],
-      permissions: ['view_reports'] 
-    },
-    { 
+        { 
       name: "Audit Logs", 
       icon: <Shield size={20} />, 
       path: "/audit", 
-      roles: ['admin', 'employee'], 
+      roles: ['employee'],
     },
     { 
       name: "Session Logs", 
       icon: <Activity size={20} />, 
       path: "/session", 
-      roles: ['admin', 'employee'], 
+      roles: ['employee'],
     },
   ];
 
-  // Admin only menus
-  const adminOnlyMenus = [
+  // Moderator specific menus
+  const moderatorMenus = [
+    { 
+      name: "Dashboard", 
+      icon: <Home size={20} />, 
+      path: "/moderatorDashboard", 
+      roles: ['moderator'],
+    },
+    // { 
+    //   name: "Reports", 
+    //   icon: <BarChart3 size={20} />, 
+    //   path: "/reports", 
+    //   roles: ['moderator'],
+    // },
+    { 
+      name: "Audit Logs", 
+      icon: <Shield size={20} />, 
+      path: "/audit", 
+      roles: ['moderator'],
+    },
+    { 
+      name: "Session Logs", 
+      icon: <Activity size={20} />, 
+      path: "/session", 
+      roles: ['moderator'],
+    },
+    // { 
+    //   name: "Content Review", 
+    //   icon: <Eye size={20} />, 
+    //   path: "/content-review", 
+    //   roles: ['moderator'],
+    // },
+  ];
+
+  // Admin specific menus
+  const adminMenus = [
+    { 
+      name: "Dashboard", 
+      icon: <Home size={20} />, 
+      path: "/dashboard", 
+      roles: ['admin'],
+    },
     { 
       name: "User Management", 
       icon: <Users size={20} />, 
       path: "/users", 
       roles: ['admin'],
-      adminOnly: true
+    },
+    { 
+      name: "Attendance", 
+      icon: <Clock size={20} />, 
+      path: "/attendance", 
+      roles: ['admin'],
+    },
+    { 
+      name: "Leave Management", 
+      icon: <Calendar size={20} />, 
+      path: "/leave", 
+      roles: ['admin'],
+    },
+    { 
+      name: "Payroll", 
+      icon: <Wallet size={20} />, 
+      path: "/payroll", 
+      roles: ['admin'],
+    },
+    { 
+      name: "Office Schedule", 
+      icon: <Calendar size={20} />, 
+      path: "/officeSchedule", 
+      roles: ['admin'],
+    },
+    { 
+      name: "Holiday", 
+      icon: <Award size={20} />, 
+      path: "/holiday", 
+      roles: ['admin'],
+    },
+    // { 
+    //   name: "Reports", 
+    //   icon: <BarChart3 size={20} />, 
+    //   path: "/reports", 
+    //   roles: ['admin'],
+    // },
+    { 
+      name: "Audit Logs", 
+      icon: <Shield size={20} />, 
+      path: "/audit", 
+      roles: ['admin'],
+    },
+    { 
+      name: "Session Logs", 
+      icon: <Activity size={20} />, 
+      path: "/session", 
+      roles: ['admin'],
     },
     { 
       name: "User Roles", 
       icon: <Key size={20} />, 
       path: "/user-roles", 
       roles: ['admin'],
-      adminOnly: true
     },
-    { 
-      name: "System Settings", 
-      icon: <Settings size={20} />, 
-      path: "/settings", 
-      roles: ['admin'],
-      adminOnly: true
-    },
+    // { 
+    //   name: "System Settings", 
+    //   icon: <Settings size={20} />, 
+    //   path: "/settings", 
+    //   roles: ['admin'],
+    // },
   ];
 
-  // Moderator only menus
-  const moderatorOnlyMenus = [
-    { 
-      name: "Moderation Panel", 
-      icon: <Filter size={20} />, 
-      path: "/moderation", 
-      roles: ['moderator'],
-      moderatorOnly: true
-    },
-    { 
-      name: "Content Review", 
-      icon: <Eye size={20} />, 
-      path: "/content-review", 
-      roles: ['moderator'],
-      moderatorOnly: true
-    },
-    { 
-      name: "Activity History", 
-      icon: <History size={20} />, 
-      path: "/activity", 
-      roles: ['moderator'],
-      permissions: ['view_audit']
-    },
-  ];
-
-  // Cost Details Submenus
+  // Cost Details Submenus (Only for Admin and Moderator)
   const costDetailsSubmenus = [
-    { 
-      name: "Cost Dashboard", 
-      icon: <PieChart size={18} />, 
-      href: "/moderatorDashboard",
-      roles: ['admin', 'moderator'], 
-    },
-    { 
-      name: "Employee Costs", 
-      icon: <User size={18} />, 
-      href: "/cost/employees",
-      roles: ['admin', 'moderator'], 
-    },
+    // { 
+    //   name: "Cost Dashboard", 
+    //   icon: <PieChart size={18} />, 
+    //   href: "/cost-dashboard",
+    //   roles: ['admin', 'moderator'], 
+    // },
+    // { 
+    //   name: "Employee Costs", 
+    //   icon: <User size={18} />, 
+    //   href: "/cost/employees",
+    //   roles: ['admin', 'moderator'], 
+    // },
     { 
       name: "Office Rent", 
       icon: <Building2 size={18} />, 
       href: "/officeRent",
       roles: ['admin', 'moderator'],
-      showForAll: true
     },
     { 
       name: "Utility Bills", 
       icon: <DollarSign size={18} />, 
       href: "/utilityBills",
-      roles: ['admin', 'moderator', ],
-      showForAll: true
+      roles: ['admin', 'moderator'],
     },
     { 
       name: "Office Supplies", 
       icon: <Briefcase size={18} />, 
       href: "/officeSupplies",
-      roles: ['admin', 'moderator',  ],
-      showForAll: true
+      roles: ['admin', 'moderator'],
     },
     { 
       name: "Software Subscriptions", 
@@ -450,69 +468,49 @@ useEffect(() => {
       name: "Food Cost", 
       icon: <Utensils size={18} />, 
       href: "/foodCost",
-      roles: ['admin', 'moderator', ],
-      showForAll: true
+      roles: ['admin', 'moderator'],
     },
     { 
       name: "Transport", 
       icon: <Car size={18} />, 
       href: "/transport",
-      roles: ['admin', 'moderator', ],
-      showForAll: true
+      roles: ['admin', 'moderator'],
     },
     { 
       name: "Miscellaneous", 
       icon: <MoreHorizontal size={18} />, 
       href: "/miscellaneous",
-      roles: ['admin', 'moderator', ],
-      showForAll: true
+      roles: ['admin', 'moderator'],
     }
   ];
 
-  // Combine menus based on user role
   const getFilteredMenus = () => {
     let menus = [...commonMenus];
     
-    // Add employee menus for all
-    menus = [...menus, ...employeeMenus];
-    
-    // Add Cost Details as a menu item with submenus
-    if (canViewReports || isEmployee) {
+    if (isAdmin) {
+      menus = [...menus, ...adminMenus];
+      
       menus.push({
         name: "Cost Details",
         icon: <DollarSign size={20} />,
         path: "#",
-        roles: ['admin', 'moderator'],
+        roles: ['admin'],
         hasSubmenu: true,
-        submenus: costDetailsSubmenus.filter(submenu => {
-          if (submenu.showForAll) return true;
-          if (submenu.permissions && submenu.permissions.some(p => !userData.permissions?.includes(p))) return false;
-          return submenu.roles.includes(userData.role);
-        })
+        submenus: costDetailsSubmenus.filter(submenu => submenu.roles.includes('admin'))
       });
-    }
-    
-    // Add admin/moderator menus
-    if (isAdmin || isModerator) {
-      menus = [...menus, ...adminModeratorMenus.filter(menu => {
-        if (menu.showForAll) return true;
-        if (menu.permissions && menu.permissions.some(p => !userData.permissions?.includes(p))) return false;
-        return menu.roles.includes(userData.role);
-      })];
-    }
-    
-    // Add admin only menus
-    if (isAdmin) {
-      menus = [...menus, ...adminOnlyMenus];
-    }
-    
-    // Add moderator only menus
-    if (isModerator) {
-      menus = [...menus, ...moderatorOnlyMenus.filter(menu => {
-        if (menu.showForAll) return true;
-        if (menu.permissions && menu.permissions.some(p => !userData.permissions?.includes(p))) return false;
-        return true;
-      })];
+    } else if (isModerator) {
+      menus = [...menus, ...moderatorMenus];
+      
+      menus.push({
+        name: "Cost Details",
+        icon: <DollarSign size={20} />,
+        path: "#",
+        roles: ['moderator'],
+        hasSubmenu: true,
+        submenus: costDetailsSubmenus.filter(submenu => submenu.roles.includes('moderator'))
+      });
+    } else if (isEmployee) {
+      menus = [...menus, ...employeeMenus];
     }
     
     return menus;
@@ -520,7 +518,6 @@ useEffect(() => {
 
   const filteredMenus = getFilteredMenus();
 
-  // Scroll handling
   useEffect(() => {
     const handleScroll = () => {
       if (sidebarRef.current) {
@@ -528,12 +525,14 @@ useEffect(() => {
         const progress = (scrollTop / (scrollHeight - clientHeight)) * 100;
         setScrollProgress(progress);
         setShowScrollTop(scrollTop > 100);
+        setShowScrollBottom(scrollTop + clientHeight < scrollHeight - 100);
       }
     };
 
     const sidebar = sidebarRef.current;
     if (sidebar) {
       sidebar.addEventListener("scroll", handleScroll);
+      handleScroll();
       return () => sidebar.removeEventListener("scroll", handleScroll);
     }
   }, []);
@@ -553,9 +552,7 @@ useEffect(() => {
     }
   };
 
-  // Complete logout function
   const handleLogout = () => {
-    // Clear all possible tokens and data
     localStorage.removeItem('adminToken');
     localStorage.removeItem('employeeToken');
     localStorage.removeItem('moderatorToken');
@@ -573,7 +570,6 @@ useEffect(() => {
     
     sessionStorage.clear();
     
-    // Reset user data state
     setUserData({
       name: "User",
       role: "employee",
@@ -590,23 +586,19 @@ useEffect(() => {
       canManageReports: false
     });
     
-    // Redirect to login
     router.push("/");
     
-    // Force reload after a short delay
     setTimeout(() => {
       window.location.href = "/";
     }, 100);
   };
 
-  // Close sidebar when clicking on a link in mobile
   const handleLinkClick = () => {
     if (isMobile) {
       setOpen(false);
     }
   };
 
-  // Close sidebar when clicking outside on mobile
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isMobile && open && sidebarRef.current && !sidebarRef.current.contains(event.target)) {
@@ -618,7 +610,6 @@ useEffect(() => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMobile, open]);
 
-  // Prevent body scroll when sidebar is open on mobile
   useEffect(() => {
     if (isMobile && open) {
       document.body.style.overflow = 'hidden';
@@ -631,28 +622,24 @@ useEffect(() => {
     };
   }, [isMobile, open]);
 
-  // Role-based badge colors
   const getRoleBadgeColor = () => {
     if (isAdmin) return 'from-purple-600 to-pink-600';
     if (isModerator) return 'from-blue-600 to-cyan-600';
     return 'from-green-600 to-emerald-600';
   };
 
-  // Role-based text colors
   const getRoleTextColor = () => {
     if (isAdmin) return 'text-purple-200';
     if (isModerator) return 'text-blue-200';
     return 'text-green-200';
   };
 
-  // Get panel title based on role
   const getPanelTitle = () => {
     if (isAdmin) return 'Admin Panel';
     if (isModerator) return 'Moderator Panel';
     return 'Employee Portal';
   };
 
-  // Get role icon
   const getRoleIcon = () => {
     if (isAdmin) return <Shield size={12} />;
     if (isModerator) return <Filter size={12} />;
@@ -668,7 +655,6 @@ useEffect(() => {
     );
   }
 
-  // Get the appropriate icon for toggle button
   const getToggleIcon = () => {
     if (isMobile) {
       return open ? <X size={24} /> : <Menu size={24} />;
@@ -681,19 +667,16 @@ useEffect(() => {
     return <ChevronLeft size={24} />;
   };
 
-  // Check if a path is active
   const isActive = (path) => {
     return pathname === path || pathname.startsWith(path + '/');
   };
 
-  // Check if any submenu item is active
   const isSubmenuActive = (submenus) => {
     return submenus.some(submenu => isActive(submenu.href));
   };
 
   return (
     <>
-      {/* Mobile Menu Button */}
       {isMobile && !open && (
         <button 
           onClick={() => setOpen(true)}
@@ -703,7 +686,6 @@ useEffect(() => {
         </button>
       )}
 
-      {/* Mobile Overlay */}
       {isMobile && open && (
         <div 
           className="fixed inset-0 bg-black/50 z-30"
@@ -711,7 +693,6 @@ useEffect(() => {
         />
       )}
 
-      {/* Sidebar */}
       <div 
         ref={sidebarRef}
         className={`
@@ -737,9 +718,9 @@ useEffect(() => {
                     isModerator ? 'bg-blue-400' : 'bg-emerald-400'
                   } rounded-full border-2 border-purple-900`}></div>
                 </div>
-                <div>
-                  <h1 className="text-xl font-bold text-white">A2IT HRM</h1>
-                  <p className="text-xs text-purple-200">
+                <div className="min-w-0">
+                  <h1 className="text-xl font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis">A2IT HRM</h1>
+                  <p className="text-xs text-purple-200 whitespace-nowrap overflow-hidden text-ellipsis">
                     {getPanelTitle()}
                   </p>
                 </div>
@@ -765,22 +746,52 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Scroll Progress Bar */}
-        {!collapsed && (
-          <div className="h-1 bg-purple-800 flex-shrink-0">
+        <style jsx global>{`
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(107, 33, 168, 0.2);
+            border-radius: 10px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: linear-gradient(to bottom, rgba(168, 85, 247, 0.8), rgba(236, 72, 153, 0.8));
+            border-radius: 10px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(to bottom, rgba(168, 85, 247, 1), rgba(236, 72, 153, 1));
+          }
+        `}</style>
+
+        {/* Progress Bar */}
+        <div className="h-1 bg-purple-800 flex-shrink-0 relative overflow-hidden">
+          <div 
+            className="absolute inset-0 transition-all duration-300"
+            style={{ 
+              width: `${scrollProgress}%`,
+              background: 'linear-gradient(to right, rgba(168, 85, 247, 0.5), rgba(236, 72, 153, 0.7))',
+              opacity: scrollProgress > 0 ? 1 : 0,
+              transform: `translateX(${scrollProgress > 0 ? 0 : '-100%'})`,
+            }}
+          />
+          {scrollProgress > 0 && (
             <div 
-              className="h-full bg-gradient-to-r from-purple-400 via-purple-500 to-pink-500 transition-all duration-300"
-              style={{ width: `${scrollProgress}%` }}
+              className="absolute top-0 left-0 h-full w-24"
+              style={{
+                background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent)',
+                transform: `translateX(${scrollProgress}%)`,
+                transition: 'transform 0.3s ease'
+              }}
             />
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Role Badge */}
         {!collapsed && open && (
           <div className="px-4 py-2 flex-shrink-0">
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-gradient-to-r ${getRoleBadgeColor()} ${getRoleTextColor()}`}>
               {getRoleIcon()}
-              <span className="capitalize">
+              <span className="capitalize truncate max-w-[100px]">
                 {userData.role}
                 {isSuperAdmin && ' (Super)'}
                 {isModerator && userData.moderatorLevel && ` (${userData.moderatorLevel})`}
@@ -792,7 +803,6 @@ useEffect(() => {
         {/* Scrollable Menu Container */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           <nav className={`py-4 ${collapsed ? 'px-2' : 'px-3'}`}>
-            {/* Navigation Menu */}
             <div className="space-y-1">
               {filteredMenus.map((menu, index) => {
                 const menuIsActive = isActive(menu.path);
@@ -803,7 +813,6 @@ useEffect(() => {
                 const anySubmenuActive = hasSubmenu && isSubmenuActive(menu.submenus || []);
                 
                 if (collapsed) {
-                  // Collapsed view
                   return (
                     <div key={index}>
                       {hasSubmenu ? (
@@ -817,7 +826,6 @@ useEffect(() => {
                             }`}
                             title={menu.name}
                           >
-                            {/* Active Indicator */}
                             {(menuIsActive || anySubmenuActive) && (
                               <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-1 h-4 bg-purple-400 rounded-r-full"></div>
                             )}
@@ -830,7 +838,6 @@ useEffect(() => {
                               {menu.icon}
                             </div>
                             
-                            {/* Tooltip */}
                             <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                               {menu.name}
                               {isAdminMenu && <span className="ml-1 text-yellow-300">(Admin)</span>}
@@ -852,7 +859,6 @@ useEffect(() => {
                             }`}
                             title={menu.name}
                           >
-                            {/* Active Indicator */}
                             {menuIsActive && (
                               <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-1 h-4 bg-purple-400 rounded-r-full"></div>
                             )}
@@ -865,7 +871,6 @@ useEffect(() => {
                               {menu.icon}
                             </div>
                             
-                            {/* Tooltip */}
                             <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                               {menu.name}
                               {isAdminMenu && <span className="ml-1 text-yellow-300">(Admin)</span>}
@@ -877,7 +882,6 @@ useEffect(() => {
                     </div>
                   );
                 } else {
-                  // Full view
                   return (
                     <div key={index}>
                       {hasSubmenu ? (
@@ -890,8 +894,8 @@ useEffect(() => {
                                 : "hover:bg-purple-800/40 hover:border-l-4 hover:border-purple-600"
                             }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-lg ${
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`p-2 rounded-lg flex-shrink-0 ${
                                 menuIsActive || anySubmenuActive || submenuIsOpen
                                   ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
                                   : 'bg-purple-900/50 text-purple-200 group-hover:bg-purple-700 group-hover:text-white'
@@ -900,8 +904,8 @@ useEffect(() => {
                               </div>
                               
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-sm font-medium ${
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className={`text-sm font-medium truncate ${
                                     menuIsActive || anySubmenuActive || submenuIsOpen 
                                       ? 'text-white' 
                                       : 'text-purple-100 group-hover:text-white'
@@ -909,12 +913,12 @@ useEffect(() => {
                                     {menu.name}
                                   </span>
                                   {isAdminMenu && (
-                                    <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-amber-900/30 to-yellow-900/20 text-amber-300 rounded">
+                                    <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-amber-900/30 to-yellow-900/20 text-amber-300 rounded flex-shrink-0">
                                       Admin
                                     </span>
                                   )}
                                   {isModeratorMenu && (
-                                    <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-blue-900/30 to-cyan-900/20 text-blue-300 rounded">
+                                    <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-blue-900/30 to-cyan-900/20 text-blue-300 rounded flex-shrink-0">
                                       Moderator
                                     </span>
                                   )}
@@ -922,16 +926,14 @@ useEffect(() => {
                               </div>
                             </div>
                             
-                            {/* Submenu Arrow */}
                             <ChevronRight 
                               size={16} 
-                              className={`transform transition-transform duration-200 ${
+                              className={`transform transition-transform duration-200 flex-shrink-0 ${
                                 submenuIsOpen ? 'rotate-90' : ''
                               } ${menuIsActive || anySubmenuActive ? 'text-purple-300' : 'text-purple-400'}`}
                             />
                           </button>
                           
-                          {/* Submenu items */}
                           {submenuIsOpen && (
                             <div className="ml-6 mt-1 space-y-1 border-l border-purple-700/50 pl-2">
                               {menu.submenus?.map((submenu, subIndex) => (
@@ -945,14 +947,14 @@ useEffect(() => {
                                       : "hover:bg-purple-800/30"
                                   }`}
                                 >
-                                  <div className={`p-1.5 rounded-lg ${
+                                  <div className={`p-1.5 rounded-lg flex-shrink-0 ${
                                     isActive(submenu.href)
                                       ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
                                       : 'bg-purple-900/30 text-purple-300 group-hover:bg-purple-700 group-hover:text-white'
                                   }`}>
                                     {submenu.icon}
                                   </div>
-                                  <span className={`text-sm ${
+                                  <span className={`text-sm truncate ${
                                     isActive(submenu.href)
                                       ? 'text-white font-medium'
                                       : 'text-purple-200'
@@ -977,7 +979,7 @@ useEffect(() => {
                                 : "hover:bg-purple-800/40 hover:border-l-4 hover:border-purple-600"
                             }`}
                           >
-                            <div className={`p-2 rounded-lg ${
+                            <div className={`p-2 rounded-lg flex-shrink-0 ${
                               menuIsActive 
                                 ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
                                 : 'bg-purple-900/50 text-purple-200 group-hover:bg-purple-700 group-hover:text-white'
@@ -986,19 +988,19 @@ useEffect(() => {
                             </div>
                             
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-sm font-medium ${
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`text-sm font-medium truncate ${
                                   menuIsActive ? 'text-white' : 'text-purple-100 group-hover:text-white'
                                 }`}>
                                   {menu.name}
                                 </span>
                                 {isAdminMenu && (
-                                  <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-amber-900/30 to-yellow-900/20 text-amber-300 rounded">
+                                  <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-amber-900/30 to-yellow-900/20 text-amber-300 rounded flex-shrink-0">
                                     Admin
                                   </span>
                                 )}
                                 {isModeratorMenu && (
-                                  <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-blue-900/30 to-cyan-900/20 text-blue-300 rounded">
+                                  <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-blue-900/30 to-cyan-900/20 text-blue-300 rounded flex-shrink-0">
                                     Moderator
                                   </span>
                                 )}
@@ -1013,64 +1015,72 @@ useEffect(() => {
               })}
             </div>
 
-            {/* Divider */}
             {!collapsed && (
               <div className="my-6 mx-3 border-t border-purple-700"></div>
             )}
 
-            {/* User Profile Card */}
+            {/* User Profile Card - FIXED for long names */}
             {!collapsed && open && (
               <div className="px-3 mb-6">
                 <div className="bg-gradient-to-r from-purple-900/50 to-purple-800/30 rounded-xl p-4 border border-purple-700/50">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="relative">
-                      {userData.picture ? (
-                        <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-purple-500">
-                          <img 
-                            src={userData.picture} 
-                            alt={userData.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                          <span className="text-white font-bold text-lg">
-                            {userData.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 ${
-                        isAdmin ? 'bg-green-400' : 
-                        isModerator ? 'bg-blue-400' : 'bg-emerald-400'
-                      } rounded-full border-2 border-purple-900`}></div>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="flex-shrink-0">
+                      <div className="relative">
+                        {userData.picture ? (
+                          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-purple-500">
+                            <img 
+                              src={userData.picture} 
+                              alt={userData.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                            <span className="text-white font-bold text-lg">
+                              {userData.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 ${
+                          isAdmin ? 'bg-green-400' : 
+                          isModerator ? 'bg-blue-400' : 'bg-emerald-400'
+                        } rounded-full border-2 border-purple-900`}></div>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-white truncate">{userData.name}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full bg-gradient-to-r ${getRoleBadgeColor()} ${getRoleTextColor()}`}>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-white break-words leading-snug">
+                        {userData.name}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full bg-gradient-to-r ${getRoleBadgeColor()} ${getRoleTextColor()} whitespace-nowrap`}>
                           {userData.role}
                           {isModerator && userData.moderatorLevel && ` • ${userData.moderatorLevel}`}
                         </span>
                         {userData.employeeId && (
-                          <span className="text-xs text-purple-300">ID: {userData.employeeId}</span>
+                          <span className="text-xs text-purple-300 truncate max-w-full">
+                            ID: {userData.employeeId}
+                          </span>
                         )}
                       </div>
                     </div>
                   </div>
                   
-                  {/* User Details */}
                   {(userData.email || userData.phone) && (
                     <div className="space-y-2 border-t border-purple-700/50 pt-3">
                       {userData.email && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Mail size={14} className="text-purple-300" />
-                          <span className="text-purple-200 truncate">{userData.email}</span>
+                        <div className="flex items-start gap-2 text-sm">
+                          <Mail size={14} className="text-purple-300 flex-shrink-0 mt-0.5" />
+                          <span className="text-purple-200 break-all leading-snug">
+                            {userData.email}
+                          </span>
                         </div>
                       )}
                       {userData.phone && (
                         <div className="flex items-center gap-2 text-sm">
-                          <Phone size={14} className="text-purple-300" />
-                          <span className="text-purple-200">{userData.phone}</span>
+                          <Phone size={14} className="text-purple-300 flex-shrink-0" />
+                          <span className="text-purple-200 break-all">
+                            {userData.phone}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -1081,31 +1091,38 @@ useEffect(() => {
           </nav>
         </div>
 
-        {/* Scroll Buttons */}
         {!collapsed && open && !isMobile && (
-          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex flex-col gap-2">
+          <>
             {showScrollTop && (
               <button
                 onClick={scrollToTop}
-                className="p-2 bg-purple-800/80 backdrop-blur-sm rounded-lg text-purple-200 hover:text-white hover:bg-purple-700 transition-all shadow-lg"
+                className="absolute right-2 top-1/3 transform -translate-y-1/2 p-2.5 bg-purple-800/90 backdrop-blur-sm rounded-full text-purple-200 hover:text-white hover:bg-purple-700 transition-all shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 z-30 border border-purple-600/30"
+                style={{
+                  animation: 'fadeIn 0.3s ease'
+                }}
               >
-                <ChevronUp size={18} />
+                <ChevronUp size={20} />
               </button>
             )}
-            <button
-              onClick={scrollToBottom}
-              className="p-2 bg-purple-800/80 backdrop-blur-sm rounded-lg text-purple-200 hover:text-white hover:bg-purple-700 transition-all shadow-lg"
-            >
-              <ChevronDown size={18} />
-            </button>
-          </div>
+            
+            {showScrollBottom && (
+              <button
+                onClick={scrollToBottom}
+                className="absolute right-2 bottom-1/3 transform translate-y-1/2 p-2.5 bg-purple-800/90 backdrop-blur-sm rounded-full text-purple-200 hover:text-white hover:bg-purple-700 transition-all shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 z-30 border border-purple-600/30"
+                style={{
+                  animation: 'fadeIn 0.3s ease'
+                }}
+              >
+                <ChevronDown size={20} />
+              </button>
+            )}
+          </>
         )}
 
-        {/* Footer */}
+        {/* Footer - FIXED for long names */}
         <div className="flex-shrink-0 sticky bottom-0 z-20 bg-purple-900/90 backdrop-blur-sm border-t border-purple-700">
-          <div className={`${collapsed ? 'p-2' : 'p-2'}`}>
+          <div className={`${collapsed ? 'p-2' : 'p-3'}`}>
             {collapsed ? (
-              // Collapsed footer
               <div className="flex flex-col items-center space-y-4">
                 <div className="relative">
                   {userData.picture ? (
@@ -1137,49 +1154,50 @@ useEffect(() => {
                 </button>
               </div>
             ) : (
-              // Full footer
               <div className="space-y-3">
-                {/* User Info Section */}
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      {userData.picture ? (
-                        <div className="w-9 h-9 rounded-full overflow-hidden border border-purple-500">
-                          <img 
-                            src={userData.picture} 
-                            alt={userData.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-9 h-9 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                          <span className="text-white font-bold text-sm">
-                            {userData.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 ${
-                        isAdmin ? 'bg-green-400' : 
-                        isModerator ? 'bg-blue-400' : 'bg-emerald-400'
-                      } rounded-full border-2 border-purple-900`}></div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="flex-shrink-0">
+                      <div className="relative">
+                        {userData.picture ? (
+                          <div className="w-9 h-9 rounded-full overflow-hidden border border-purple-500">
+                            <img 
+                              src={userData.picture} 
+                              alt={userData.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-9 h-9 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                            <span className="text-white font-bold text-sm">
+                              {userData.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 ${
+                          isAdmin ? 'bg-green-400' : 
+                          isModerator ? 'bg-blue-400' : 'bg-emerald-400'
+                        } rounded-full border-2 border-purple-900`}></div>
+                      </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{userData.name}</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-purple-200 capitalize">
+                      <p className="text-sm font-medium text-white break-words leading-snug">
+                        {userData.name}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                        <p className="text-xs text-purple-200 capitalize truncate max-w-full">
                           {userData.role}
                           {isModerator && userData.moderatorLevel && ` • ${userData.moderatorLevel}`}
                         </p>
                         {userData.employeeId && (
-                          <span className="text-xs text-purple-400">• {userData.employeeId}</span>
+                          <span className="text-xs text-purple-400 truncate max-w-full">• {userData.employeeId}</span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <UserCheck size={16} className="text-purple-300" />
+                  <UserCheck size={16} className="text-purple-300 flex-shrink-0 mt-1" />
                 </div>
 
-                {/* Logout Button */}
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600/20 to-red-700/20 text-red-300 hover:text-white hover:from-red-600/30 hover:to-red-700/30 rounded-xl border border-red-800/30 transition-all duration-200 group hover:scale-[1.02] active:scale-[0.98]"
@@ -1192,6 +1210,65 @@ useEffect(() => {
           </div>
         </div>
       </div>
+
+      {/* Global CSS for text overflow */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.8); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        
+        /* Prevent horizontal scroll in sidebar */
+        .sidebar-container * {
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+        
+        /* Text overflow handling */
+        .truncate {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        
+        .break-words {
+          overflow-wrap: break-word;
+          word-wrap: break-word;
+          hyphens: auto;
+        }
+        
+        .break-all {
+          word-break: break-all;
+        }
+        
+        .leading-snug {
+          line-height: 1.375;
+        }
+        
+        /* Custom scrollbar for sidebar content */
+        .sidebar-content {
+          overflow-y: auto;
+          overflow-x: hidden;
+          scrollbar-width: thin;
+        }
+        
+        .sidebar-content::-webkit-scrollbar {
+          width: 4px;
+        }
+        
+        .sidebar-content::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .sidebar-content::-webkit-scrollbar-thumb {
+          background: rgba(168, 85, 247, 0.5);
+          border-radius: 4px;
+        }
+        
+        .sidebar-content::-webkit-scrollbar-thumb:hover {
+          background: rgba(168, 85, 247, 0.7);
+        }
+      `}</style>
     </>
   );
 }

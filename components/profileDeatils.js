@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   ArrowLeft, 
   Mail, 
@@ -81,9 +81,10 @@ const getUserById = async (userId) => {
 };
 
 export default function UserDetailPage() {
+
   const router = useRouter();
-  const params = useParams();
-  const userId = params.id;
+  const searchParams = useSearchParams();
+  const userId = searchParams.get('id');
   
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +113,9 @@ export default function UserDetailPage() {
   useEffect(() => {
     if (userId) {
       fetchUser();
+    } else {
+      toast.error("No user ID provided");
+      router.back();
     }
   }, [userId]);
 
@@ -1122,4 +1126,4 @@ export default function UserDetailPage() {
       </div>
     </div>
   );
-}
+} 

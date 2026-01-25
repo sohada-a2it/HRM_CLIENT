@@ -2733,25 +2733,29 @@ const handleSubmit = async (e) => {
                                       )}
                                     </div>
                                     <div className="ml-3 min-w-0">
-                                      <div 
-                                        onClick={() => router.push(`/profile/${user._id}`)} 
-                                        className="font-semibold text-gray-900 text-sm truncate cursor-pointer hover:text-purple-600 hover:underline transition-all"
-                                      >
-                                        {user.firstName} {user.lastName}
-                                      </div>
-                                      <div className="text-xs text-gray-500 truncate flex items-center">
-                                        <Mail 
-                                          size={10} 
-                                          className="mr-1 flex-shrink-0 cursor-pointer hover:text-purple-600"
-                                          onClick={() => router.push(`/profile/${user._id}`)}
-                                        />
-                                        <span 
-                                          className="truncate cursor-pointer hover:text-purple-600 hover:underline"
-                                          onClick={() => router.push(`/profile/${user._id}`)}
-                                        >
-                                          {user.email}
-                                        </span>
-                                      </div>
+                                            <a 
+                                            href={`/profile?userId=${user._id}`}
+                                            className="font-semibold text-gray-900 text-sm truncate hover:text-purple-600 hover:underline transition-all"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              router.push(`/view?userId=${user._id}`);
+                                            }}
+                                          >
+                                            {user.firstName} {user.lastName}
+                                          </a>
+                                         <div className="text-xs text-gray-500 truncate flex items-center">
+        <Mail size={10} className="mr-1" />
+        <a 
+          href={`/view?userId=${user._id}&section=contact`}
+          className="truncate hover:text-purple-600 hover:underline"
+          onClick={(e) => {
+            e.preventDefault();
+            router.push(`/view?userId=${user._id}&section=contact`);
+          }}
+        >
+          {user.email}
+        </a>
+      </div>
                                     </div>
                                   </div>
                                 </td>

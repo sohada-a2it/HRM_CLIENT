@@ -276,14 +276,14 @@ const UnifiedLogin = () => {
       // Redirect based on user role
       switch(data.role) {
         case 'employee':
-          router.push("/employee-dashboard");
+          router.push("/profile");
           break;
         case 'admin':
         case 'superAdmin':
           router.push("/dashboard");
           break;
         case 'moderator':
-          router.push("/moderator-dashboard");
+          router.push("/moderatorDashboard");
           break;
         default:
           router.push("/profile");

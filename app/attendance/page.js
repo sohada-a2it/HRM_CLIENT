@@ -157,9 +157,9 @@ export default function AttendanceSystem() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userData, setUserData] = useState(null);
   
-  // Date range state
+  // Date range state - ডিফল্টভাবে LAST 30 DAYS রাখা
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
   
@@ -171,7 +171,9 @@ export default function AttendanceSystem() {
     clockOutTime: null,
     status: "Not Clocked",
     date: new Date().toDateString(),
-    shiftDetails: null
+    shiftDetails: null,
+    dayStatus: null,
+    isWorkingDay: true
   });
   
   // Clock details state
@@ -251,20 +253,17 @@ export default function AttendanceSystem() {
   const [autoClockOutTimer, setAutoClockOutTimer] = useState(null);
   
   // View mode
-  const [viewMode, setViewMode] = useState('list'); // 'list', 'calendar', 'grid', 'analytics'
+  const [viewMode, setViewMode] = useState('list');
   
-  // Enhanced Filters
+  // Enhanced Filters - SIMPLIFIED VERSION
   const [filters, setFilters] = useState({
     status: 'all',
-    employeeId: '',
-    department: '',
+    search: '',
     date: '',
     month: '',
     year: '',
-    search: '',
-    lateOnly: false,
-    earlyOnly: false,
-    showAllEmployees: false // New: টগল করলে সব এমপ্লয়ি দেখাবে
+    employeeId: '',
+    showAll: false
   });
   
   // Shift timing state
@@ -283,7 +282,7 @@ export default function AttendanceSystem() {
     weeklyData: [],
     statusDistribution: {}
   });
-  
+
   // ===================== INITIALIZATION =====================
   
   // Initialize component
@@ -305,14 +304,21 @@ export default function AttendanceSystem() {
       }
     };
     
-    const autoCheckInterval = setInterval(checkAutoClockOut, 30000); // Every 30 seconds
+    const autoCheckInterval = setInterval(checkAutoClockOut, 30000);
     
     return () => {
       clearInterval(timer);
       clearInterval(autoCheckInterval);
     };
-  }, [todayStatus]);
-  
+  }, []);
+
+  // Fetch attendance when filters or pagination changes
+  useEffect(() => {
+    if (userRole) {
+      fetchAttendanceData();
+    }
+  }, [currentPage, dateRange, filters, userRole]);
+
   // ===================== HELPER FUNCTIONS =====================
   
   const getToken = () => {
@@ -329,9 +335,6 @@ export default function AttendanceSystem() {
   const getDetailedDeviceInfo = () => {
     if (typeof window !== 'undefined') {
       const userAgent = navigator.userAgent;
-      const parser = new (require('ua-parser-js'))(userAgent);
-      const result = parser.getResult();
-      
       let type = 'Unknown';
       const screenWidth = window.screen.width;
       const screenHeight = window.screen.height;
@@ -343,12 +346,42 @@ export default function AttendanceSystem() {
         type = 'Desktop';
       }
       
+      let browser = 'Unknown';
+      let browserVersion = 'Unknown';
+      let os = 'Unknown';
+      
+      // Detect browser
+      if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) {
+        browser = 'Chrome';
+        const match = userAgent.match(/Chrome\/(\d+\.\d+)/);
+        if (match) browserVersion = match[1];
+      } else if (userAgent.includes('Firefox')) {
+        browser = 'Firefox';
+        const match = userAgent.match(/Firefox\/(\d+\.\d+)/);
+        if (match) browserVersion = match[1];
+      } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+        browser = 'Safari';
+        const match = userAgent.match(/Version\/(\d+\.\d+)/);
+        if (match) browserVersion = match[1];
+      } else if (userAgent.includes('Edg')) {
+        browser = 'Edge';
+        const match = userAgent.match(/Edg\/(\d+\.\d+)/);
+        if (match) browserVersion = match[1];
+      }
+      
+      // Detect OS
+      if (userAgent.includes('Windows')) os = 'Windows';
+      else if (userAgent.includes('Mac')) os = 'macOS';
+      else if (userAgent.includes('Linux')) os = 'Linux';
+      else if (userAgent.includes('Android')) os = 'Android';
+      else if (userAgent.includes('iOS') || userAgent.includes('iPhone')) os = 'iOS';
+      
       setDeviceInfo({
         type,
-        os: result.os.name || 'Unknown',
-        browser: result.browser.name || 'Unknown',
-        browserVersion: result.browser.version || 'Unknown',
-        engine: result.engine.name || 'Unknown',
+        os,
+        browser,
+        browserVersion,
+        engine: 'Unknown',
         screen: `${screenWidth}x${screenHeight}`,
         userAgent: userAgent.substring(0, 120)
       });
@@ -361,7 +394,6 @@ export default function AttendanceSystem() {
         async (position) => {
           const { latitude, longitude, accuracy } = position.coords;
           
-          // Try to get address from reverse geocoding
           try {
             const response = await fetch(
               `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
@@ -426,7 +458,6 @@ export default function AttendanceSystem() {
     const autoClockOutTime = new Date(now);
     autoClockOutTime.setHours(endHour, endMinute + todayStatus.shiftDetails.autoClockOutDelay, 0, 0);
     
-    // If auto clock out is next day (for night shift)
     if (todayStatus.shiftDetails.isNightShift && autoClockOutTime < now) {
       autoClockOutTime.setDate(autoClockOutTime.getDate() + 1);
     }
@@ -448,6 +479,84 @@ export default function AttendanceSystem() {
       setAutoClockOutTimer(null);
     }
   };
+
+  const calculateLateEarlyMinutes = (clockInTime, shiftStart, lateThreshold = 5, earlyThreshold = -1) => {
+    if (!clockInTime || !shiftStart) return { 
+      isLate: false, 
+      isEarly: false, 
+      minutes: 0, 
+      details: 'N/A' 
+    };
+
+    try {
+      const clockIn = new Date(clockInTime);
+      
+      // Parse shift start time
+      const [shiftHour, shiftMinute] = shiftStart.split(':').map(Number);
+      
+      // Create shift time
+      const shiftTime = new Date(clockIn);
+      shiftTime.setHours(shiftHour, shiftMinute, 0, 0);
+      
+      // Adjust for night shift
+      if (clockIn.getHours() < 4 && shiftHour >= 18) {
+        shiftTime.setDate(shiftTime.getDate() - 1);
+      }
+      
+      // Calculate difference in minutes
+      const diffMinutes = Math.round((clockIn - shiftTime) / (1000 * 60));
+      
+      // Check late
+      if (diffMinutes > lateThreshold) {
+        const lateMinutes = diffMinutes;
+        const hours = Math.floor(lateMinutes / 60);
+        const minutes = lateMinutes % 60;
+        let details = '';
+        if (hours > 0) details = `${hours}h ${minutes}m late`;
+        else details = `${minutes}m late`;
+        
+        return { 
+          isLate: true, 
+          isEarly: false, 
+          minutes: lateMinutes, 
+          details 
+        };
+      } 
+      // Check early
+      else if (diffMinutes < earlyThreshold) {
+        const earlyMinutes = Math.abs(diffMinutes);
+        const hours = Math.floor(earlyMinutes / 60);
+        const minutes = earlyMinutes % 60;
+        let details = '';
+        if (hours > 0) details = `${hours}h ${minutes}m early`;
+        else details = `${minutes}m early`;
+        
+        return { 
+          isLate: false, 
+          isEarly: true, 
+          minutes: earlyMinutes, 
+          details 
+        };
+      }
+      // On time
+      else {
+        return { 
+          isLate: false, 
+          isEarly: false, 
+          minutes: Math.abs(diffMinutes), 
+          details: 'On time' 
+        };
+      }
+    } catch (error) {
+      console.error('Error in late/early calculation:', error);
+      return { 
+        isLate: false, 
+        isEarly: false, 
+        minutes: 0, 
+        details: 'Calculation error' 
+      };
+    }
+  };
   
   // ===================== DATA FETCHING =====================
   
@@ -456,7 +565,7 @@ export default function AttendanceSystem() {
     try {
       const tokenInfo = getToken();
       if (!tokenInfo) {
-        router.push("/login");
+        router.push("/");
         return;
       }
       
@@ -479,6 +588,12 @@ export default function AttendanceSystem() {
         setUserRole(tokenInfo.type);
         setIsAdmin(tokenInfo.type === "admin");
         setUserData(userData);
+        
+        // ফিল্টার স্টেট আপডেট
+        setFilters(prev => ({
+          ...prev,
+          showAll: tokenInfo.type === "admin" ? false : true
+        }));
         
         // Fetch today's status and shift timing for employees
         if (tokenInfo.type === "employee") {
@@ -507,7 +622,7 @@ export default function AttendanceSystem() {
       const tokenInfo = getToken();
       if (!tokenInfo || tokenInfo.type !== "employee") return;
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/today-status`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/today-status`, {
         headers: { 
           Authorization: `Bearer ${tokenInfo.token}`,
           "Content-Type": "application/json"
@@ -516,6 +631,8 @@ export default function AttendanceSystem() {
       
       if (response.ok) {
         const data = await response.json();
+        console.log("Today Status Data:", data);
+        
         setTodayStatus({
           clockedIn: data.clockedIn || false,
           clockedOut: data.clockedOut || false,
@@ -524,7 +641,8 @@ export default function AttendanceSystem() {
           status: data.attendance?.status || "Not Clocked",
           date: new Date().toDateString(),
           shiftDetails: data.shiftDetails,
-          dayStatus: data.dayStatus
+          dayStatus: data.dayStatus,
+          isWorkingDay: data.dayStatus?.isWorkingDay || true
         });
         
         if (data.attendance) {
@@ -546,7 +664,7 @@ export default function AttendanceSystem() {
       const tokenInfo = getToken();
       if (!tokenInfo || tokenInfo.type !== "employee") return;
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/shift-timing`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/shift-timing`, {
         headers: { 
           Authorization: `Bearer ${tokenInfo.token}`,
           "Content-Type": "application/json"
@@ -564,86 +682,174 @@ export default function AttendanceSystem() {
     }
   };
   
+  // ফিক্সড ফেচ অ্যাটেনডেন্স ফাংশন
   const fetchAttendanceData = async () => {
     try {
       const tokenInfo = getToken();
       if (!tokenInfo) return;
+
+      console.log("=== FETCHING ATTENDANCE ===");
+      console.log("Start Date:", dateRange.startDate);
+      console.log("End Date:", dateRange.endDate);
+      console.log("Filters:", filters);
+      console.log("Is Admin:", isAdmin);
       
       // Build query parameters
-      const queryParams = {
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        page: currentPage,
-        limit: itemsPerPage,
-      };
+      const queryParams = new URLSearchParams();
       
-      // Add filters for admin
-      if (isAdmin) {
-        // If showAllEmployees is true, don't filter by employeeId
-        if (!filters.showAllEmployees && filters.employeeId) {
-          queryParams.employeeId = filters.employeeId;
-        }
+      // Always send date range
+      queryParams.append('startDate', dateRange.startDate);
+      queryParams.append('endDate', dateRange.endDate);
+      queryParams.append('page', currentPage.toString());
+      queryParams.append('limit', itemsPerPage.toString());
+
+      // Employee ID logic
+      if (!isAdmin && userData?._id) {
+        queryParams.append('employeeId', userData._id);
+        console.log("Employee ID:", userData._id);
       }
-      
-      // Add other filters
-      if (filters.status !== 'all') queryParams.status = filters.status;
-      if (filters.date) queryParams.date = filters.date;
-      if (filters.month) queryParams.month = filters.month;
-      if (filters.year) queryParams.year = filters.year;
-      if (filters.search) queryParams.search = filters.search;
-      if (filters.lateOnly) queryParams.lateOnly = true;
-      if (filters.earlyOnly) queryParams.earlyOnly = true;
-      
-      const query = new URLSearchParams(queryParams).toString();
+
+      // Admin এর জন্য employeeId ফিল্টার
+      if (isAdmin && filters.employeeId) {
+        queryParams.append('employeeId', filters.employeeId);
+        console.log("Admin filtering by employee:", filters.employeeId);
+      }
+
+      // শুধুমাত্র কার্যকরী ফিল্টার যুক্ত করুন
+      if (filters.status !== 'all') queryParams.append('status', filters.status);
+      if (filters.search.trim()) queryParams.append('search', filters.search.trim());
+
+      // তারিখ ফিল্টার (যদি থাকে) - এটি রেঞ্জকে ওভাররাইড করে
+      if (filters.date) {
+        queryParams.delete('startDate');
+        queryParams.delete('endDate');
+        queryParams.append('date', filters.date);
+        console.log("Date filter applied:", filters.date);
+      }
+
+      // মাস/বছর ফিল্টার (যদি থাকে)
+      if (filters.month && filters.year) {
+        queryParams.delete('startDate');
+        queryParams.delete('endDate');
+        queryParams.append('month', filters.month);
+        queryParams.append('year', filters.year);
+        console.log("Month/Year filter:", filters.month, filters.year);
+      }
+
+      const query = queryParams.toString();
       
       const endpoint = isAdmin 
         ? `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${query}`
         : `${process.env.NEXT_PUBLIC_API_URL}/records?${query}`;
       
-      console.log("Fetching from:", endpoint); // Debugging
-      
+      console.log("API URL:", endpoint);
+
       const response = await fetch(endpoint, {
         headers: { 
           Authorization: `Bearer ${tokenInfo.token}`,
           "Content-Type": "application/json"
         }
       });
+
+      console.log("Response Status:", response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("Attendance data received:", data); // Debugging
+        console.log("API Response:", data);
         
-        // Handle both array and object response formats
+        // Handle response
         let records = [];
+        let total = 0;
+        
         if (Array.isArray(data)) {
           records = data;
-          setTotalRecords(data.length);
+          total = data.length;
         } else if (data.records) {
           records = data.records;
-          setTotalRecords(data.total || data.records.length || 0);
+          total = data.total || data.records.length;
         } else if (data.data?.records) {
           records = data.data.records;
-          setTotalRecords(data.data.total || data.data.records.length || 0);
+          total = data.data.total || data.data.records.length;
+        } else if (data.data) {
+          records = data.data;
+          total = data.total || data.data.length;
         } else {
           records = data;
-          setTotalRecords(data.length || 0);
+          total = data.length || 0;
         }
         
-        setAttendance(records);
+        console.log(`✅ Fetched ${records.length} records`);
         
-        // Also fetch summary
+        // Sort records by date descending
+        records.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        setAttendance(records);
+        setTotalRecords(total || 0);
+        
         await fetchSummary();
       } else {
         const error = await response.json();
-        console.error("API Error:", error);
+        console.error("❌ API Error:", error);
+        toast.error(error.message || "Failed to fetch attendance data");
         setAttendance([]);
         setTotalRecords(0);
       }
     } catch (error) {
-      console.error("Fetch attendance error:", error);
+      console.error("❌ Fetch attendance error:", error);
+      toast.error("Network error. Please check console.");
       setAttendance([]);
       setTotalRecords(0);
     }
+  };
+  
+  // ফিল্টার রিসেট ফাংশন
+  const resetToDefaultRange = () => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    setDateRange({
+      startDate: thirtyDaysAgo.toISOString().split('T')[0],
+      endDate: today.toISOString().split('T')[0]
+    });
+    
+    setFilters({
+      status: 'all',
+      search: '',
+      date: '',
+      month: '',
+      year: '',
+      employeeId: '',
+      showAll: isAdmin ? false : true
+    });
+    
+    setCurrentPage(1);
+  };
+  
+  // মাস সিলেক্ট হ্যান্ডলার
+  const handleMonthSelect = (monthOffset = 0) => {
+    const today = new Date();
+    const targetDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+    
+    // মাসের প্রথম দিন
+    const startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    // মাসের শেষ দিন
+    const endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+    
+    setDateRange({
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    });
+    
+    // ফিল্টার রিসেট করুন
+    setFilters(prev => ({
+      ...prev,
+      date: '',
+      month: '',
+      year: ''
+    }));
+    
+    setCurrentPage(1);
   };
   
   const fetchSummary = async () => {
@@ -651,15 +857,20 @@ export default function AttendanceSystem() {
       const tokenInfo = getToken();
       if (!tokenInfo) return;
       
-      const query = new URLSearchParams({
+      const queryParams = new URLSearchParams({
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
-        ...(isAdmin && filters.employeeId && !filters.showAllEmployees && { employeeId: filters.employeeId })
-      }).toString();
+      });
+      
+      if (isAdmin && filters.employeeId) {
+        queryParams.append('employeeId', filters.employeeId);
+      }
+      
+      const query = queryParams.toString();
       
       const endpoint = isAdmin 
         ? `${process.env.NEXT_PUBLIC_API_URL}/admin/summary?${query}`
-        : `${process.env.NEXT_PUBLIC_API_URL}/attendance/summary?${query}`;
+        : `${process.env.NEXT_PUBLIC_API_URL}/summary?${query}`;
       
       const response = await fetch(endpoint, {
         headers: { 
@@ -686,7 +897,7 @@ export default function AttendanceSystem() {
       const query = new URLSearchParams({
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
-        ...(isAdmin && filters.employeeId && !filters.showAllEmployees && { employeeId: filters.employeeId })
+        ...(isAdmin && filters.employeeId && { employeeId: filters.employeeId })
       }).toString();
       
       const endpoint = isAdmin 
@@ -759,38 +970,40 @@ export default function AttendanceSystem() {
       toast.error("Only employees can clock in");
       return;
     }
-    
+
     // Check if already clocked in
     if (todayStatus.clockedIn) {
       toast.error("Already clocked in today");
       return;
     }
-    
+
     // Check if it's a working day
     if (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay) {
       toast.error(`Cannot clock in on ${todayStatus.dayStatus.status}`);
       return;
     }
-    
-    // Check if before shift start (1 hour before shift start)
-    const now = new Date();
-    const [shiftHour, shiftMinute] = shiftTiming.start.split(':').map(Number);
-    const shiftStartTime = new Date(now);
-    shiftStartTime.setHours(shiftHour, shiftMinute, 0, 0);
-    const oneHourBeforeShift = new Date(shiftStartTime);
-    oneHourBeforeShift.setHours(shiftHour - 1, shiftMinute, 0, 0);
-    
-    if (now < oneHourBeforeShift) {
-      toast.error(`Clock in available from ${oneHourBeforeShift.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`);
-      return;
-    }
+
+    // Get real-time device info
+    getDetailedDeviceInfo();
+    getUserDetailedLocation();
+    const ip = await getRealIPAddress();
     
     setLoading(true);
     try {
       const tokenInfo = getToken();
       if (!tokenInfo) return;
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/clock-in`, {
+
+      // Prepare device info for API
+      const deviceInfoForAPI = {
+        type: deviceInfo.type,
+        os: deviceInfo.os,
+        browser: deviceInfo.browser,
+        browserVersion: deviceInfo.browserVersion,
+        screen: deviceInfo.screen,
+        userAgent: deviceInfo.userAgent
+      };
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-in`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -799,11 +1012,15 @@ export default function AttendanceSystem() {
         body: JSON.stringify({
           timestamp: new Date().toISOString(),
           location: userLocation.address,
-          ipAddress: realIpAddress,
-          device: deviceInfo
+          ipAddress: ip,
+          device: deviceInfoForAPI,
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          city: userLocation.city,
+          country: userLocation.country
         })
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         
@@ -817,14 +1034,20 @@ export default function AttendanceSystem() {
         let message = `Clocked in successfully!`;
         
         if (diffMinutes > shiftTiming.lateThreshold) {
-          const lateMinutes = diffMinutes - shiftTiming.lateThreshold;
+          const lateMinutes = diffMinutes;
           message += ` ${lateMinutes} minutes late`;
         } else if (diffMinutes < shiftTiming.earlyThreshold) {
-          const earlyMinutes = Math.abs(diffMinutes - shiftTiming.earlyThreshold);
+          const earlyMinutes = Math.abs(diffMinutes);
           message += ` ${earlyMinutes} minutes early`;
         }
         
         toast.success(message);
+        
+        // Show device and location info
+        toast.success(`📍 Location: ${userLocation.address}`, { duration: 4000 });
+        toast.success(`🖥️ Device: ${deviceInfo.type} | 🌐 Browser: ${deviceInfo.browser}`, { duration: 4000 });
+        
+        // Refresh data
         await fetchTodayStatus();
         await fetchAttendanceData();
       } else {
@@ -833,7 +1056,7 @@ export default function AttendanceSystem() {
       }
     } catch (error) {
       console.error("Clock in error:", error);
-      toast.error("Clock in failed");
+      toast.error("Clock in failed. Please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -844,18 +1067,18 @@ export default function AttendanceSystem() {
       toast.error("Only employees can clock out");
       return;
     }
-    
+
     if (!todayStatus.clockedIn || todayStatus.clockedOut) {
       toast.error("Clock in first or already clocked out");
       return;
     }
-    
+
     setLoading(true);
     try {
       const tokenInfo = getToken();
       if (!tokenInfo) return;
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/clock-out`, {
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-out`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -865,10 +1088,12 @@ export default function AttendanceSystem() {
           timestamp: new Date().toISOString(),
           location: userLocation.address,
           ipAddress: realIpAddress,
-          device: deviceInfo
+          device: deviceInfo,
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude
         })
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         toast.success(`Clocked out successfully!`);
@@ -897,7 +1122,7 @@ export default function AttendanceSystem() {
         return;
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/manual`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/manual`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -931,7 +1156,7 @@ export default function AttendanceSystem() {
         return;
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/bulk-v2`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/bulk-v2`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -966,7 +1191,7 @@ export default function AttendanceSystem() {
         return;
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/correct/${recordId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/correct/${recordId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -1000,7 +1225,7 @@ export default function AttendanceSystem() {
         return;
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/update-shift`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/update-shift`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -1036,7 +1261,7 @@ export default function AttendanceSystem() {
         return;
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/admin/trigger-auto-clockout`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/trigger-auto-clockout`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1126,39 +1351,6 @@ export default function AttendanceSystem() {
     return iconMap[status] || AlertCircle;
   };
   
-  const calculateLateEarlyMinutes = (clockInTime, shiftStart) => {
-    if (!clockInTime || !shiftStart) return { isLate: false, isEarly: false, minutes: 0, details: '' };
-    
-    const clockIn = new Date(clockInTime);
-    const [shiftHour, shiftMinute] = shiftStart.split(':').map(Number);
-    const shiftTime = new Date(clockIn);
-    shiftTime.setHours(shiftHour, shiftMinute, 0, 0);
-    
-    const diffMinutes = Math.round((clockIn - shiftTime) / (1000 * 60));
-    
-    if (diffMinutes > 5) { // 5 minutes after shift start is late
-      const lateMinutes = diffMinutes - 5;
-      const hours = Math.floor(lateMinutes / 60);
-      const minutes = lateMinutes % 60;
-      let details = '';
-      if (hours > 0) details = `${hours}h ${minutes}m late`;
-      else details = `${minutes}m late`;
-      
-      return { isLate: true, isEarly: false, minutes: lateMinutes, details };
-    } else if (diffMinutes < -1) { // 1 minute before shift start is early
-      const earlyMinutes = Math.abs(diffMinutes + 1);
-      const hours = Math.floor(earlyMinutes / 60);
-      const minutes = earlyMinutes % 60;
-      let details = '';
-      if (hours > 0) details = `${hours}h ${minutes}m early`;
-      else details = `${minutes}m early`;
-      
-      return { isLate: false, isEarly: true, minutes: earlyMinutes, details };
-    }
-    
-    return { isLate: false, isEarly: false, minutes: 0, details: 'On time' };
-  };
-  
   const getDeviceIcon = (deviceType) => {
     switch(deviceType?.toLowerCase()) {
       case 'mobile': return Smartphone;
@@ -1184,78 +1376,18 @@ export default function AttendanceSystem() {
   
   const paginate = (pageNumber) => {
     setCurrentPage(pageNumber);
-    fetchAttendanceData();
   };
   
   const nextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(prev => prev + 1);
-      fetchAttendanceData();
     }
   };
   
   const prevPage = () => {
     if (currentPage > 1) {
       setCurrentPage(prev => prev - 1);
-      fetchAttendanceData();
     }
-  };
-  
-  // Filter functions
-  const applyFilters = () => {
-    setCurrentPage(1);
-    fetchAttendanceData();
-  };
-  
-  const clearFilters = () => {
-    setFilters({
-      status: 'all',
-      employeeId: '',
-      department: '',
-      date: '',
-      month: '',
-      year: '',
-      search: '',
-      lateOnly: false,
-      earlyOnly: false,
-      showAllEmployees: false
-    });
-    setCurrentPage(1);
-    fetchAttendanceData();
-  };
-  
-  // Filter by specific date
-  const handleDateFilter = (date) => {
-    setFilters(prev => ({ 
-      ...prev, 
-      date: date,
-      month: '',
-      year: '',
-      showAllEmployees: false 
-    }));
-    setCurrentPage(1);
-  };
-  
-  // Filter by month and year
-  const handleMonthYearFilter = (month, year) => {
-    setFilters(prev => ({ 
-      ...prev, 
-      month, 
-      year,
-      date: '',
-      showAllEmployees: false 
-    }));
-    setCurrentPage(1);
-  };
-  
-  // Toggle show all employees
-  const toggleShowAllEmployees = () => {
-    setFilters(prev => ({ 
-      ...prev, 
-      showAllEmployees: !prev.showAllEmployees,
-      employeeId: !prev.showAllEmployees ? '' : prev.employeeId 
-    }));
-    setCurrentPage(1);
   };
   
   // ===================== RENDER COMPONENTS =====================
@@ -1309,7 +1441,7 @@ export default function AttendanceSystem() {
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin size={12} className="text-pink-300" />
-                  <span className="text-xs text-white">
+                  <span className="text-xs text-white truncate max-w-[150px]">
                     {userLocation.city || userLocation.address}
                   </span>
                 </div>
@@ -1362,8 +1494,8 @@ export default function AttendanceSystem() {
         </div>
       </div>
       
-      {/* Main Content */}
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4 md:p-6">
+      {/* Main Content - Fixed Horizontal Scroll Issue */}
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4 md:p-6 overflow-x-hidden">
         
         {/* Header */}
         <div className="mb-8">
@@ -1560,9 +1692,9 @@ export default function AttendanceSystem() {
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <MapPin size={16} className="text-purple-500" />
                     <span className="font-medium">Location:</span>
-                    <span>{userLocation.address}</span>
+                    <span className="max-w-xs truncate">{userLocation.address}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                     <div className="flex items-center gap-1">
                       {(() => {
                         const DeviceIcon = getDeviceIcon(deviceInfo.type);
@@ -1571,7 +1703,7 @@ export default function AttendanceSystem() {
                       <span className="font-medium">Device:</span>
                       <span>{deviceInfo.type} ({deviceInfo.os})</span>
                     </div>
-                    <div className="flex items-center gap-1 ml-4">
+                    <div className="flex items-center gap-1">
                       {(() => {
                         const BrowserIcon = getBrowserIcon(deviceInfo.browser);
                         return <BrowserIcon size={16} className="text-green-500" />;
@@ -1637,7 +1769,7 @@ export default function AttendanceSystem() {
                   </div>
                 </div>
                 
-                {/* Action Buttons */}
+                {/* Action Buttons - FIXED: Marked absent হলে clock-in করা যাবে */}
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={handleClockIn}
@@ -1789,55 +1921,45 @@ export default function AttendanceSystem() {
                 Attendance Records
               </h2>
               <p className="text-gray-500 text-sm">
-                {isAdmin ? "All employee records with advanced filtering" : "Your attendance history with detailed analysis"}
+                {isAdmin ? "All employee records" : "Your attendance history"}
               </p>
             </div>
             
-            <div className="flex flex-wrap gap-3">
-              {/* View Mode Toggle */}
-              <div className="flex bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-1 border border-purple-200">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-600 hover:text-purple-600'}`}
-                >
-                  <List size={18} />
-                  <span className="text-sm font-medium">List</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('calendar')}
-                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all ${viewMode === 'calendar' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-600 hover:text-purple-600'}`}
-                >
-                  <Calendar size={18} />
-                  <span className="text-sm font-medium">Calendar</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-600 hover:text-purple-600'}`}
-                >
-                  <Grid size={18} />
-                  <span className="text-sm font-medium">Grid</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setViewMode('analytics');
-                    fetchAnalytics();
-                  }}
-                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all ${viewMode === 'analytics' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-600 hover:text-purple-600'}`}
-                >
-                  <BarChart3 size={18} />
-                  <span className="text-sm font-medium">Analytics</span>
-                </button>
-              </div>
-              
+            {/* Quick Date Range Buttons */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleMonthSelect(0)}
+                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
+              >
+                This Month
+              </button>
+              <button
+                onClick={() => handleMonthSelect(-1)}
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
+              >
+                Last Month
+              </button>
+              <button
+                onClick={resetToDefaultRange}
+                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
+              >
+                Last 30 Days
+              </button>
+            </div>
+          </div>
+          
+          {/* SIMPLIFIED FILTERS */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Date Range */}
-              <div className="flex gap-2">
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-2">
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
                   <input
                     type="date"
                     value={dateRange.startDate}
                     onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-                    className="pl-10 pr-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                    className="w-full pl-10 pr-3 py-2.5 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                   />
                 </div>
                 <div className="relative">
@@ -1846,203 +1968,166 @@ export default function AttendanceSystem() {
                     type="date"
                     value={dateRange.endDate}
                     onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-                    className="pl-10 pr-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                    className="w-full pl-10 pr-3 py-2.5 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                   />
                 </div>
+              </div>
+              
+              {/* Status Filter */}
+              <div>
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                  <option value="Late">Late</option>
+                  <option value="Leave">Leave</option>
+                  <option value="Govt Holiday">Govt Holiday</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* Second Row: Search and Employee Filter (Admin Only) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
+                <input
+                  type="text"
+                  value={filters.search}
+                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                  placeholder="Search records..."
+                  className="w-full pl-10 pr-3 py-2.5 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+              
+              {/* Admin Only: Employee Selector */}
+              {isAdmin && (
+                <div className="md:col-span-2">
+                  <div className="flex items-center gap-4">
+                    <select
+                      value={filters.employeeId || ''}
+                      onChange={(e) => setFilters(prev => ({ 
+                        ...prev, 
+                        employeeId: e.target.value
+                      }))}
+                      className="flex-1 px-4 py-2.5 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">All Employees</option>
+                      {employees.map(emp => (
+                        <option key={emp._id} value={emp._id}>
+                          {emp.firstName} {emp.lastName} ({emp.employeeId})
+                        </option>
+                      ))}
+                    </select>
+                    
+                    {/* Quick Date Filters */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setFilters(prev => ({ 
+                            ...prev, 
+                            date: new Date().toISOString().split('T')[0],
+                            month: '',
+                            year: ''
+                          }));
+                          setCurrentPage(1);
+                        }}
+                        className="px-3 py-2 bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 rounded-lg hover:bg-amber-200 text-sm"
+                      >
+                        Today
+                      </button>
+                      <button
+                        onClick={() => {
+                          const yesterday = new Date();
+                          yesterday.setDate(yesterday.getDate() - 1);
+                          setFilters(prev => ({ 
+                            ...prev, 
+                            date: yesterday.toISOString().split('T')[0],
+                            month: '',
+                            year: ''
+                          }));
+                          setCurrentPage(1);
+                        }}
+                        className="px-3 py-2 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm"
+                      >
+                        Yesterday
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Employee: Quick Month Selector */}
+              {!isAdmin && (
+                <div className="md:col-span-2 flex gap-2">
+                  <button
+                    onClick={() => {
+                      const today = new Date();
+                      setFilters(prev => ({ 
+                        ...prev, 
+                        month: (today.getMonth() + 1).toString(),
+                        year: today.getFullYear().toString(),
+                        date: ''
+                      }));
+                      setCurrentPage(1);
+                    }}
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:bg-purple-200 flex-1"
+                  >
+                    This Month
+                  </button>
+                  <button
+                    onClick={() => {
+                      const lastMonth = new Date();
+                      lastMonth.setMonth(lastMonth.getMonth() - 1);
+                      setFilters(prev => ({ 
+                        ...prev, 
+                        month: (lastMonth.getMonth() + 1).toString(),
+                        year: lastMonth.getFullYear().toString(),
+                        date: ''
+                      }));
+                      setCurrentPage(1);
+                    }}
+                    className="px-4 py-2.5 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 rounded-lg hover:bg-blue-200 flex-1"
+                  >
+                    Last Month
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {/* Apply/Clear Buttons */}
+            <div className="flex justify-between items-center pt-2">
+              <div className="text-sm text-gray-500">
+                Showing data from {formatDateShort(dateRange.startDate)} to {formatDateShort(dateRange.endDate)}
+              </div>
+              
+              <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setCurrentPage(1);
                     fetchAttendanceData();
                   }}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 shadow-sm font-medium"
+                  className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm flex items-center gap-2"
                 >
-                  Apply
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          {/* Enhanced Filters - আরও উন্নত ফিল্টারিং */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status Filter</label>
-                <select
-                  value={filters.status}
-                  onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                  className="w-full px-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                >
-                  <option value="all">All Status</option>
-                  <option value="Present">✅ Present</option>
-                  <option value="Absent">❌ Absent</option>
-                  <option value="Late">⏰ Late</option>
-                  <option value="Early">⬇️ Early</option>
-                  <option value="Leave">🏖️ Leave</option>
-                  <option value="Govt Holiday">🎉 Govt Holiday</option>
-                  <option value="Weekly Off">📅 Weekly Off</option>
-                  <option value="Off Day">🌴 Off Day</option>
-                  <option value="Clocked In">🟡 Clocked In</option>
-                </select>
-              </div>
-              
-              {isAdmin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Employee Filter</label>
-                  <select
-                    value={filters.employeeId}
-                    onChange={(e) => setFilters(prev => ({ 
-                      ...prev, 
-                      employeeId: e.target.value,
-                      showAllEmployees: false 
-                    }))}
-                    className="w-full px-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  >
-                    <option value="">Select Employee</option>
-                    {employees.map(emp => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.firstName} {emp.lastName} ({emp.employeeId})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Specific Date</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
-                  <input
-                    type="date"
-                    value={filters.date}
-                    onChange={(e) => handleDateFilter(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
-                  <input
-                    type="text"
-                    value={filters.search}
-                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                    placeholder="Search records..."
-                    className="w-full pl-10 pr-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Month and Year Filter */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
-                  <select
-                    value={filters.month}
-                    onChange={(e) => handleMonthYearFilter(e.target.value, filters.year || new Date().getFullYear())}
-                    className="w-full px-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  >
-                    <option value="">All Months</option>
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <option key={i + 1} value={i + 1}>
-                        {new Date(2000, i, 1).toLocaleString('default', { month: 'long' })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                  <select
-                    value={filters.year}
-                    onChange={(e) => handleMonthYearFilter(filters.month || '', e.target.value)}
-                    className="w-full px-3 py-2 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  >
-                    <option value="">All Years</option>
-                    {Array.from({ length: 10 }, (_, i) => {
-                      const year = new Date().getFullYear() - 5 + i;
-                      return <option key={year} value={year}>{year}</option>;
-                    })}
-                  </select>
-                </div>
-              </div>
-              
-              <div className="flex flex-col justify-end">
-                {isAdmin && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="showAllEmployees"
-                      checked={filters.showAllEmployees}
-                      onChange={toggleShowAllEmployees}
-                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                    />
-                    <label htmlFor="showAllEmployees" className="text-sm text-gray-700">
-                      Show all employees together
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="lateOnly"
-                  checked={filters.lateOnly}
-                  onChange={(e) => setFilters(prev => ({ 
-                    ...prev, 
-                    lateOnly: e.target.checked, 
-                    earlyOnly: false 
-                  }))}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <label htmlFor="lateOnly" className="text-sm text-gray-700">
-                  Show only Late records
-                </label>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="earlyOnly"
-                  checked={filters.earlyOnly}
-                  onChange={(e) => setFilters(prev => ({ 
-                    ...prev, 
-                    earlyOnly: e.target.checked, 
-                    lateOnly: false 
-                  }))}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <label htmlFor="earlyOnly" className="text-sm text-gray-700">
-                  Show only Early records
-                </label>
-              </div>
-              
-              <div className="flex-1"></div>
-              
-              <div className="flex gap-2">
-                <button
-                  onClick={applyFilters}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm"
-                >
+                  <Filter size={16} />
                   Apply Filters
                 </button>
                 <button
-                  onClick={clearFilters}
-                  className="px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 font-medium"
+                  onClick={resetToDefaultRange}
+                  className="px-5 py-2.5 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 font-medium"
                 >
-                  Clear All
+                  Reset
                 </button>
               </div>
             </div>
             
             {/* Active Filters Display */}
-            {(filters.status !== 'all' || filters.date || filters.month || filters.year || filters.search || filters.lateOnly || filters.earlyOnly || (isAdmin && filters.employeeId && !filters.showAllEmployees)) && (
-              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg">
+            {(filters.status !== 'all' || filters.search || filters.date || (filters.month && filters.year) || (isAdmin && filters.employeeId)) && (
+              <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg">
                 <div className="text-sm font-medium text-blue-800 mb-2">Active Filters:</div>
                 <div className="flex flex-wrap gap-2">
                   {filters.status !== 'all' && (
@@ -2050,9 +2135,14 @@ export default function AttendanceSystem() {
                       Status: {filters.status}
                     </span>
                   )}
+                  {filters.search && (
+                    <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs">
+                      Search: "{filters.search}"
+                    </span>
+                  )}
                   {filters.date && (
                     <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                      Date: {new Date(filters.date).toLocaleDateString()}
+                      Date: {formatDateShort(filters.date)}
                     </span>
                   )}
                   {filters.month && filters.year && (
@@ -2060,38 +2150,24 @@ export default function AttendanceSystem() {
                       {new Date(2000, parseInt(filters.month)-1, 1).toLocaleString('default', { month: 'long' })} {filters.year}
                     </span>
                   )}
-                  {filters.search && (
-                    <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs">
-                      Search: "{filters.search}"
-                    </span>
-                  )}
-                  {filters.lateOnly && (
-                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">
-                      Late Only
-                    </span>
-                  )}
-                  {filters.earlyOnly && (
-                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                      Early Only
-                    </span>
-                  )}
-                  {isAdmin && filters.employeeId && !filters.showAllEmployees && (
+                  {isAdmin && filters.employeeId && (
                     <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs">
                       Employee: {employees.find(e => e._id === filters.employeeId)?.firstName || 'Selected'}
                     </span>
                   )}
-                  {isAdmin && filters.showAllEmployees && (
-                    <span className="px-2 py-1 bg-pink-100 text-pink-800 rounded-full text-xs">
-                      Showing All Employees
-                    </span>
-                  )}
+                  <button
+                    onClick={resetToDefaultRange}
+                    className="text-xs text-red-600 hover:text-red-800 px-2"
+                  >
+                    Clear All
+                  </button>
                 </div>
               </div>
             )}
           </div>
         </div>
         
-        {/* Attendance Records Section */}
+        {/* Attendance Records Section - FIXED SCROLL (No Horizontal Scroll) */}
         <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl overflow-hidden shadow-sm">
           {/* Header */}
           <div className="p-6 border-b border-purple-100">
@@ -2106,9 +2182,6 @@ export default function AttendanceSystem() {
                 <p className="text-sm text-gray-500">
                   Showing {attendance.length} of {totalRecords} records
                   {filters.status !== 'all' && ` • Filtered by: ${filters.status}`}
-                  {filters.lateOnly && ' • Showing only Late records'}
-                  {filters.earlyOnly && ' • Showing only Early records'}
-                  {isAdmin && filters.showAllEmployees && ' • Showing all employees together'}
                 </p>
               </div>
               
@@ -2154,201 +2227,203 @@ export default function AttendanceSystem() {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No records found</h3>
               <p className="text-gray-500">No attendance records for the selected filters</p>
               <button
-                onClick={clearFilters}
+                onClick={resetToDefaultRange}
                 className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:from-purple-200 hover:to-pink-200"
               >
-                Clear filters
+                Reset filters
               </button>
             </div>
           ) : viewMode === 'list' ? (
-            /* Enhanced List View */
+            /* Enhanced List View - FIXED SCROLL (Responsive Table) */
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gradient-to-r from-purple-50 to-pink-50">
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">📅 Date & Day</th>
-                    {isAdmin && (
-                      <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">👤 Employee</th>
-                    )}
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">⏰ Clock In</th>
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">🚪 Clock Out</th>
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">⏱️ Total Hours</th>
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">📊 Status</th>
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">🔧 Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-purple-100">
-                  {attendance.map((record) => {
-                    const lateEarly = calculateLateEarlyMinutes(record.clockIn, record.shift?.start);
-                    const StatusIcon = getStatusIcon(record.status);
-                    const date = new Date(record.date);
-                    
-                    return (
-                      <tr key={record._id} className="hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-pink-50/50 transition-colors group">
-                        <td className="py-4 px-4">
-                          <div className="font-bold text-gray-900">{formatDateShort(record.date)}</div>
-                          <div className="text-xs text-gray-500 flex items-center gap-1">
-                            <Calendar size={12} />
-                            {date.toLocaleDateString('en-US', { weekday: 'long' })}
-                          </div>
-                          {record.autoGenerated && (
-                            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1">
-                              <Database size={10} />
-                              Auto-generated
+              <div className="min-w-full">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-purple-50 to-pink-50">
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">📅 Date & Day</th>
+                      {isAdmin && (
+                        <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">👤 Employee</th>
+                      )}
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">⏰ Clock In</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">🚪 Clock Out</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">⏱️ Total Hours</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">📊 Status</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-purple-900">🔧 Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-purple-100">
+                    {attendance.map((record) => {
+                      const lateEarly = calculateLateEarlyMinutes(record.clockIn, record.shift?.start);
+                      const StatusIcon = getStatusIcon(record.status);
+                      const date = new Date(record.date);
+                      
+                      return (
+                        <tr key={record._id} className="hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-pink-50/50 transition-colors group">
+                          <td className="py-4 px-4">
+                            <div className="font-bold text-gray-900">{formatDateShort(record.date)}</div>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                              <Calendar size={12} />
+                              {date.toLocaleDateString('en-US', { weekday: 'long' })}
                             </div>
+                            {record.autoGenerated && (
+                              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1">
+                                <Database size={10} />
+                                Auto-generated
+                              </div>
+                            )}
+                            {record.markedAbsent && (
+                              <div className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1">
+                                <AlertOctagon size={10} />
+                                Auto-marked absent
+                              </div>
+                            )}
+                          </td>
+                          
+                          {isAdmin && record.employee && (
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                                  {record.employee.firstName?.[0]}{record.employee.lastName?.[0]}
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-gray-900">
+                                    {record.employee.firstName} {record.employee.lastName}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {record.employee.employeeId} • {record.employee.department}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
                           )}
-                          {record.markedAbsent && (
-                            <div className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1">
-                              <AlertOctagon size={10} />
-                              Auto-marked absent
-                            </div>
-                          )}
-                        </td>
-                        
-                        {isAdmin && record.employee && (
+                          
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
-                                {record.employee.firstName?.[0]}{record.employee.lastName?.[0]}
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-center">
+                                <Sun size={20} className="text-amber-600" />
                               </div>
                               <div>
-                                <div className="font-semibold text-gray-900">
-                                  {record.employee.firstName} {record.employee.lastName}
+                                <div className={`font-bold text-lg ${
+                                  lateEarly.isLate ? 'text-red-600' :
+                                  lateEarly.isEarly ? 'text-green-600' :
+                                  'text-gray-900'
+                                }`}>
+                                  {formatTime(record.clockIn)}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  {record.employee.employeeId} • {record.employee.department}
+                                  Shift: {record.shift?.start || '09:00'}
                                 </div>
+                                {lateEarly.isLate && (
+                                  <div className="text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded-full mt-1">
+                                    ⏰ {lateEarly.details}
+                                  </div>
+                                )}
+                                {lateEarly.isEarly && (
+                                  <div className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full mt-1">
+                                    ⬇️ {lateEarly.details}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
-                        )}
-                        
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-center">
-                              <Sun size={20} className="text-amber-600" />
-                            </div>
-                            <div>
-                              <div className={`font-bold text-lg ${
-                                lateEarly.isLate ? 'text-red-600' :
-                                lateEarly.isEarly ? 'text-green-600' :
-                                'text-gray-900'
-                              }`}>
-                                {formatTime(record.clockIn)}
+                          
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 flex items-center justify-center">
+                                <Moon size={20} className="text-blue-600" />
                               </div>
-                              <div className="text-xs text-gray-500">
-                                Shift: {record.shift?.start || '09:00'}
+                              <div>
+                                <div className="font-bold text-lg text-gray-900">
+                                  {formatTime(record.clockOut)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Shift: {record.shift?.end || '18:00'}
+                                </div>
+                                {record.autoClockOut && (
+                                  <div className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full mt-1">
+                                    🤖 Auto clocked out
+                                  </div>
+                                )}
                               </div>
-                              {lateEarly.isLate && (
-                                <div className="text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded-full mt-1">
-                                  ⏰ {lateEarly.details}
-                                </div>
-                              )}
-                              {lateEarly.isEarly && (
-                                <div className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full mt-1">
-                                  ⬇️ {lateEarly.details}
-                                </div>
+                            </div>
+                          </td>
+                          
+                          <td className="py-4 px-4">
+                            <div className="font-bold text-xl text-purple-700">
+                              {record.totalHours?.toFixed(2) || "0.00"} hrs
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {record.shift?.isNightShift && (
+                                <span className="text-purple-600">🌙 Night Shift</span>
                               )}
                             </div>
-                          </div>
-                        </td>
-                        
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 flex items-center justify-center">
-                              <Moon size={20} className="text-blue-600" />
-                            </div>
-                            <div>
-                              <div className="font-bold text-lg text-gray-900">
-                                {formatTime(record.clockOut)}
+                          </td>
+                          
+                          <td className="py-4 px-4">
+                            <div className="flex flex-col gap-2">
+                              <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold shadow-sm ${getStatusColor(record.status)}`}>
+                                <StatusIcon size={14} className="mr-2" />
+                                {record.status}
                               </div>
-                              <div className="text-xs text-gray-500">
-                                Shift: {record.shift?.end || '18:00'}
+                              <div className="text-xs space-y-1">
+                                {record.remarks && (
+                                  <div className="text-gray-600 truncate max-w-[150px]" title={record.remarks}>
+                                    💬 {record.remarks}
+                                  </div>
+                                )}
+                                {record.correctedByAdmin && (
+                                  <div className="text-purple-600 flex items-center gap-1">
+                                    <Edit size={10} />
+                                    Admin corrected
+                                  </div>
+                                )}
                               </div>
-                              {record.autoClockOut && (
-                                <div className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full mt-1">
-                                  🤖 Auto clocked out
-                                </div>
+                            </div>
+                          </td>
+                          
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setClockDetails(record);
+                                  setShowRecentDetails(true);
+                                }}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors group"
+                                title="View Details"
+                              >
+                                <Eye size={18} />
+                              </button>
+                              {isAdmin && (
+                                <>
+                                  <button
+                                    onClick={() => setSelectedAttendanceRecord(record)}
+                                    className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors group"
+                                    title="Edit Record"
+                                  >
+                                    <Edit size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateShift(record.employee?._id, record.shift)}
+                                    className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors group"
+                                    title="Update Shift"
+                                  >
+                                    <Settings size={18} />
+                                  </button>
+                                </>
                               )}
                             </div>
-                          </div>
-                        </td>
-                        
-                        <td className="py-4 px-4">
-                          <div className="font-bold text-xl text-purple-700">
-                            {record.totalHours?.toFixed(2) || "0.00"} hrs
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {record.shift?.isNightShift && (
-                              <span className="text-purple-600">🌙 Night Shift</span>
-                            )}
-                          </div>
-                        </td>
-                        
-                        <td className="py-4 px-4">
-                          <div className="flex flex-col gap-2">
-                            <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold shadow-sm ${getStatusColor(record.status)}`}>
-                              <StatusIcon size={14} className="mr-2" />
-                              {record.status}
-                            </div>
-                            <div className="text-xs space-y-1">
-                              {record.remarks && (
-                                <div className="text-gray-600 truncate max-w-[150px]" title={record.remarks}>
-                                  💬 {record.remarks}
-                                </div>
-                              )}
-                              {record.correctedByAdmin && (
-                                <div className="text-purple-600 flex items-center gap-1">
-                                  <Edit size={10} />
-                                  Admin corrected
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setClockDetails(record);
-                                setShowRecentDetails(true);
-                              }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors group"
-                              title="View Details"
-                            >
-                              <Eye size={18} />
-                            </button>
-                            {isAdmin && (
-                              <>
-                                <button
-                                  onClick={() => setSelectedAttendanceRecord(record)}
-                                  className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors group"
-                                  title="Edit Record"
-                                >
-                                  <Edit size={18} />
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateShift(record.employee?._id, record.shift)}
-                                  className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors group"
-                                  title="Update Shift"
-                                >
-                                  <Settings size={18} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : viewMode === 'calendar' ? (
             /* Enhanced Calendar View */
-            <div className="p-6">
-              <div className="grid grid-cols-7 gap-2">
+            <div className="p-6 overflow-auto">
+              <div className="grid grid-cols-7 gap-2 min-w-[800px]">
                 {/* Calendar Headers */}
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                   <div key={day} className="text-center text-sm font-bold text-purple-900 py-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
@@ -2411,7 +2486,7 @@ export default function AttendanceSystem() {
             </div>
           ) : viewMode === 'grid' ? (
             /* Enhanced Grid View */
-            <div className="p-6">
+            <div className="p-6 overflow-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {attendance.map(record => {
                   const lateEarly = calculateLateEarlyMinutes(record.clockIn, record.shift?.start);
@@ -2514,7 +2589,7 @@ export default function AttendanceSystem() {
             </div>
           ) : (
             /* Analytics View */
-            <div className="p-6">
+            <div className="p-6 overflow-auto">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Status Distribution */}
                 <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-xl p-6">
@@ -2726,12 +2801,12 @@ export default function AttendanceSystem() {
         )}
       </div>
       
-      {/* ===================== MODALS ===================== */}
+      {/* ===================== MODALS - FIXED SCROLL ===================== */}
       
       {/* Manual Attendance Modal */}
       {showManualAttendanceModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Create Manual Attendance</h2>
@@ -2745,7 +2820,7 @@ export default function AttendanceSystem() {
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
               {/* Employee Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee</label>
@@ -2847,7 +2922,7 @@ export default function AttendanceSystem() {
               </div>
             </div>
             
-            <div className="flex justify-end gap-3 mt-8">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
               <button
                 onClick={() => setShowManualAttendanceModal(false)}
                 className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
@@ -2869,7 +2944,7 @@ export default function AttendanceSystem() {
       {/* Bulk Attendance Modal */}
       {showBulkAttendanceModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Create Bulk Attendance</h2>
@@ -2883,7 +2958,7 @@ export default function AttendanceSystem() {
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
               {/* Employee Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee</label>
@@ -3002,7 +3077,7 @@ export default function AttendanceSystem() {
               </div>
             </div>
             
-            <div className="flex justify-end gap-3 mt-8">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
               <button
                 onClick={() => setShowBulkAttendanceModal(false)}
                 className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
@@ -3021,10 +3096,10 @@ export default function AttendanceSystem() {
         </div>
       )}
       
-      {/* Employee Selector Modal */}
+      {/* Employee Selector Modal - FIXED SCROLL */}
       {showEmployeeSelector && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Select Employee</h2>
@@ -3052,8 +3127,8 @@ export default function AttendanceSystem() {
               </div>
             </div>
             
-            {/* Employee List */}
-            <div className="overflow-y-auto max-h-[50vh] pr-2">
+            {/* Employee List - FIXED SCROLL */}
+            <div className="overflow-y-auto flex-1 pr-2">
               <div className="grid gap-2">
                 {employees
                   .filter(emp => 
@@ -3127,10 +3202,10 @@ export default function AttendanceSystem() {
         </div>
       )}
       
-      {/* Attendance Details Modal */}
+      {/* Attendance Details Modal - FIXED SCROLL */}
       {showRecentDetails && clockDetails && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Attendance Details</h2>
@@ -3144,7 +3219,7 @@ export default function AttendanceSystem() {
               </button>
             </div>
             
-            <div className="space-y-6">
+            <div className="space-y-6 overflow-y-auto flex-1 pr-2">
               {/* Header */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl">
@@ -3234,6 +3309,41 @@ export default function AttendanceSystem() {
                 </div>
               )}
               
+              {/* Device and Location Info */}
+              <div className="p-4 border border-gray-100 rounded-xl">
+                <div className="text-sm font-medium text-gray-700 mb-2">Device & Location Info</div>
+                <div className="space-y-2 text-sm">
+                  {clockDetails.device && (
+                    <div className="flex items-center gap-2">
+                      <Smartphone size={14} className="text-blue-500" />
+                      <span className="font-medium">Device:</span>
+                      <span>{clockDetails.device.type} ({clockDetails.device.os})</span>
+                    </div>
+                  )}
+                  {clockDetails.browser && (
+                    <div className="flex items-center gap-2">
+                      <Globe size={14} className="text-green-500" />
+                      <span className="font-medium">Browser:</span>
+                      <span>{clockDetails.browser} {clockDetails.browserVersion}</span>
+                    </div>
+                  )}
+                  {clockDetails.location && (
+                    <div className="flex items-center gap-2">
+                      <MapPin size={14} className="text-purple-500" />
+                      <span className="font-medium">Location:</span>
+                      <span className="truncate">{clockDetails.location}</span>
+                    </div>
+                  )}
+                  {clockDetails.ipAddress && (
+                    <div className="flex items-center gap-2">
+                      <Wifi size={14} className="text-amber-500" />
+                      <span className="font-medium">IP Address:</span>
+                      <span>{clockDetails.ipAddress}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
               {/* Additional Information */}
               {clockDetails.remarks && (
                 <div className="p-4 border border-gray-100 rounded-xl">
@@ -3285,10 +3395,10 @@ export default function AttendanceSystem() {
         </div>
       )}
       
-      {/* Edit Attendance Modal */}
+      {/* Edit Attendance Modal - FIXED SCROLL */}
       {selectedAttendanceRecord && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Edit Attendance Record</h2>
@@ -3302,7 +3412,7 @@ export default function AttendanceSystem() {
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
               {/* Clock Times */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -3358,7 +3468,7 @@ export default function AttendanceSystem() {
               </div>
             </div>
             
-            <div className="flex justify-end gap-3 mt-8">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
               <button
                 onClick={() => setSelectedAttendanceRecord(null)}
                 className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"

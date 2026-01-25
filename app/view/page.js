@@ -1,9 +1,8 @@
- 
-
+// app/admin/users/view/page.js
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   ArrowLeft, 
   Mail, 
@@ -39,11 +38,12 @@ import {
   Scale,
   Receipt
 } from "lucide-react";
-import { toast } from "react-hot-toast"; 
-// Temporary API function
+import { toast } from "react-hot-toast";
+
+// API function with correct base URL
 const getUserById = async (userId) => {
   try {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://a2itserver.onrender.com/api/v1';
     const token = localStorage.getItem('adminToken') || localStorage.getItem('employeeToken');
     
     if (!token) {
@@ -82,10 +82,15 @@ const getUserById = async (userId) => {
   }
 };
 
-export default function UserDetailPage() {
+// Main Content Component
+function UserViewContent() {
   const router = useRouter();
-  const params = useParams();
-  const userId = params.id;
+  const searchParams = useSearchParams();
+  
+  // Query parameters থেকে ডাটা নিন
+  const userId = searchParams.get('userId');
+  const viewMode = searchParams.get('mode') || 'view';
+  const redirect = searchParams.get('redirect') || 'users';
   
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -94,18 +99,25 @@ export default function UserDetailPage() {
   const fetchUser = async () => {
     try {
       setLoading(true);
+      
+      if (!userId) {
+        toast.error("No user ID provided");
+        router.push('/admin/users');
+        return;
+      }
+      
       const data = await getUserById(userId);
       
       if (data.success && data.user) {
         setUser(data.user);
       } else {
         toast.error(data.message || "User not found");
-        router.back();
+        router.push(`/admin/users?error=user_not_found`);
       }
     } catch (error) {
       console.error("Failed to fetch user:", error);
       toast.error("Failed to load user data");
-      router.back();
+      router.push(`/admin/users?error=fetch_failed`);
     } finally {
       setLoading(false);
     }
@@ -140,8 +152,30 @@ export default function UserDetailPage() {
     return `${user.firstName?.charAt(0) || ''}${user.lastName?.charAt(0) || ''}`.toUpperCase();
   };
 
+  // Edit বাটনের জন্য ফাংশন
+  const handleEdit = () => {
+    router.push(`/admin/users/edit?userId=${userId}&redirect=view`);
+  };
+
+  // Back বাটনের জন্য ফাংশন
+  const handleBack = () => {
+    if (redirect === 'dashboard') {
+      router.push('/admin/dashboard');
+    } else {
+      router.push('/admin/users');
+    }
+  };
+
+  // Reset Password ফাংশন
+  const handleResetPassword = () => {
+    if (user) {
+      router.push(`/admin/reset-password?userId=${userId}&userEmail=${user.email}&userName=${user.firstName}+${user.lastName}`);
+    }
+  };
+
+  // Render functions
   const renderAdminSpecificFields = () => {
-    if (user.role !== 'admin') return null;
+    if (user.role !== 'admin' && user.role !== 'superAdmin') return null;
 
     return (
       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border border-indigo-100">
@@ -615,6 +649,16 @@ export default function UserDetailPage() {
                       src={user.picture} 
                       alt="Profile" 
                       className="w-12 h-12 rounded-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                        const parent = e.target.parentElement;
+                        parent.innerHTML = `
+                          <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                            ${getUserInitials()}
+                          </div>
+                        `;
+                      }}
                     />
                   ) : (
                     <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
@@ -814,7 +858,7 @@ export default function UserDetailPage() {
           <h3 className="text-lg font-bold text-gray-900 mb-2">User Not Found</h3>
           <p className="text-gray-600 mb-4">The user you're looking for doesn't exist.</p>
           <button
-            onClick={() => router.back()}
+            onClick={handleBack}
             className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
           >
             Go Back
@@ -830,11 +874,11 @@ export default function UserDetailPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => router.back()}
+            onClick={handleBack}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft size={20} />
-            Back to Users
+            Back to {redirect === 'dashboard' ? 'Dashboard' : 'Users'}
           </button>
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -844,27 +888,26 @@ export default function UserDetailPage() {
               </h1>
               <p className="text-gray-600 mt-2">
                 Viewing complete profile of {user.firstName} {user.lastName}
+                {viewMode === 'edit' && ' (Edit Mode)'}
               </p>
             </div>
             
             <div className="flex gap-3">
-              {/* <button
-                onClick={() => router.push(`/profile?edit=${user._id}`)}
+              <button
+                onClick={handleEdit}
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition-all flex items-center gap-2"
               >
                 <Edit size={16} />
                 Edit Profile
-              </button> */}
-              {/* <button
-                onClick={() => {
-                  // Reset password function
-                  toast.success("Reset password feature coming soon");
-                }}
+              </button>
+              
+              <button
+                onClick={handleResetPassword}
                 className="px-4 py-2 border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors flex items-center gap-2"
               >
                 <Lock size={16} />
                 Reset Password
-              </button> */}
+              </button>
             </div>
           </div>
 
@@ -1060,8 +1103,8 @@ export default function UserDetailPage() {
 
                 {/* Quick Actions */}
                 <div className="mt-6 space-y-3">
-                  {/* <button
-                    onClick={() => router.push(`/admin/users?edit=${user._id}`)}
+                  <button
+                    onClick={handleEdit}
                     className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -1069,13 +1112,10 @@ export default function UserDetailPage() {
                       <span className="font-medium text-gray-700">Edit Profile</span>
                     </div>
                     <ChevronRight className="text-gray-400" size={16} />
-                  </button> */}
+                  </button>
 
-                  {/* <button
-                    onClick={() => {
-                      // Reset password
-                      toast.success("Reset password feature coming soon");
-                    }}
+                  <button
+                    onClick={handleResetPassword}
                     className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -1083,7 +1123,7 @@ export default function UserDetailPage() {
                       <span className="font-medium text-gray-700">Reset Password</span>
                     </div>
                     <ChevronRight className="text-gray-400" size={16} />
-                  </button> */}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1123,5 +1163,26 @@ export default function UserDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading Component
+function LoadingSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading user profile...</p>
+      </div>
+    </div>
+  );
+}
+
+// Main Export with Suspense
+export default function AdminUserDetailPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <UserViewContent />
+    </Suspense>
   );
 }
