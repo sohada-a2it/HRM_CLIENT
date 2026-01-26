@@ -314,6 +314,12 @@ export default function Sidebar() {
       path: "/session", 
       roles: ['employee'],
     },
+        { 
+      name: "Meal Management", 
+      icon: <Key size={20} />, 
+      path: "/meal", 
+      roles: ['employee'],
+    },
   ];
 
   // Moderator specific menus
@@ -418,6 +424,12 @@ export default function Sidebar() {
       path: "/user-roles", 
       roles: ['admin'],
     },
+    { 
+      name: "Meal Management", 
+      icon: <Key size={20} />, 
+      path: "/meal", 
+      roles: ['admin'],
+    },
     // { 
     //   name: "System Settings", 
     //   icon: <Settings size={20} />, 
@@ -481,7 +493,13 @@ export default function Sidebar() {
       icon: <MoreHorizontal size={18} />, 
       href: "/miscellaneous",
       roles: ['admin', 'moderator'],
-    }
+    },
+        { 
+      name: "Meal Management", 
+      icon: <Key size={20} />, 
+      path: "/meal", 
+      roles: ['moderator'],
+    },
   ];
 
   const getFilteredMenus = () => {
