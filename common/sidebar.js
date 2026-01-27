@@ -269,7 +269,7 @@ export default function Sidebar() {
     { 
       name: "Dashboard", 
       icon: <Home size={20} />, 
-      path: "/dashboard", 
+      path: "/employeeDashboard", 
       roles: ['employee'],
     },
     { 
@@ -363,13 +363,7 @@ export default function Sidebar() {
       icon: <Home size={20} />, 
       path: "/dashboard", 
       roles: ['admin'],
-    },
-    { 
-      name: "User Management", 
-      icon: <Users size={20} />, 
-      path: "/users", 
-      roles: ['admin'],
-    },
+    }, 
     { 
       name: "Attendance", 
       icon: <Clock size={20} />, 

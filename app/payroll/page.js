@@ -573,7 +573,7 @@ const loadAllPayrolls = async () => {
     console.error('❌ Error loading all payrolls:', error);
     setPayrolls([]);
     calculateStats([]);
-    toast.error('Failed to load payrolls');
+    // toast.error('Failed to load payrolls');
   }
 };
 

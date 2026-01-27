@@ -46,79 +46,136 @@ import {
   Gift,
   Trash2,
   Download,
-  Filter
+  Filter,
+  DollarSign,
+  CreditCard,
+  Mail,
+  Phone,
+  Lock,
+  Shield,
+  Activity,
+  Save,
+  MapPin,
+  Briefcase,
+  EyeOff,
+  Smartphone,
+  Key,
+  Upload,
+  Camera,
+  Image as ImageIcon,
+  Loader2,
+  MoreVertical,
+  AlertTriangle
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import mealService from "@/service/mealService";
 
-export default function MealPage() {
-  const [user, setUser] = useState(null);
+// API Base URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/meals';
+
+export default function MealManagementPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  
+  // User state
+  const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isEmployee, setIsEmployee] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
+  const [isEligible, setIsEligible] = useState(false);
+  
+  // Tabs
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [allRequests, setAllRequests] = useState([]);
-  const [stats, setStats] = useState({
-    totalEmployees: 0,
-    totalRequests: 0,
-    singleRequests: 0,
-    monthlySubscribers: 0,
-    requested: 0,
-    approved: 0,
-    rejected: 0,
-    cancelled: 0,
-    adminCreated: 0,
-    filteredRequests: 0
+  
+  // Meal data states
+  const [allSubscriptions, setAllSubscriptions] = useState([]);
+  const [allMeals, setAllMeals] = useState([]); // New state for all meals
+  const [myMeals, setMyMeals] = useState([]);
+  const [mySubscription, setMySubscription] = useState(null);
+  const [monthlyReport, setMonthlyReport] = useState(null);
+  const [allUsers, setAllUsers] = useState([]); // For admin to select users
+  
+  // Stats - Employee specific
+  const [employeeStats, setEmployeeStats] = useState({
+    totalMeals: 0,
+    approvedMeals: 0,
+    pendingMeals: 0,
+    cancelledMeals: 0
   });
+  
+  // Stats - Admin specific
+  const [adminStats, setAdminStats] = useState({
+    totalSubscriptions: 0,
+    pendingApprovals: 0,
+    todayMeals: 0,
+    monthlyMeals: 0,
+    totalEmployees: 0,
+    activeSubscriptions: 0
+  });
+  
+  // Filters
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [departments, setDepartments] = useState([]);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // Modals
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [showAdminCreateModal, setShowAdminCreateModal] = useState(false);
+  const [showAdminCreateMealModal, setShowAdminCreateMealModal] = useState(false); // New modal
+  
+  // Selected items
+  const [selectedSubscription, setSelectedSubscription] = useState(null);
+  const [selectedMeal, setSelectedMeal] = useState(null);
+  
+  // Forms
   const [requestForm, setRequestForm] = useState({
     mealPreference: "office",
     note: "",
-    month: getCurrentMonth()
+    date: new Date().toISOString().split('T')[0]
   });
+  
   const [subscriptionForm, setSubscriptionForm] = useState({
     mealPreference: "office",
     autoRenew: true
   });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isEmployee, setIsEmployee] = useState(false);
-  const [isModerator, setIsModerator] = useState(false);
-  const [myMealStatus, setMyMealStatus] = useState(null);
-  const [monthlyReport, setMonthlyReport] = useState(null);
-  const [darkMode, setDarkMode] = useState(false);
-  const [isEligible, setIsEligible] = useState(false);
-  const [totalPages, setTotalPages] = useState(1);
-  const [isLoadingData, setIsLoadingData] = useState(false);
-  const [myRequests, setMyRequests] = useState([]);
+  
   const [adminCreateForm, setAdminCreateForm] = useState({
-    employeeId: "",
-    month: getCurrentMonth(),
-    mealPreference: "office",
-    note: "",
-    status: "approved"
+    userId: "",
+    preference: "office",
+    autoRenew: true,
+    note: ""
   });
-  const [showAdminCreateModal, setShowAdminCreateModal] = useState(false);
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  
+  const [adminCreateMealForm, setAdminCreateMealForm] = useState({ // New form
+    userId: "",
+    date: new Date().toISOString().split('T')[0],
+    mealPreference: "office",
+    note: ""
+  });
+  
   const [updateForm, setUpdateForm] = useState({
     status: "",
     preference: "",
     note: "",
     mealDays: 0
   });
-
-  const router = useRouter();
-
+  
+  // UI states
+  const [darkMode, setDarkMode] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  
   // Helper functions
   function getCurrentMonth() {
     const now = new Date();
@@ -139,457 +196,16 @@ export default function MealPage() {
     }
   }
 
-  function formatDateTime(dateString) {
-    if (!dateString) return "N/A";
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (error) {
-      return "Invalid Date";
-    }
-  }
-
   function getMonthName(monthString) {
     const [year, month] = monthString.split('-');
     const date = new Date(year, month - 1);
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }
 
-  // Fetch user profile
-  const fetchUserProfile = async () => {
-    try {
-      const data = await mealService.getProfile();
-      
-      if (data.success && data.user) {
-        const userData = data.user;
-        setUser(userData);
-        
-        // Set user role
-        setIsAdmin(userData.role === "admin" || userData.role === "superAdmin");
-        setIsEmployee(userData.role === "employee");
-        setIsModerator(userData.role === "moderator");
-         
-        // Eligibility check for all onsite users
-        const eligible = (userData.role === 'employee' || 
-                         userData.role === 'admin' || 
-                         userData.role === 'moderator') && 
-                         userData.workLocationType === 'onsite';
-        setIsEligible(eligible);
-      } else {
-        toast.error("Failed to load user data");
-        router.push("/");
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      toast.error("Failed to load user data");
-      router.push("/");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch departments
-  const fetchDepartments = async () => {
-    try {
-      const data = await mealService.getDepartments();
-      if (data.success && data.departments) {
-        setDepartments(data.departments);
-      }
-    } catch (error) {
-      console.error("Error fetching departments:", error);
-    }
-  };
-
-  // Fetch all meal requests for admin
-  const fetchAllMealRequests = async () => {
-    if (!isAdmin && !isModerator) return;
-    
-    try {
-      setIsLoadingData(true);
-      
-      const params = {
-        month: selectedMonth,
-        department: selectedDepartment !== 'all' ? selectedDepartment : '',
-        status: filterStatus !== 'all' ? filterStatus : '',
-        type: filterType !== 'all' ? filterType : '',
-        search: searchQuery,
-        page: currentPage,
-        limit: itemsPerPage
-      };
-      
-      const data = await mealService.getAllSubscriptions(params);
-      
-      if (data.success) {
-        setAllRequests(data.subscriptions || []);
-        setStats({
-          totalRequests: data.total || 0,
-          approved: data.approved || 0,
-          requested: data.pending || 0,
-          rejected: data.rejected || 0,
-          monthlySubscribers: data.totalSubscriptions || 0,
-          adminCreated: data.adminCreated || 0,
-          totalEmployees: data.totalEmployees || 0
-        });
-        setTotalPages(data.totalPages || 1);
-      }
-    } catch (error) {
-      console.error('Error fetching requests:', error);
-      toast.error("Failed to load meal requests");
-    } finally {
-      setIsLoadingData(false);
-    }
-  };
-
-  // Fetch my meal requests
-  const fetchMyMealRequests = async () => {
-    if (!isEmployee && !isEligible) return;
-    
-    try {
-      const params = {
-        status: filterStatus !== 'all' ? filterStatus : '',
-        month: selectedMonth
-      };
-      
-      const data = await mealService.getMyDailyMeals(params);
-      if (data.success) {
-        setMyRequests(data.meals || []);
-      }
-    } catch (error) {
-      console.error("Error fetching my requests:", error);
-    }
-  };
-
-  // Fetch my meal status
-  const fetchMyMealStatus = async () => {
-    if (!isEmployee && !isEligible) return;
-    
-    try {
-      const subscriptionData = await mealService.getMySubscription();
-      const dashboardData = await mealService.getDashboardStats();
-      
-      if (subscriptionData.success || dashboardData.success) {
-        const status = {
-          displayStatus: subscriptionData.data?.status || 'none',
-          displayPreference: subscriptionData.data?.preference || 'none',
-          subscription: subscriptionData.data?.status || 'none',
-          autoRenew: subscriptionData.data?.autoRenew || false,
-          currentMonth: selectedMonth
-        };
-        
-        setMyMealStatus(status);
-      }
-    } catch (error) {
-      console.error("Error fetching meal status:", error);
-    }
-  };
-
-  // Fetch monthly report for admin
-  const fetchMonthlyReport = async () => {
-    if (!isAdmin && !isModerator) return;
-    
-    try {
-      setIsLoadingData(true);
-      
-      const params = {
-        month: selectedMonth,
-        department: selectedDepartment !== 'all' ? selectedDepartment : ''
-      };
-      
-      const data = await mealService.getMonthlyReport(params);
-      
-      if (data.success) {
-        setMonthlyReport(data);
-      }
-    } catch (error) {
-      console.error("Error fetching report:", error);
-      toast.error("Failed to load monthly report");
-    } finally {
-      setIsLoadingData(false);
-    }
-  };
-
-  // Fetch dashboard stats
-  const fetchDashboardStats = async () => {
-    try {
-      const data = await mealService.getDashboardStats();
-      if (data.success) {
-        setStats(prev => ({
-          ...prev,
-          totalRequests: data.totalRequests || 0,
-          monthlySubscribers: data.monthlySubscribers || 0,
-          singleRequests: data.singleRequests || 0,
-          approved: data.approved || 0,
-          requested: data.pending || 0
-        }));
-      }
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-    }
-  };
-
-  // Handle meal request submission (single request)
-  const handleSubmitMealRequest = async () => {
-    try {
-      const data = await mealService.requestDailyMeal({
-        preference: requestForm.mealPreference,
-        note: requestForm.note,
-        date: new Date().toISOString().split('T')[0]
-      });
-      
-      if (data.success) {
-        toast.success("Meal request submitted successfully!");
-        setShowRequestModal(false);
-        setRequestForm({ mealPreference: "office", note: "", month: getCurrentMonth() });
-        fetchMyMealStatus();
-        fetchMyMealRequests();
-        fetchDashboardStats();
-      } else {
-        toast.error(data.message || "Failed to submit request");
-      }
-    } catch (error) {
-      console.error("Error submitting request:", error);
-      toast.error("Network error. Please try again.");
-    }
-  };
-
-  // Handle monthly subscription setup
-  const handleSetupSubscription = async () => {
-    try {
-      const data = await mealService.setupSubscription({
-        preference: subscriptionForm.mealPreference,
-        autoRenew: subscriptionForm.autoRenew
-      });
-      
-      if (data.success) {
-        toast.success("Monthly subscription activated!");
-        setShowSubscriptionModal(false);
-        setSubscriptionForm({ mealPreference: "office", autoRenew: true });
-        fetchMyMealStatus();
-        fetchMyMealRequests();
-        fetchDashboardStats();
-      } else {
-        toast.error(data.message || "Failed to setup subscription");
-      }
-    } catch (error) {
-      console.error("Error setting up subscription:", error);
-      toast.error("Network error. Please try again.");
-    }
-  };
-
-  // Handle subscription cancellation
-  const handleCancelSubscription = async () => {
-    if (!window.confirm("Are you sure you want to cancel your subscription?")) return;
-    
-    try {
-      const data = await mealService.cancelSubscription({
-        reason: "Cancelled by user"
-      });
-      
-      if (data.success) {
-        toast.success("Subscription cancelled successfully");
-        fetchMyMealStatus();
-        fetchMyMealRequests();
-        fetchDashboardStats();
-      } else {
-        toast.error(data.message || "Failed to cancel subscription");
-      }
-    } catch (error) {
-      console.error("Error cancelling subscription:", error);
-      toast.error("Network error. Please try again.");
-    }
-  };
-
-  // Handle auto-renew update
-  const handleUpdateAutoRenew = async (autoRenew) => {
-    try {
-      const data = await mealService.updateAutoRenew({
-        autoRenew: autoRenew
-      });
-      
-      if (data.success) {
-        toast.success(`Auto-renew ${autoRenew ? 'enabled' : 'disabled'} successfully`);
-        fetchMyMealStatus();
-      } else {
-        toast.error(data.message || "Failed to update auto-renew");
-      }
-    } catch (error) {
-      console.error("Error updating auto-renew:", error);
-      toast.error("Network error. Please try again.");
-    }
-  };
-
-  // Handle admin create meal request
-  const handleAdminCreateMeal = async () => {
-    try {
-      const data = await mealService.adminCreateSubscription({
-        employeeId: adminCreateForm.employeeId,
-        preference: adminCreateForm.mealPreference,
-        autoRenew: true,
-        status: adminCreateForm.status,
-        note: adminCreateForm.note
-      });
-      
-      if (data.success) {
-        toast.success("Meal subscription created successfully!");
-        setShowAdminCreateModal(false);
-        setAdminCreateForm({
-          employeeId: "",
-          month: getCurrentMonth(),
-          mealPreference: "office",
-          note: "",
-          status: "approved"
-        });
-        fetchAllMealRequests();
-        fetchDashboardStats();
-      } else {
-        toast.error(data.message || "Failed to create meal subscription");
-      }
-    } catch (error) {
-      console.error("Error creating meal request:", error);
-      toast.error("Network error. Please try again.");
-    }
-  };
-
-  // Handle admin approve/reject meal request
-  const handleUpdateRequestStatus = async (action) => {
-    try {
-      const data = await mealService.adminApproveSubscription({
-        subscriptionId: selectedRequest?._id,
-        month: selectedRequest?.month || selectedMonth,
-        status: action === 'approve' ? 'approved' : 'rejected',
-        note: action === 'reject' ? 'Request processed by admin' : ''
-      });
-      
-      if (data.success) {
-        toast.success(`Request ${action}ed successfully!`);
-        setShowApproveModal(false);
-        setShowRejectModal(false);
-        setSelectedRequest(null);
-        fetchAllMealRequests();
-        fetchDashboardStats();
-      } else {
-        toast.error(data.message || `Failed to ${action} request`);
-      }
-    } catch (error) {
-      console.error(`Error ${action}ing request:`, error);
-      toast.error("Network error. Please try again.");
-    }
-  };
-
-  // Handle delete my meal request
-  const handleDeleteMyMealRequest = async () => {
-    try {
-      const data = await mealService.cancelDailyMeal({
-        mealId: selectedRequest?._id,
-        reason: "Cancelled by user"
-      });
-      
-      if (data.success) {
-        toast.success("Meal request cancelled successfully!");
-        setShowDeleteModal(false);
-        setSelectedRequest(null);
-        fetchMyMealStatus();
-        fetchMyMealRequests();
-        fetchDashboardStats();
-      } else {
-        toast.error(data.message || "Failed to cancel meal request");
-      }
-    } catch (error) {
-      console.error("Error cancelling meal request:", error);
-      toast.error("Network error. Please try again.");
-    }
-  };
-
-  // Handle admin delete meal request
-  const handleAdminDeleteMealRequest = async () => {
-    try {
-      // Note: You need to implement a delete endpoint in backend
-      // For now, we'll use update to mark as cancelled
-      const data = await mealService.adminApproveSubscription({
-        subscriptionId: selectedRequest?._id,
-        status: 'cancelled',
-        note: 'Deleted by admin'
-      });
-      
-      if (data.success) {
-        toast.success("Meal request deleted successfully!");
-        setShowDeleteModal(false);
-        setSelectedRequest(null);
-        fetchAllMealRequests();
-        fetchDashboardStats();
-      } else {
-        toast.error(data.message || "Failed to delete meal request");
-      }
-    } catch (error) {
-      console.error("Error deleting meal request:", error);
-      toast.error("Network error. Please try again.");
-    }
-  };
-
-  // Export meal data for payroll
-  const handleExportPayrollData = async () => {
-    try {
-      const data = await mealService.exportPayrollData({
-        month: selectedMonth
-      });
-      
-      if (data.success && data.data) {
-        // Create and download CSV
-        const csvContent = convertToCSV(data.data);
-        downloadCSV(csvContent, `meal-payroll-data-${selectedMonth}.csv`);
-        toast.success("Data exported successfully!");
-      }
-    } catch (error) {
-      console.error("Error exporting data:", error);
-      toast.error("Failed to export data");
-    }
-  };
-
-  // Helper function to convert data to CSV
-  const convertToCSV = (data) => {
-    const headers = ["Employee ID", "Name", "Department", "Has Meal Request", "Meal Preference", "Meal Status", "Meal Days"];
-    const rows = data.map(item => [
-      item.employeeId,
-      item.name,
-      item.department,
-      item.hasMealRequest ? "Yes" : "No",
-      item.mealPreference || "N/A",
-      item.mealStatus,
-      item.currentMealDays
-    ]);
-    
-    return [headers, ...rows].map(row => row.join(",")).join("\n");
-  };
-
-  // Helper function to download CSV
-  const downloadCSV = (content, filename) => {
-    const blob = new Blob([content], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.clear();
-    router.push("/");
-  };
-
-  // Get available months for dropdown
-  const getAvailableMonths = () => {
+  function getAvailableMonths() {
     const months = [];
     const current = new Date();
     
-    // Last 3 months, current, and next 2 months
     for (let i = -3; i < 3; i++) {
       const date = new Date(current.getFullYear(), current.getMonth() + i, 1);
       const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -597,31 +213,560 @@ export default function MealPage() {
     }
     
     return months;
+  }
+
+  // Get current token
+  const getCurrentToken = () => {
+    if (typeof window === 'undefined') return null;
+    if (localStorage.getItem("adminToken")) return localStorage.getItem("adminToken");
+    if (localStorage.getItem("employeeToken")) return localStorage.getItem("employeeToken");
+    if (localStorage.getItem("moderatorToken")) return localStorage.getItem("moderatorToken");
+    return null;
   };
 
-  // Initialize data
+  // API call helper
+  const apiCall = async (endpoint, method = 'GET', body = null) => {
+    const token = getCurrentToken();
+    if (!token) {
+      toast.error("Authentication required");
+      router.push('/');
+      return null;
+    }
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+    
+    const config = {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : null
+    };
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'API request failed');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('API Error:', error);
+      toast.error(error.message);
+      throw error;
+    }
+  };
+
+  // Fetch user profile
+  const fetchUserProfile = async () => {
+    try {
+      const token = getCurrentToken();
+      
+      if (!token) {
+        router.push("/");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
+
+      const data = await response.json();
+      
+      if (data.user || (data && typeof data === 'object' && data._id)) {
+        const userData = data.user || data;
+        
+        setUser(userData);
+        setIsAdmin(userData.role === "admin" || userData.role === "superAdmin");
+        setIsEmployee(userData.role === "employee");
+        setIsModerator(userData.role === "moderator");
+        
+        const eligible = (userData.role === 'employee' || 
+                         userData.role === 'admin' || 
+                         userData.role === 'moderator') && 
+                         userData.workLocationType === 'onsite';
+        setIsEligible(eligible);
+      } else {
+        toast.error("Failed to load user data");
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      toast.error("Failed to load user data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch all users for admin (for dropdown)
+  const fetchAllUsers = async () => {
+    if (!isAdmin && !isModerator) return;
+    
+    try {
+      const token = getCurrentToken();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/all-onsite`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.users) {
+          setAllUsers(data.users);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  // Fetch all subscriptions (admin/moderator)
+  const fetchAllSubscriptions = async () => {
+    if (!isAdmin && !isModerator) return;
+    
+    try {
+      setIsLoadingData(true);
+      
+      const params = new URLSearchParams();
+      if (filterStatus !== 'all') params.append('status', filterStatus);
+      if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
+      if (selectedMonth) params.append('month', selectedMonth);
+      if (searchQuery) params.append('search', searchQuery);
+      params.append('page', currentPage);
+      params.append('limit', itemsPerPage);
+      
+      const data = await apiCall(`/admin/subscriptions/all?${params.toString()}`);
+      
+      if (data) {
+        setAllSubscriptions(data.subscriptions || []);
+        setTotalPages(data.pagination?.pages || 1);
+        setTotalItems(data.pagination?.total || 0);
+        
+        // Update admin stats
+        setAdminStats(prev => ({
+          ...prev,
+          totalSubscriptions: data.pagination?.total || 0,
+          activeSubscriptions: data.subscriptions?.filter(s => s.status === 'active').length || 0
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching subscriptions:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  // Fetch all meals (admin/moderator)
+  const fetchAllMeals = async () => {
+    if (!isAdmin && !isModerator) return;
+    
+    try {
+      setIsLoadingData(true);
+      
+      // You'll need to create this endpoint in backend
+      const params = new URLSearchParams();
+      if (selectedMonth) {
+        const [year, month] = selectedMonth.split('-');
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0);
+        params.append('startDate', startDate.toISOString());
+        params.append('endDate', endDate.toISOString());
+      }
+      if (filterStatus !== 'all') params.append('status', filterStatus);
+      if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
+      
+      // This is a temporary implementation - you need to create this endpoint
+      const data = await apiCall(`/admin/meals/all?${params.toString()}`);
+      
+      if (data) {
+        setAllMeals(data.meals || []);
+        
+        // Update admin stats for meals
+        const today = new Date().toISOString().split('T')[0];
+        const todayMeals = data.meals?.filter(meal => 
+          meal.date && meal.date.split('T')[0] === today
+        ).length || 0;
+        
+        setAdminStats(prev => ({
+          ...prev,
+          todayMeals,
+          monthlyMeals: data.meals?.length || 0
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching all meals:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  // Fetch my subscription
+  const fetchMySubscription = async () => {
+    if (!isEmployee && !isEligible) return;
+    
+    try {
+      const data = await apiCall('/subscription/my-details');
+      if (data) {
+        setMySubscription(data);
+      }
+    } catch (error) {
+      console.error('Error fetching my subscription:', error);
+    }
+  };
+
+  // Fetch my meals and calculate stats
+  const fetchMyMeals = async () => {
+    if (!isEmployee && !isEligible) return;
+    
+    try {
+      const params = new URLSearchParams();
+      if (filterStatus !== 'all') params.append('status', filterStatus);
+      if (selectedMonth) params.append('month', selectedMonth);
+      params.append('page', 1);
+      params.append('limit', 100); // Get more for stats calculation
+      
+      const data = await apiCall(`/daily/my-meals?${params.toString()}`);
+      if (data) {
+        const meals = data.data || [];
+        setMyMeals(meals);
+        
+        // Calculate employee stats
+        const totalMeals = meals.length;
+        const approvedMeals = meals.filter(meal => meal.status === 'approved').length;
+        const pendingMeals = meals.filter(meal => meal.status === 'pending').length;
+        const cancelledMeals = meals.filter(meal => meal.status === 'cancelled').length;
+        
+        setEmployeeStats({
+          totalMeals,
+          approvedMeals,
+          pendingMeals,
+          cancelledMeals
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching my meals:', error);
+    }
+  };
+
+  // Fetch dashboard stats
+  const fetchDashboardStats = async () => {
+    try {
+      const data = await apiCall('/dashboard/stats');
+      if (data) {
+        if (isAdmin || isModerator) {
+          setAdminStats(prev => ({
+            ...prev,
+            ...data.data
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
+
+  // Fetch departments
+  const fetchDepartments = async () => {
+    try {
+      const data = await apiCall('/departments');
+      if (data) {
+        setDepartments(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
+
+  // Fetch monthly report
+  const fetchMonthlyReport = async () => {
+    if (!isAdmin && !isModerator) return;
+    
+    try {
+      setIsLoadingData(true);
+      
+      const params = new URLSearchParams();
+      if (selectedMonth) params.append('month', selectedMonth);
+      if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
+      
+      const data = await apiCall(`/admin/monthly-report?${params.toString()}`);
+      if (data) {
+        setMonthlyReport(data);
+      }
+    } catch (error) {
+      console.error('Error fetching monthly report:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  // Handle meal request submission
+  const handleSubmitMealRequest = async () => {
+    try {
+      const data = await apiCall('/daily/request', 'POST', {
+        mealPreference: requestForm.mealPreference,
+        date: requestForm.date,
+        note: requestForm.note
+      });
+      
+      if (data) {
+        toast.success("Meal request submitted successfully!");
+        setShowRequestModal(false);
+        setRequestForm({
+          mealPreference: "office",
+          note: "",
+          date: new Date().toISOString().split('T')[0]
+        });
+        fetchMyMeals();
+        if (isAdmin || isModerator) fetchAllMeals();
+      }
+    } catch (error) {
+      console.error("Error submitting request:", error);
+    }
+  };
+
+  // Handle subscription setup
+  const handleSetupSubscription = async () => {
+    try {
+      const data = await apiCall('/subscription/setup', 'POST', {
+        preference: subscriptionForm.mealPreference,
+        autoRenew: subscriptionForm.autoRenew
+      });
+      
+      if (data) {
+        toast.success("Monthly subscription activated!");
+        setShowSubscriptionModal(false);
+        setSubscriptionForm({ mealPreference: "office", autoRenew: true });
+        fetchMySubscription();
+        if (isAdmin || isModerator) fetchAllSubscriptions();
+      }
+    } catch (error) {
+      console.error("Error setting up subscription:", error);
+    }
+  };
+
+  // Handle cancel subscription
+  const handleCancelSubscription = async () => {
+    if (!window.confirm("Are you sure you want to cancel your subscription?")) return;
+    
+    try {
+      const data = await apiCall('/subscription/cancel', 'POST', {
+        reason: "Cancelled by user"
+      });
+      
+      if (data) {
+        toast.success("Subscription cancelled successfully");
+        fetchMySubscription();
+        if (isAdmin || isModerator) fetchAllSubscriptions();
+      }
+    } catch (error) {
+      console.error("Error cancelling subscription:", error);
+    }
+  };
+
+  // Handle update auto-renew
+  const handleUpdateAutoRenew = async (autoRenew) => {
+    try {
+      const data = await apiCall('/subscription/update-auto-renew', 'PUT', {
+        autoRenew: autoRenew
+      });
+      
+      if (data) {
+        toast.success(`Auto-renew ${autoRenew ? 'enabled' : 'disabled'} successfully`);
+        fetchMySubscription();
+      }
+    } catch (error) {
+      console.error("Error updating auto-renew:", error);
+    }
+  };
+
+  // Handle admin create subscription
+  const handleAdminCreateSubscription = async () => {
+    if (!adminCreateForm.userId) {
+      toast.error("Please select an employee");
+      return;
+    }
+    
+    try {
+      const data = await apiCall('/admin/subscription/create', 'POST', {
+        userId: adminCreateForm.userId,
+        preference: adminCreateForm.preference,
+        autoRenew: adminCreateForm.autoRenew,
+        note: adminCreateForm.note
+      });
+      
+      if (data) {
+        toast.success("Meal subscription created successfully!");
+        setShowAdminCreateModal(false);
+        setAdminCreateForm({
+          userId: "",
+          preference: "office",
+          autoRenew: true,
+          note: ""
+        });
+        fetchAllSubscriptions();
+        fetchDashboardStats();
+      }
+    } catch (error) {
+      console.error("Error creating subscription:", error);
+    }
+  };
+
+  // Handle admin create meal (single meal)
+  const handleAdminCreateMeal = async () => {
+    if (!adminCreateMealForm.userId) {
+      toast.error("Please select an employee");
+      return;
+    }
+    
+    try {
+      // First, check if user exists
+      const user = allUsers.find(u => u._id === adminCreateMealForm.userId);
+      if (!user) {
+        toast.error("Selected employee not found");
+        return;
+      }
+      
+      // Use the same endpoint as daily request but as admin
+      const data = await apiCall('/admin/create-meal', 'POST', {
+        userId: adminCreateMealForm.userId,
+        mealPreference: adminCreateMealForm.mealPreference,
+        date: adminCreateMealForm.date,
+        note: adminCreateMealForm.note
+      });
+      
+      if (data) {
+        toast.success("Meal created successfully!");
+        setShowAdminCreateMealModal(false);
+        setAdminCreateMealForm({
+          userId: "",
+          date: new Date().toISOString().split('T')[0],
+          mealPreference: "office",
+          note: ""
+        });
+        fetchAllMeals();
+        fetchDashboardStats();
+      }
+    } catch (error) {
+      console.error("Error creating meal:", error);
+    }
+  };
+
+  // Handle approve/reject subscription
+  const handleUpdateSubscriptionStatus = async (action) => {
+    try {
+      const data = await apiCall('/admin/subscription/approve', 'PUT', {
+        subscriptionId: selectedSubscription?._id,
+        month: selectedMonth,
+        action: action,
+        note: updateForm.note || ''
+      });
+      
+      if (data) {
+        toast.success(`Subscription ${action}ed successfully!`);
+        setShowApproveModal(false);
+        setShowRejectModal(false);
+        setSelectedSubscription(null);
+        fetchAllSubscriptions();
+        fetchDashboardStats();
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing subscription:`, error);
+    }
+  };
+
+  // Handle delete subscription
+  const handleDeleteSubscription = async () => {
+    if (!selectedSubscription) return;
+    
+    if (!window.confirm(`Are you sure you want to delete subscription for ${selectedSubscription.userInfo?.firstName} ${selectedSubscription.userInfo?.lastName}?`)) return;
+    
+    try {
+      const data = await apiCall(`/admin/subscription/${selectedSubscription._id}`, 'DELETE');
+      
+      if (data) {
+        toast.success("Subscription deleted successfully!");
+        setShowDeleteModal(false);
+        setSelectedSubscription(null);
+        fetchAllSubscriptions();
+        fetchDashboardStats();
+      }
+    } catch (error) {
+      console.error("Error deleting subscription:", error);
+    }
+  };
+
+  // Handle cancel meal request
+  const handleCancelMealRequest = async () => {
+    if (!selectedMeal) return;
+    
+    try {
+      const data = await apiCall('/daily/cancel', 'POST', {
+        mealId: selectedMeal._id,
+        reason: "Cancelled by user"
+      });
+      
+      if (data) {
+        toast.success("Meal request cancelled successfully!");
+        setShowDeleteModal(false);
+        setSelectedMeal(null);
+        fetchMyMeals();
+        if (isAdmin || isModerator) fetchAllMeals();
+      }
+    } catch (error) {
+      console.error("Error cancelling meal request:", error);
+    }
+  };
+
+  // Initialize
   useEffect(() => {
     fetchUserProfile();
-    fetchDepartments();
   }, []);
 
   useEffect(() => {
     if (user) {
+      fetchDashboardStats();
+      fetchDepartments();
+      
       if (isAdmin || isModerator) {
-        fetchAllMealRequests();
-        fetchDashboardStats();
+        fetchAllUsers();
+        fetchAllSubscriptions();
+        fetchAllMeals();
       }
+      
       if (isEmployee && isEligible) {
-        fetchMyMealStatus();
-        fetchMyMealRequests();
-        fetchDashboardStats();
+        fetchMySubscription();
+        fetchMyMeals();
       }
     }
-  }, [user, selectedMonth, selectedDepartment, filterStatus, filterType, currentPage, searchQuery]);
+  }, [user]);
+
+  useEffect(() => {
+    if (isAdmin || isModerator) {
+      fetchAllSubscriptions();
+      fetchAllMeals();
+    }
+  }, [selectedMonth, selectedDepartment, filterStatus, currentPage, searchQuery]);
 
   useEffect(() => {
     if (activeTab === "reports" && (isAdmin || isModerator)) {
       fetchMonthlyReport();
+    }
+    
+    if (activeTab === "allMeals" && (isAdmin || isModerator)) {
+      fetchAllMeals();
     }
   }, [activeTab, selectedMonth, selectedDepartment]);
 
@@ -647,7 +792,7 @@ export default function MealPage() {
       <nav className={`sticky top-0 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white/80 backdrop-blur-lg border-purple-100'} border-b shadow-sm`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Left side - Logo and Brand */}
+            {/* Logo */}
             <div className="flex items-center">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -665,13 +810,14 @@ export default function MealPage() {
               </div>
             </div>
 
-            {/* Center - Tabs */}
+            {/* Center Tabs */}
             <div className="hidden md:flex items-center space-x-1">
               {[
                 { id: "dashboard", label: "Dashboard", icon: <BarChart size={18} /> },
                 { id: "myMeal", label: "My Meal", icon: <User size={18} />, show: isEmployee && isEligible },
                 ...(isAdmin || isModerator ? [
-                  { id: "requests", label: "All Requests", icon: <Users size={18} /> },
+                  { id: "subscriptions", label: "Subscriptions", icon: <Package size={18} /> },
+                  { id: "allMeals", label: "All Meals", icon: <Utensils size={18} /> },
                   { id: "reports", label: "Reports", icon: <FileText size={18} /> }
                 ] : []),
                 { id: "history", label: "History", icon: <History size={18} />, show: isEmployee && isEligible }
@@ -691,14 +837,11 @@ export default function MealPage() {
                 >
                   {tab.icon}
                   <span className="font-medium">{tab.label}</span>
-                  {tab.id === "myMeal" && myMealStatus?.hasActiveMeal && (
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  )}
                 </button>
               ))}
             </div>
 
-            {/* Right side - User actions */}
+            {/* Right side actions */}
             <div className="flex items-center gap-3">
               {/* Dark mode toggle */}
               <button
@@ -715,14 +858,13 @@ export default function MealPage() {
               {/* Refresh button */}
               <button
                 onClick={() => {
-                  if (activeTab === "dashboard") {
-                    fetchMyMealStatus();
-                    fetchDashboardStats();
-                  } else if (activeTab === "requests") fetchAllMealRequests();
+                  if (activeTab === "dashboard") fetchDashboardStats();
+                  else if (activeTab === "subscriptions") fetchAllSubscriptions();
+                  else if (activeTab === "allMeals") fetchAllMeals();
                   else if (activeTab === "reports") fetchMonthlyReport();
                   else if (activeTab === "myMeal") {
-                    fetchMyMealStatus();
-                    fetchMyMealRequests();
+                    fetchMySubscription();
+                    fetchMyMeals();
                   }
                 }}
                 className="p-2 rounded-xl bg-purple-100 dark:bg-gray-700 hover:bg-purple-200 dark:hover:bg-gray-600 transition-colors"
@@ -777,14 +919,10 @@ export default function MealPage() {
                   
                   <div className="p-2">
                     <button
-                      onClick={() => router.push("/dashboard")}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
-                    >
-                      <Home size={18} />
-                      <span>Dashboard</span>
-                    </button>
-                    <button
-                      onClick={handleLogout}
+                      onClick={() => {
+                        localStorage.clear();
+                        router.push("/");
+                      }}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
                     >
                       <LogOut size={18} />
@@ -806,84 +944,145 @@ export default function MealPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                 {activeTab === "dashboard" && "Meal Dashboard"}
-                {activeTab === "myMeal" && "My Meal Status"}
-                {activeTab === "requests" && "Meal Requests Management"}
-                {activeTab === "reports" && "Meal Reports & Analytics"}
+                {activeTab === "myMeal" && "My Meal"}
+                {activeTab === "subscriptions" && "Meal Subscriptions"}
+                {activeTab === "allMeals" && "All Meal Requests"}
+                {activeTab === "reports" && "Meal Reports"}
                 {activeTab === "history" && "My Meal History"}
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                {activeTab === "dashboard" && "Overview of your meal requests and subscriptions"}
+                {activeTab === "dashboard" && "Overview of meal requests and subscriptions"}
                 {activeTab === "myMeal" && "Manage your meal requests and subscriptions"}
-                {activeTab === "requests" && "Approve, reject, or manage meal requests"}
+                {activeTab === "subscriptions" && "Manage all meal subscriptions"}
+                {activeTab === "allMeals" && "View and manage all meal requests"}
                 {activeTab === "reports" && "View detailed meal statistics and reports"}
                 {activeTab === "history" && "Your meal request history"}
               </p>
             </div>
             
-            {activeTab !== "myMeal" && activeTab !== "history" && (
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Current Month:</span>
-                <div className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-medium">
-                  {getMonthName(selectedMonth)}
-                </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Current Month:</span>
+              <div className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-medium">
+                {getMonthName(selectedMonth)}
               </div>
-            )}
+            </div>
           </div>
 
-          {/* Stats Cards */}
+          {/* Stats Cards for Dashboard */}
           {activeTab === "dashboard" && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg shadow-purple-500/30">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm opacity-90">Total Requests</p>
-                    <p className="text-3xl font-bold mt-2">{stats.totalRequests || 0}</p>
+              {isAdmin || isModerator ? (
+                <>
+                  <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg shadow-purple-500/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm opacity-90">Total Subscriptions</p>
+                        <p className="text-3xl font-bold mt-2">{adminStats.totalSubscriptions || 0}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Package size={24} />
+                      </div>
+                    </div>
+                    <div className="text-sm opacity-90">Active meal subscriptions</div>
                   </div>
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <Users size={24} />
-                  </div>
-                </div>
-                <div className="text-sm opacity-90">All meal requests</div>
-              </div>
 
-              <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-green-500/30">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm opacity-90">Approved</p>
-                    <p className="text-3xl font-bold mt-2">{stats.approved || 0}</p>
+                  <div className="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg shadow-yellow-500/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm opacity-90">Pending Approvals</p>
+                        <p className="text-3xl font-bold mt-2">{adminStats.pendingApprovals || 0}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Clock size={24} />
+                      </div>
+                    </div>
+                    <div className="text-sm opacity-90">Awaiting approval</div>
                   </div>
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <CheckCircle size={24} />
-                  </div>
-                </div>
-                <div className="text-sm opacity-90">Approved meal requests</div>
-              </div>
 
-              <div className="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg shadow-yellow-500/30">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm opacity-90">Pending</p>
-                    <p className="text-3xl font-bold mt-2">{stats.requested || 0}</p>
+                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-green-500/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm opacity-90">Today's Meals</p>
+                        <p className="text-3xl font-bold mt-2">{adminStats.todayMeals || 0}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Utensils size={24} />
+                      </div>
+                    </div>
+                    <div className="text-sm opacity-90">Meals for today</div>
                   </div>
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <Clock size={24} />
-                  </div>
-                </div>
-                <div className="text-sm opacity-90">Awaiting approval</div>
-              </div>
 
-              <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-500/30">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm opacity-90">Subscribers</p>
-                    <p className="text-3xl font-bold mt-2">{stats.monthlySubscribers || 0}</p>
+                  <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-500/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm opacity-90">Active Subscriptions</p>
+                        <p className="text-3xl font-bold mt-2">{adminStats.activeSubscriptions || 0}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Users size={24} />
+                      </div>
+                    </div>
+                    <div className="text-sm opacity-90">Currently active</div>
                   </div>
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <Package size={24} />
+                </>
+              ) : (
+                // Employee stats
+                <>
+                  <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg shadow-purple-500/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm opacity-90">Total Meals</p>
+                        <p className="text-3xl font-bold mt-2">{employeeStats.totalMeals || 0}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Utensils size={24} />
+                      </div>
+                    </div>
+                    <div className="text-sm opacity-90">All your meals</div>
                   </div>
-                </div>
-                <div className="text-sm opacity-90">Monthly subscriptions</div>
-              </div>
+
+                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-green-500/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm opacity-90">Approved</p>
+                        <p className="text-3xl font-bold mt-2">{employeeStats.approvedMeals || 0}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <CheckCircle size={24} />
+                      </div>
+                    </div>
+                    <div className="text-sm opacity-90">Approved meals</div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg shadow-yellow-500/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm opacity-90">Pending</p>
+                        <p className="text-3xl font-bold mt-2">{employeeStats.pendingMeals || 0}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Clock size={24} />
+                      </div>
+                    </div>
+                    <div className="text-sm opacity-90">Awaiting approval</div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-500/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm opacity-90">Subscription</p>
+                        <p className="text-3xl font-bold mt-2">
+                          {mySubscription?.hasSubscription ? (mySubscription.data?.status === 'active' ? 'Active' : 'Inactive') : 'None'}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Package size={24} />
+                      </div>
+                    </div>
+                    <div className="text-sm opacity-90">Your subscription status</div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -955,7 +1154,7 @@ export default function MealPage() {
                       <ChevronRight className="text-purple-400" />
                     </button>
 
-                    {(!myMealStatus || myMealStatus.subscription === 'none' || myMealStatus.subscription === 'cancelled') && (
+                    {(!mySubscription || !mySubscription.hasSubscription || mySubscription.data?.status === 'cancelled') && (
                       <button
                         onClick={() => setShowSubscriptionModal(true)}
                         className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 rounded-xl border border-blue-200 transition-all hover:scale-[1.02]"
@@ -987,23 +1186,23 @@ export default function MealPage() {
                         </div>
                         <div className="text-left">
                           <p className="font-medium text-gray-900">Create Subscription</p>
-                          <p className="text-sm text-gray-600">Create for any user</p>
+                          <p className="text-sm text-gray-600">Create for employee</p>
                         </div>
                       </div>
                       <ExternalLink className="text-emerald-400" />
                     </button>
 
                     <button
-                      onClick={handleExportPayrollData}
+                      onClick={() => setShowAdminCreateMealModal(true)}
                       className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 hover:from-orange-100 hover:to-amber-100 rounded-xl border border-orange-200 transition-all hover:scale-[1.02]"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gradient-to-r from-orange-600 to-amber-600 rounded-lg flex items-center justify-center">
-                          <Download className="text-white" size={20} />
+                          <Utensils className="text-white" size={20} />
                         </div>
                         <div className="text-left">
-                          <p className="font-medium text-gray-900">Export Payroll Data</p>
-                          <p className="text-sm text-gray-600">Export for payroll system</p>
+                          <p className="font-medium text-gray-900">Create Meal</p>
+                          <p className="text-sm text-gray-600">Single meal for employee</p>
                         </div>
                       </div>
                       <ExternalLink className="text-orange-400" />
@@ -1012,6 +1211,59 @@ export default function MealPage() {
                 )}
               </div>
             </div>
+
+            {/* My Subscription Status */}
+            {isEligible && mySubscription && mySubscription.hasSubscription && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 p-6">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-4">My Subscription</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Status:</span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      mySubscription.data?.status === 'active' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {mySubscription.data?.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Preference:</span>
+                    <span className="font-medium">{mySubscription.data?.preference}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Auto Renew:</span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      mySubscription.data?.autoRenew 
+                        ? 'bg-blue-100 text-blue-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {mySubscription.data?.autoRenew ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Current Month:</span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      mySubscription.data?.currentStatus === 'approved'
+                        ? 'bg-green-100 text-green-800'
+                        : mySubscription.data?.currentStatus === 'pending'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {mySubscription.data?.currentStatus || 'None'}
+                    </span>
+                  </div>
+                  {mySubscription.data?.status === 'active' && (
+                    <button
+                      onClick={handleCancelSubscription}
+                      className="w-full mt-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                    >
+                      Cancel Subscription
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Meal Preference Info */}
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-200 p-6">
@@ -1079,7 +1331,7 @@ export default function MealPage() {
                   </div>
                 </div>
 
-                {/* My Meal Status */}
+                {/* My Meal Status (for eligible users) */}
                 {isEligible && (
                   <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 p-6">
                     <div className="flex items-center justify-between mb-6">
@@ -1087,15 +1339,13 @@ export default function MealPage() {
                         <User className="text-purple-600" size={20} />
                         My Meal Status
                       </h3>
-                      {myMealStatus && (
+                      {mySubscription?.hasSubscription && (
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          myMealStatus.displayStatus === 'active' || myMealStatus.displayStatus === 'approved'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                            : myMealStatus.displayStatus === 'pending' || myMealStatus.displayStatus === 'requested'
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                          mySubscription.data?.status === 'active'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
                         }`}>
-                          {myMealStatus.displayStatus?.toUpperCase() || 'NONE'}
+                          {mySubscription.data?.status?.toUpperCase()}
                         </span>
                       )}
                     </div>
@@ -1105,63 +1355,63 @@ export default function MealPage() {
                         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
                         <p className="mt-2 text-gray-600">Loading meal status...</p>
                       </div>
-                    ) : myMealStatus ? (
+                    ) : mySubscription?.hasSubscription ? (
                       <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-4">
-                            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Current Preference</p>
+                            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
+                              <p className="text-sm text-gray-600 mb-1">Current Preference</p>
                               <div className="flex items-center gap-2">
-                                {myMealStatus.displayPreference === 'office' ? (
+                                {mySubscription.data?.preference === 'office' ? (
                                   <Coffee className="text-purple-600" size={20} />
                                 ) : (
                                   <Pizza className="text-orange-600" size={20} />
                                 )}
-                                <p className="text-lg font-bold text-gray-900 dark:text-white capitalize">
-                                  {myMealStatus.displayPreference || 'Not Selected'}
+                                <p className="text-lg font-bold text-gray-900 capitalize">
+                                  {mySubscription.data?.preference}
                                 </p>
                               </div>
                             </div>
 
-                            <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Subscription Status</p>
+                            <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl">
+                              <p className="text-sm text-gray-600 mb-1">Current Month Status</p>
                               <div className="flex items-center gap-2">
-                                <Package className="text-blue-600" size={20} />
-                                <p className="text-lg font-bold text-gray-900 dark:text-white capitalize">
-                                  {myMealStatus.subscription || 'None'}
+                                <Calendar className="text-blue-600" size={20} />
+                                <p className="text-lg font-bold text-gray-900 capitalize">
+                                  {mySubscription.data?.currentStatus || 'none'}
                                 </p>
                               </div>
                             </div>
                           </div>
 
                           <div className="space-y-4">
-                            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Auto Renew</p>
+                            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl">
+                              <p className="text-sm text-gray-600 mb-1">Auto Renew</p>
                               <div className="flex items-center gap-2">
-                                {myMealStatus.autoRenew ? (
+                                {mySubscription.data?.autoRenew ? (
                                   <CheckCircle className="text-green-600" size={20} />
                                 ) : (
                                   <XCircle className="text-red-600" size={20} />
                                 )}
-                                <p className="text-lg font-bold text-gray-900 dark:text-white">
-                                  {myMealStatus.autoRenew ? 'Enabled' : 'Disabled'}
+                                <p className="text-lg font-bold text-gray-900">
+                                  {mySubscription.data?.autoRenew ? 'Enabled' : 'Disabled'}
                                 </p>
                               </div>
                             </div>
 
-                            <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Current Month</p>
+                            <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl">
+                              <p className="text-sm text-gray-600 mb-1">Start Date</p>
                               <div className="flex items-center gap-2">
                                 <Calendar className="text-amber-600" size={20} />
-                                <p className="text-lg font-bold text-gray-900 dark:text-white">
-                                  {getMonthName(myMealStatus.currentMonth)}
+                                <p className="text-lg font-bold text-gray-900">
+                                  {formatDate(mySubscription.data?.startDate)}
                                 </p>
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <div className="mt-6 pt-6 border-t border-gray-200">
                           <div className="flex gap-3">
                             <button
                               onClick={() => setActiveTab("myMeal")}
@@ -1169,12 +1419,12 @@ export default function MealPage() {
                             >
                               View Details
                             </button>
-                            {myMealStatus.subscription === 'active' && (
+                            {mySubscription.data?.status === 'active' && (
                               <button
-                                onClick={() => handleUpdateAutoRenew(!myMealStatus.autoRenew)}
+                                onClick={() => handleUpdateAutoRenew(!mySubscription.data?.autoRenew)}
                                 className="px-4 py-3 border-2 border-purple-200 text-purple-600 rounded-xl hover:bg-purple-50 transition-colors"
                               >
-                                {myMealStatus.autoRenew ? 'Disable Auto-Renew' : 'Enable Auto-Renew'}
+                                {mySubscription.data?.autoRenew ? 'Disable Auto-Renew' : 'Enable Auto-Renew'}
                               </button>
                             )}
                           </div>
@@ -1182,86 +1432,123 @@ export default function MealPage() {
                       </>
                     ) : (
                       <div className="text-center py-8">
-                        <p className="text-gray-600">No meal status available</p>
-                        <button
-                          onClick={() => setShowRequestModal(true)}
-                          className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                        >
-                          Request Meal
-                        </button>
+                        <p className="text-gray-600">No active subscription</p>
+                        <div className="mt-6 flex gap-3">
+                          <button
+                            onClick={() => setShowRequestModal(true)}
+                            className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                          >
+                            Request Meal
+                          </button>
+                          <button
+                            onClick={() => setShowSubscriptionModal(true)}
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                          >
+                            Setup Subscription
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Recent Requests (for admin) */}
-                {(isAdmin || isModerator) && (
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 overflow-hidden">
-                    <div className="p-6 border-b border-purple-50 dark:border-gray-700">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                          <Clock className="text-purple-600" size={20} />
-                          Recent Meal Requests
-                        </h3>
-                        <button
-                          onClick={() => setActiveTab("requests")}
-                          className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
-                        >
-                          View all
-                          <ChevronRight size={16} />
-                        </button>
-                      </div>
+                {/* Recent Activity */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 overflow-hidden">
+                  <div className="p-6 border-b border-purple-50 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Activity className="text-purple-600" size={20} />
+                        Recent Activity
+                      </h3>
+                      <button
+                        onClick={() => setActiveTab(isAdmin || isModerator ? "allMeals" : "history")}
+                        className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                      >
+                        View all
+                        <ChevronRight size={16} />
+                      </button>
                     </div>
+                  </div>
 
-                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {isLoadingData ? (
-                        <div className="p-8 text-center">
-                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                          <p className="mt-2 text-gray-600">Loading requests...</p>
-                        </div>
-                      ) : allRequests.length > 0 ? (
-                        allRequests.slice(0, 5).map((request, index) => (
-                          <div key={index} className="p-4 hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-                                  <span className="font-bold text-purple-600">
-                                    {request.userInfo?.firstName?.charAt(0) || request.name?.charAt(0) || "U"}
-                                  </span>
-                                </div>
-                                <div>
-                                  <p className="font-medium text-gray-900 dark:text-white">
-                                    {request.userInfo?.firstName} {request.userInfo?.lastName}
-                                  </p>
-                                  <p className="text-sm text-gray-500 dark:text-gray-400">{request.userInfo?.department}</p>
-                                </div>
-                              </div>
-                              
-                              <div className="text-right">
-                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                  request.status === 'active' || request.status === 'approved'
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                    : request.status === 'pending'
-                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                }`}>
-                                  {request.status?.toUpperCase()}
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {isLoadingData ? (
+                      <div className="p-8 text-center">
+                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                        <p className="mt-2 text-gray-600">Loading activity...</p>
+                      </div>
+                    ) : (isAdmin || isModerator) ? (
+                      allMeals.slice(0, 5).map((meal, index) => (
+                        <div key={index} className="p-4 hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+                                <span className="font-bold text-purple-600">
+                                  {meal.userInfo?.firstName?.charAt(0) || "U"}
                                 </span>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                  {request.preference}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {meal.userInfo?.firstName} {meal.userInfo?.lastName}
+                                </p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  {formatDate(meal.date)} • {meal.preference}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="text-right">
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                meal.status === 'approved'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                  : meal.status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                              }`}>
+                                {meal.status?.toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : myMeals.length > 0 ? (
+                      myMeals.slice(0, 5).map((meal, index) => (
+                        <div key={index} className="p-4 hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                meal.status === 'approved'
+                                  ? 'bg-green-100 text-green-600'
+                                  : meal.status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-600'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {meal.status === 'approved' ? (
+                                  <CheckCircle size={20} />
+                                ) : meal.status === 'pending' ? (
+                                  <Clock size={20} />
+                                ) : (
+                                  <XCircle size={20} />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {formatDate(meal.date)}
+                                </p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                                  {meal.preference} • {meal.status}
                                 </p>
                               </div>
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <div className="p-8 text-center">
-                          <p className="text-gray-600">No meal requests found</p>
                         </div>
-                      )}
-                    </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center">
+                        <p className="text-gray-600">No recent activity found</p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             )}
 
@@ -1273,11 +1560,11 @@ export default function MealPage() {
                   <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6">
                     <div className="flex items-center justify-between">
                       <div className="text-white">
-                        <h3 className="text-xl font-bold mb-2">Your Current Meal Status</h3>
+                        <h3 className="text-xl font-bold mb-2">Your Meal Management</h3>
                         <p className="opacity-90">For {getMonthName(selectedMonth)}</p>
                       </div>
                       <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
-                        {myMealStatus?.displayPreference === 'office' ? (
+                        {mySubscription?.data?.preference === 'office' ? (
                           <Coffee className="text-white" size={24} />
                         ) : (
                           <Pizza className="text-white" size={24} />
@@ -1292,86 +1579,82 @@ export default function MealPage() {
                         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
                         <p className="mt-2 text-gray-600">Loading meal status...</p>
                       </div>
-                    ) : myMealStatus ? (
+                    ) : mySubscription?.hasSubscription ? (
                       <>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                          <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Status</div>
+                          <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl">
+                            <div className="text-sm text-gray-600 mb-2">Status</div>
                             <div className={`text-lg font-bold ${
-                              myMealStatus.displayStatus === 'active' || myMealStatus.displayStatus === 'approved'
+                              mySubscription.data?.status === 'active'
                                 ? 'text-green-600'
-                                : myMealStatus.displayStatus === 'pending' || myMealStatus.displayStatus === 'requested'
-                                ? 'text-yellow-600'
-                                : 'text-gray-600'
+                                : 'text-red-600'
                             }`}>
-                              {myMealStatus.displayStatus?.toUpperCase() || 'NONE'}
+                              {mySubscription.data?.status?.toUpperCase()}
                             </div>
                           </div>
 
-                          <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Preference</div>
-                            <div className="text-lg font-bold text-gray-900 dark:text-white capitalize">
-                              {myMealStatus.displayPreference || 'NONE'}
+                          <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl">
+                            <div className="text-sm text-gray-600 mb-2">Preference</div>
+                            <div className="text-lg font-bold text-gray-900 capitalize">
+                              {mySubscription.data?.preference || 'NONE'}
                             </div>
                           </div>
 
-                          <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Subscription</div>
-                            <div className="text-lg font-bold text-gray-900 dark:text-white capitalize">
-                              {myMealStatus.subscription || 'NONE'}
+                          <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl">
+                            <div className="text-sm text-gray-600 mb-2">Auto Renew</div>
+                            <div className="text-lg font-bold text-gray-900">
+                              {mySubscription.data?.autoRenew ? 'YES' : 'NO'}
                             </div>
                           </div>
                         </div>
 
                         <div className="space-y-4">
-                          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                             <div className="flex items-center gap-3">
                               <Calendar className="text-gray-400" size={20} />
                               <div>
-                                <p className="font-medium text-gray-900 dark:text-white">Current Month</p>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                  {myMealStatus.currentMonth ? getMonthName(myMealStatus.currentMonth) : 'N/A'}
+                                <p className="font-medium text-gray-900">Current Month</p>
+                                <p className="text-sm text-gray-600">
+                                  {mySubscription.data?.currentMonth ? getMonthName(mySubscription.data.currentMonth) : 'N/A'}
                                 </p>
                               </div>
                             </div>
-                            <select
-                              value={selectedMonth}
-                              onChange={(e) => setSelectedMonth(e.target.value)}
-                              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            >
-                              {getAvailableMonths().map(month => (
-                                <option key={month} value={month}>
-                                  {getMonthName(month)}
-                                </option>
-                              ))}
-                            </select>
+                            <span className={`px-3 py-1 text-sm rounded-full ${
+                              mySubscription.data?.currentStatus === 'approved'
+                                ? 'bg-green-100 text-green-800'
+                                : mySubscription.data?.currentStatus === 'pending'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {mySubscription.data?.currentStatus?.toUpperCase() || 'NONE'}
+                            </span>
                           </div>
 
-                          {myMealStatus.subscription === 'active' && (
-                            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                          {mySubscription.data?.status === 'active' && (
+                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                               <div className="flex items-center gap-3">
-                                {myMealStatus.autoRenew ? (
+                                {mySubscription.data?.autoRenew ? (
                                   <CheckCircle className="text-green-500" size={20} />
                                 ) : (
                                   <XCircle className="text-red-500" size={20} />
                                 )}
                                 <div>
-                                  <p className="font-medium text-gray-900 dark:text-white">Auto Renew</p>
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    {myMealStatus.autoRenew ? 'Enabled' : 'Disabled'}
+                                  <p className="font-medium text-gray-900">Auto Renew</p>
+                                  <p className="text-sm text-gray-600">
+                                    {mySubscription.data?.autoRenew ? 'Enabled' : 'Disabled'}
                                   </p>
                                 </div>
                               </div>
                               <button
-                                onClick={() => handleUpdateAutoRenew(!myMealStatus.autoRenew)}
+                                onClick={() => handleUpdateAutoRenew(!mySubscription.data?.autoRenew)}
                                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
                               >
-                                {myMealStatus.autoRenew ? 'Disable' : 'Enable'}
+                                {mySubscription.data?.autoRenew ? 'Disable' : 'Enable'}
                               </button>
                             </div>
                           )}
 
-                          {myMealStatus.subscription === 'active' && (
+                          {mySubscription.data?.status === 'active' && (
                             <button
                               onClick={handleCancelSubscription}
                               className="w-full py-3 border-2 border-red-200 text-red-600 rounded-xl hover:bg-red-50 font-medium transition-colors"
@@ -1383,7 +1666,7 @@ export default function MealPage() {
                       </>
                     ) : (
                       <div className="text-center py-8">
-                        <p className="text-gray-600">No meal status available</p>
+                        <p className="text-gray-600">No subscription active</p>
                         <div className="mt-6 flex gap-3">
                           <button
                             onClick={() => setShowRequestModal(true)}
@@ -1403,7 +1686,7 @@ export default function MealPage() {
                   </div>
                 </div>
 
-                {/* My Requests List */}
+                {/* My Meal Requests */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1411,61 +1694,58 @@ export default function MealPage() {
                       My Meal Requests
                     </h3>
                     <div className="flex items-center gap-3">
-                      <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      <button
+                        onClick={() => setShowRequestModal(true)}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
                       >
-                        <option value="all">All Status</option>
-                        <option value="requested">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
-                      </select>
+                        + New Request
+                      </button>
                     </div>
                   </div>
 
                   {isLoadingData ? (
                     <div className="text-center py-8">
                       <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                      <p className="mt-2 text-gray-600">Loading requests...</p>
+                      <p className="mt-2 text-gray-600">Loading meal requests...</p>
                     </div>
-                  ) : myRequests.length > 0 ? (
+                  ) : myMeals.length > 0 ? (
                     <div className="space-y-3">
-                      {myRequests.map((request, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                      {myMeals.map((meal, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                              request.status === 'approved'
+                              meal.status === 'approved'
                                 ? 'bg-green-100 text-green-600'
-                                : request.status === 'requested'
+                                : meal.status === 'pending'
                                 ? 'bg-yellow-100 text-yellow-600'
                                 : 'bg-gray-100 text-gray-600'
                             }`}>
-                              {request.status === 'approved' ? (
+                              {meal.status === 'approved' ? (
                                 <CheckCircle size={20} />
-                              ) : request.status === 'requested' ? (
+                              ) : meal.status === 'pending' ? (
                                 <Clock size={20} />
                               ) : (
                                 <XCircle size={20} />
                               )}
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {formatDate(request.date)}
+                              <p className="font-medium text-gray-900">
+                                {formatDate(meal.date)}
                               </p>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">
-                                {request.preference} • {request.status}
+                              <p className="text-sm text-gray-600 capitalize">
+                                {meal.preference} • {meal.status}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            {request.status === 'requested' && (
+                            {meal.status === 'pending' && (
                               <button
                                 onClick={() => {
-                                  setSelectedRequest(request);
+                                  setSelectedMeal(meal);
                                   setShowDeleteModal(true);
                                 }}
-                                className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                className="p-2 hover:bg-red-100 rounded-lg transition-colors"
+                                title="Cancel Request"
                               >
                                 <Trash2 className="text-red-500" size={16} />
                               </button>
@@ -1479,7 +1759,7 @@ export default function MealPage() {
                       <div className="w-16 h-16 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
                         <History className="text-gray-400" size={24} />
                       </div>
-                      <p className="text-gray-600 dark:text-gray-400">No meal requests found</p>
+                      <p className="text-gray-600">No meal requests found</p>
                       <button
                         onClick={() => setShowRequestModal(true)}
                         className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
@@ -1492,8 +1772,8 @@ export default function MealPage() {
               </div>
             )}
 
-            {/* Requests Tab (Admin/Moderator) */}
-            {(activeTab === "requests" && (isAdmin || isModerator)) && (
+            {/* Subscriptions Tab (Admin/Moderator) */}
+            {activeTab === "subscriptions" && (isAdmin || isModerator) && (
               <div className="space-y-6">
                 {/* Filters */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 p-6">
@@ -1503,7 +1783,7 @@ export default function MealPage() {
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                         <input
                           type="text"
-                          placeholder="Search by Employee ID..."
+                          placeholder="Search by name or ID..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="pl-10 pr-4 py-2 rounded-xl border border-purple-200 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -1522,23 +1802,13 @@ export default function MealPage() {
                       </select>
 
                       <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="px-4 py-2 rounded-xl border border-purple-200 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      >
-                        <option value="all">All Types</option>
-                        <option value="single">Single Requests</option>
-                        <option value="monthly">Monthly Subscriptions</option>
-                      </select>
-
-                      <select
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
                         className="px-4 py-2 rounded-xl border border-purple-200 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         <option value="all">All Status</option>
-                        <option value="pending">Pending</option>
                         <option value="active">Active</option>
+                        <option value="pending">Pending</option>
                         <option value="cancelled">Cancelled</option>
                         <option value="paused">Paused</option>
                       </select>
@@ -1558,28 +1828,28 @@ export default function MealPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 p-4">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Total Subscriptions</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalRequests}</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalItems}</p>
                   </div>
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 p-4">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Active</p>
-                    <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
+                    <p className="text-2xl font-bold text-green-600">{allSubscriptions.filter(s => s.status === 'active').length}</p>
                   </div>
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 p-4">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Pending</p>
-                    <p className="text-2xl font-bold text-yellow-600">{stats.requested}</p>
+                    <p className="text-2xl font-bold text-yellow-600">{allSubscriptions.filter(s => s.status === 'pending').length}</p>
                   </div>
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 p-4">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Total Employees</p>
-                    <p className="text-2xl font-bold text-blue-600">{stats.totalEmployees}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Pages</p>
+                    <p className="text-2xl font-bold text-blue-600">{currentPage}/{totalPages}</p>
                   </div>
                 </div>
 
-                {/* Requests Table */}
+                {/* Subscriptions Table */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 overflow-hidden">
                   <div className="p-6 border-b border-purple-50 dark:border-gray-700">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                        Meal Subscriptions ({allRequests.length})
+                        Meal Subscriptions ({totalItems})
                       </h3>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -1608,15 +1878,14 @@ export default function MealPage() {
                   {isLoadingData ? (
                     <div className="p-12 text-center">
                       <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-                      <p className="mt-4 text-gray-600">Loading meal subscriptions...</p>
+                      <p className="mt-4 text-gray-600">Loading subscriptions...</p>
                     </div>
-                  ) : allRequests.length > 0 ? (
+                  ) : allSubscriptions.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead className="bg-purple-50 dark:bg-gray-700">
                           <tr>
                             <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Employee</th>
-                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Type</th>
                             <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Preference</th>
                             <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Status</th>
                             <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Auto Renew</th>
@@ -1625,7 +1894,7 @@ export default function MealPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                          {allRequests.map((subscription, index) => (
+                          {allSubscriptions.map((subscription, index) => (
                             <tr key={index} className="hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
                               <td className="py-4 px-6">
                                 <div className="flex items-center gap-3">
@@ -1642,11 +1911,6 @@ export default function MealPage() {
                                     <p className="text-xs text-gray-500">{subscription.userInfo?.department}</p>
                                   </div>
                                 </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">
-                                  Monthly Subscription
-                                </span>
                               </td>
                               <td className="py-4 px-6">
                                 <div className="flex items-center gap-2">
@@ -1686,11 +1950,12 @@ export default function MealPage() {
                               </td>
                               <td className="py-4 px-6">
                                 <div className="flex items-center gap-2">
-                                  {subscription.status === 'pending' && (
+                                  {/* Check if this month's approval is pending */}
+                                  {subscription.currentMonthStatus === 'pending' && (
                                     <>
                                       <button
                                         onClick={() => {
-                                          setSelectedRequest(subscription);
+                                          setSelectedSubscription(subscription);
                                           setShowApproveModal(true);
                                         }}
                                         className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
@@ -1699,7 +1964,7 @@ export default function MealPage() {
                                       </button>
                                       <button
                                         onClick={() => {
-                                          setSelectedRequest(subscription);
+                                          setSelectedSubscription(subscription);
                                           setShowRejectModal(true);
                                         }}
                                         className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
@@ -1710,14 +1975,8 @@ export default function MealPage() {
                                   )}
                                   <button
                                     onClick={() => {
-                                      setSelectedRequest(subscription);
-                                      setUpdateForm({
-                                        status: subscription.status,
-                                        preference: subscription.preference,
-                                        note: subscription.note || '',
-                                        mealDays: 0
-                                      });
-                                      setShowUpdateModal(true);
+                                      setSelectedSubscription(subscription);
+                                      // You can add an edit modal here
                                     }}
                                     className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                                     title="Edit"
@@ -1727,7 +1986,7 @@ export default function MealPage() {
                                   {(subscription.status === 'active' || subscription.status === 'pending') && (
                                     <button
                                       onClick={() => {
-                                        setSelectedRequest(subscription);
+                                        setSelectedSubscription(subscription);
                                         setShowDeleteModal(true);
                                       }}
                                       className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
@@ -1746,9 +2005,9 @@ export default function MealPage() {
                   ) : (
                     <div className="text-center py-12">
                       <div className="w-16 h-16 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Users className="text-gray-400" size={24} />
+                        <Package className="text-gray-400" size={24} />
                       </div>
-                      <p className="text-gray-600 dark:text-gray-400">No meal subscriptions found</p>
+                      <p className="text-gray-600 dark:text-gray-400">No subscriptions found</p>
                       <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                         Change filters or create a new subscription
                       </p>
@@ -1758,8 +2017,233 @@ export default function MealPage() {
               </div>
             )}
 
-            {/* Reports Tab (Admin/Moderator) */}
-            {(activeTab === "reports" && (isAdmin || isModerator)) && (
+            {/* All Meals Tab (Admin/Moderator) */}
+            {activeTab === "allMeals" && (isAdmin || isModerator) && (
+              <div className="space-y-6">
+                {/* Filters */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 p-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                          type="text"
+                          placeholder="Search by employee name..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10 pr-4 py-2 rounded-xl border border-purple-200 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+
+                      <select
+                        value={selectedDepartment}
+                        onChange={(e) => setSelectedDepartment(e.target.value)}
+                        className="px-4 py-2 rounded-xl border border-purple-200 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="all">All Departments</option>
+                        {departments.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="px-4 py-2 rounded-xl border border-purple-200 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                        className="px-4 py-2 rounded-xl border border-purple-200 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      >
+                        {getAvailableMonths().map(month => (
+                          <option key={month} value={month}>{getMonthName(month)}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={() => setShowAdminCreateMealModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all font-medium flex items-center gap-2"
+                    >
+                      <Plus size={18} />
+                      Create Meal
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stats Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 p-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Total Meals</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{allMeals.length}</p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 p-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Approved</p>
+                    <p className="text-2xl font-bold text-green-600">{allMeals.filter(m => m.status === 'approved').length}</p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 p-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Pending</p>
+                    <p className="text-2xl font-bold text-yellow-600">{allMeals.filter(m => m.status === 'pending').length}</p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 p-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">This Month</p>
+                    <p className="text-2xl font-bold text-blue-600">{allMeals.filter(m => {
+                      const mealDate = new Date(m.date);
+                      const mealMonth = `${mealDate.getFullYear()}-${String(mealDate.getMonth() + 1).padStart(2, '0')}`;
+                      return mealMonth === selectedMonth;
+                    }).length}</p>
+                  </div>
+                </div>
+
+                {/* All Meals Table */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 overflow-hidden">
+                  <div className="p-6 border-b border-purple-50 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                        All Meal Requests ({allMeals.length})
+                      </h3>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        {getMonthName(selectedMonth)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {isLoadingData ? (
+                    <div className="p-12 text-center">
+                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+                      <p className="mt-4 text-gray-600">Loading meals...</p>
+                    </div>
+                  ) : allMeals.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-purple-50 dark:bg-gray-700">
+                          <tr>
+                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Employee</th>
+                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Date</th>
+                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Preference</th>
+                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Status</th>
+                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                          {allMeals.map((meal, index) => (
+                            <tr key={index} className="hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+                                    <span className="font-bold text-purple-600">
+                                      {meal.userInfo?.firstName?.charAt(0) || "U"}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-900 dark:text-white">
+                                      {meal.userInfo?.firstName} {meal.userInfo?.lastName}
+                                    </p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">{meal.userInfo?.department}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-gray-900 dark:text-white">
+                                    {formatDate(meal.date)}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {meal.mealType === 'dinner' ? 'Dinner' : 'Lunch'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  {meal.preference === 'office' ? (
+                                    <Coffee className="text-purple-600" size={16} />
+                                  ) : (
+                                    <Pizza className="text-orange-600" size={16} />
+                                  )}
+                                  <span className="capitalize">{meal.preference}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                <span className={`px-3 py-1 text-xs rounded-full font-medium ${
+                                  meal.status === 'approved'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                    : meal.status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                                    : meal.status === 'cancelled'
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                }`}>
+                                  {meal.status?.toUpperCase()}
+                                </span>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  {meal.status === 'pending' && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          // Add approve meal functionality
+                                          toast.success("Approve meal functionality to be implemented");
+                                        }}
+                                        className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          // Add reject meal functionality
+                                          toast.success("Reject meal functionality to be implemented");
+                                        }}
+                                        className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
+                                  {(meal.status === 'pending' || meal.status === 'approved') && (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedMeal(meal);
+                                        setShowDeleteModal(true);
+                                      }}
+                                      className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="text-red-500" size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Utensils className="text-gray-400" size={24} />
+                      </div>
+                      <p className="text-gray-600 dark:text-gray-400">No meals found</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                        Change filters or create a new meal request
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Reports Tab */}
+            {activeTab === "reports" && (isAdmin || isModerator) && (
               <div className="space-y-6">
                 {/* Report Header */}
                 <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl p-8 text-white">
@@ -1781,11 +2265,27 @@ export default function MealPage() {
                         ))}
                       </select>
                       <button
-                        onClick={handleExportPayrollData}
+                        onClick={() => {
+                          if (monthlyReport?.data) {
+                            const csvContent = "data:text/csv;charset=utf-8," 
+                              + "Employee ID,Name,Department,Subscription Status,Preference,Approved Meals\n"
+                              + monthlyReport.data.map(row => 
+                                `${row.employeeId},${row.name},${row.department},${row.subscription},${row.preference},${row.approvedMeals}`
+                              ).join("\n");
+                            const encodedUri = encodeURI(csvContent);
+                            const link = document.createElement("a");
+                            link.setAttribute("href", encodedUri);
+                            link.setAttribute("download", `meal-report-${selectedMonth}.csv`);
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            toast.success("Report exported successfully!");
+                          }
+                        }}
                         className="px-6 py-2 bg-white text-purple-600 rounded-xl hover:bg-purple-50 font-medium transition-colors flex items-center gap-2"
                       >
                         <Download size={18} />
-                        Export
+                        Export CSV
                       </button>
                     </div>
                   </div>
@@ -1802,8 +2302,8 @@ export default function MealPage() {
                         <p className="text-2xl font-bold">{monthlyReport?.stats?.totalEmployees || 0}</p>
                       </div>
                       <div className="p-4 bg-white/10 backdrop-blur-sm rounded-xl">
-                        <p className="text-sm opacity-90 mb-1">Active Subscriptions</p>
-                        <p className="text-2xl font-bold">{monthlyReport?.stats?.activeSubscriptions || 0}</p>
+                        <p className="text-sm opacity-90 mb-1">With Subscription</p>
+                        <p className="text-2xl font-bold">{monthlyReport?.stats?.withSubscription || 0}</p>
                       </div>
                       <div className="p-4 bg-white/10 backdrop-blur-sm rounded-xl">
                         <p className="text-sm opacity-90 mb-1">Office Meals</p>
@@ -1861,13 +2361,13 @@ export default function MealPage() {
                               </td>
                               <td className="py-4 px-6">
                                 <span className={`px-2 py-1 text-xs rounded-full ${
-                                  item.status === 'active'
+                                  item.subscription === 'active'
                                     ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
                                     : item.status === 'pending'
                                     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
                                     : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                                 }`}>
-                                  {item.status?.toUpperCase()}
+                                  {item.subscription?.toUpperCase()}
                                 </span>
                               </td>
                               <td className="py-4 px-6">
@@ -1882,7 +2382,7 @@ export default function MealPage() {
                               </td>
                               <td className="py-4 px-6">
                                 <span className="font-medium text-gray-900 dark:text-white">
-                                  {item.mealDays || 0}
+                                  {item.approvedMeals || 0}
                                 </span>
                               </td>
                             </tr>
@@ -1918,61 +2418,61 @@ export default function MealPage() {
                       <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
                       <p className="mt-4 text-gray-600">Loading meal history...</p>
                     </div>
-                  ) : myRequests.length > 0 ? (
+                  ) : myMeals.length > 0 ? (
                     <div className="space-y-6">
-                      {myRequests.map((request, index) => (
+                      {myMeals.map((meal, index) => (
                         <div key={index} className="flex gap-4">
                           <div className="flex flex-col items-center">
                             <div className={`w-3 h-3 rounded-full ${
-                              index === 0 ? 'bg-gradient-to-r from-purple-600 to-pink-600' : 'bg-gray-300 dark:bg-gray-600'
+                              index === 0 ? 'bg-gradient-to-r from-purple-600 to-pink-600' : 'bg-gray-300'
                             }`}></div>
-                            {index < myRequests.length - 1 && (
-                              <div className="w-0.5 h-full bg-gray-200 dark:bg-gray-700 mt-1"></div>
+                            {index < myMeals.length - 1 && (
+                              <div className="w-0.5 h-full bg-gray-200 mt-1"></div>
                             )}
                           </div>
                           
                           <div className="flex-1 pb-6">
-                            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                            <div className="p-4 bg-gray-50 rounded-xl">
                               <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-bold text-gray-900 dark:text-white">
-                                  {formatDate(request.date)}
+                                <h4 className="font-bold text-gray-900">
+                                  {formatDate(meal.date)}
                                 </h4>
                                 <span className={`px-3 py-1 text-xs rounded-full ${
-                                  request.status === 'approved'
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                    : request.status === 'requested'
-                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300'
+                                  meal.status === 'approved'
+                                    ? 'bg-green-100 text-green-800'
+                                    : meal.status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-800'
                                 }`}>
-                                  {request.status?.toUpperCase()}
+                                  {meal.status?.toUpperCase()}
                                 </span>
                               </div>
                               
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-3">
                                 <div className="text-center">
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">Meal Type</p>
-                                  <p className="font-bold text-gray-900 dark:text-white capitalize">
-                                    {request.mealType || 'Lunch'}
+                                  <p className="text-sm text-gray-600">Meal Type</p>
+                                  <p className="font-bold text-gray-900 capitalize">
+                                    {meal.mealType || 'Lunch'}
                                   </p>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">Preference</p>
-                                  <p className="font-bold text-gray-900 dark:text-white capitalize">
-                                    {request.preference || 'N/A'}
+                                  <p className="text-sm text-gray-600">Preference</p>
+                                  <p className="font-bold text-gray-900 capitalize">
+                                    {meal.preference || 'N/A'}
                                   </p>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">Cost</p>
-                                  <p className="font-bold text-gray-900 dark:text-white">
-                                    {request.cost ? `৳${request.cost}` : 'N/A'}
+                                  <p className="text-sm text-gray-600">Cost</p>
+                                  <p className="font-bold text-gray-900">
+                                    {meal.cost ? `৳${meal.cost}` : 'N/A'}
                                   </p>
                                 </div>
                               </div>
                               
-                              {request.note && (
-                                <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">Note:</p>
-                                  <p className="text-sm text-gray-900 dark:text-white">{request.note}</p>
+                              {meal.notes && (
+                                <div className="mt-3 p-3 bg-purple-50 rounded-lg">
+                                  <p className="text-sm text-gray-600">Note:</p>
+                                  <p className="text-sm text-gray-900">{meal.notes}</p>
                                 </div>
                               )}
                             </div>
@@ -1985,8 +2485,8 @@ export default function MealPage() {
                       <div className="w-16 h-16 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
                         <History className="text-gray-400" size={24} />
                       </div>
-                      <p className="text-gray-600 dark:text-gray-400">No meal history available</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                      <p className="text-gray-600">No meal history available</p>
+                      <p className="text-sm text-gray-500 mt-1">
                         Your meal history will appear here
                       </p>
                     </div>
@@ -1999,6 +2499,7 @@ export default function MealPage() {
       </div>
 
       {/* Modals */}
+
       {/* Request Meal Modal */}
       {showRequestModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -2064,11 +2565,11 @@ export default function MealPage() {
                   </label>
                   <input
                     type="date"
-                    value={new Date().toISOString().split('T')[0]}
-                    disabled
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    value={requestForm.date}
+                    onChange={(e) => setRequestForm({...requestForm, date: e.target.value})}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Daily meal requests are for current date only</p>
                 </div>
 
                 <div>
@@ -2220,15 +2721,20 @@ export default function MealPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Employee ID
+                    Select Employee
                   </label>
-                  <input
-                    type="text"
-                    value={adminCreateForm.employeeId}
-                    onChange={(e) => setAdminCreateForm({...adminCreateForm, employeeId: e.target.value})}
+                  <select
+                    value={adminCreateForm.userId}
+                    onChange={(e) => setAdminCreateForm({...adminCreateForm, userId: e.target.value})}
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Enter employee ID"
-                  />
+                  >
+                    <option value="">Select an employee</option>
+                    {allUsers.map(user => (
+                      <option key={user._id} value={user._id}>
+                        {user.firstName} {user.lastName} ({user.employeeId}) - {user.department}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -2237,32 +2743,32 @@ export default function MealPage() {
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => setAdminCreateForm({...adminCreateForm, mealPreference: 'office'})}
+                      onClick={() => setAdminCreateForm({...adminCreateForm, preference: 'office'})}
                       className={`p-4 rounded-xl border-2 transition-all ${
-                        adminCreateForm.mealPreference === 'office'
+                        adminCreateForm.preference === 'office'
                           ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                           : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
                       }`}
                     >
                       <div className="flex flex-col items-center">
                         <Coffee className={`mb-2 ${
-                          adminCreateForm.mealPreference === 'office' ? 'text-purple-600' : 'text-gray-400'
+                          adminCreateForm.preference === 'office' ? 'text-purple-600' : 'text-gray-400'
                         }`} size={24} />
                         <span className="font-medium">Office Meal</span>
                       </div>
                     </button>
 
                     <button
-                      onClick={() => setAdminCreateForm({...adminCreateForm, mealPreference: 'outside'})}
+                      onClick={() => setAdminCreateForm({...adminCreateForm, preference: 'outside'})}
                       className={`p-4 rounded-xl border-2 transition-all ${
-                        adminCreateForm.mealPreference === 'outside'
+                        adminCreateForm.preference === 'outside'
                           ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                           : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
                       }`}
                     >
                       <div className="flex flex-col items-center">
                         <Pizza className={`mb-2 ${
-                          adminCreateForm.mealPreference === 'outside' ? 'text-purple-600' : 'text-gray-400'
+                          adminCreateForm.preference === 'outside' ? 'text-purple-600' : 'text-gray-400'
                         }`} size={24} />
                         <span className="font-medium">Outside Food</span>
                       </div>
@@ -2270,18 +2776,23 @@ export default function MealPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Initial Status
-                  </label>
-                  <select
-                    value={adminCreateForm.status}
-                    onChange={(e) => setAdminCreateForm({...adminCreateForm, status: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="active">Active</option>
-                    <option value="pending">Pending</option>
-                  </select>
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">Auto Renew</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Automatically renew subscription</p>
+                    </div>
+                    <button
+                      onClick={() => setAdminCreateForm({...adminCreateForm, autoRenew: !adminCreateForm.autoRenew})}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                        adminCreateForm.autoRenew ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                        adminCreateForm.autoRenew ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -2306,7 +2817,7 @@ export default function MealPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleAdminCreateMeal}
+                  onClick={handleAdminCreateSubscription}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-medium"
                 >
                   Create Subscription
@@ -2317,18 +2828,15 @@ export default function MealPage() {
         </div>
       )}
 
-      {/* Approve Modal */}
-      {showApproveModal && selectedRequest && (
+      {/* Admin Create Meal Modal */}
+      {showAdminCreateMealModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
             <div className="p-6 border-b border-purple-100 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Approve Subscription</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Create Meal Request</h3>
                 <button
-                  onClick={() => {
-                    setShowApproveModal(false);
-                    setSelectedRequest(null);
-                  }}
+                  onClick={() => setShowAdminCreateMealModal(false)}
                   className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
                   <X className="text-gray-400" size={20} />
@@ -2337,34 +2845,159 @@ export default function MealPage() {
             </div>
 
             <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-to-r from-green-100 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="text-green-600" size={32} />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select Employee
+                  </label>
+                  <select
+                    value={adminCreateMealForm.userId}
+                    onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, userId: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Select an employee</option>
+                    {allUsers.map(user => (
+                      <option key={user._id} value={user._id}>
+                        {user.firstName} {user.lastName} ({user.employeeId}) - {user.department}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <h4 className="font-bold text-gray-900 dark:text-white mb-2">
-                  Approve subscription for {selectedRequest.userInfo?.firstName}?
-                </h4>
-                <p className="text-gray-600 dark:text-gray-400">
-                  This will approve their {selectedRequest.preference} meal subscription
-                </p>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Meal Preference
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setAdminCreateMealForm({...adminCreateMealForm, mealPreference: 'office'})}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        adminCreateMealForm.mealPreference === 'office'
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center">
+                        <Coffee className={`mb-2 ${
+                          adminCreateMealForm.mealPreference === 'office' ? 'text-purple-600' : 'text-gray-400'
+                        }`} size={24} />
+                        <span className="font-medium">Office Meal</span>
+                        <span className="text-sm text-gray-500 mt-1">Office kitchen</span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setAdminCreateMealForm({...adminCreateMealForm, mealPreference: 'outside'})}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        adminCreateMealForm.mealPreference === 'outside'
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center">
+                        <Pizza className={`mb-2 ${
+                          adminCreateMealForm.mealPreference === 'outside' ? 'text-purple-600' : 'text-gray-400'
+                        }`} size={24} />
+                        <span className="font-medium">Outside Food</span>
+                        <span className="text-sm text-gray-500 mt-1">Partner restaurants</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={adminCreateMealForm.date}
+                    onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, date: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Additional Note (Optional)
+                  </label>
+                  <textarea
+                    value={adminCreateMealForm.note}
+                    onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, note: e.target.value})}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="Any special requirements or notes..."
+                  />
+                </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="mt-6 flex gap-3">
                 <button
-                  onClick={() => {
-                    setShowApproveModal(false);
-                    setSelectedRequest(null);
-                  }}
+                  onClick={() => setShowAdminCreateMealModal(false)}
                   className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleUpdateRequestStatus('approve')}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-medium"
+                  onClick={handleAdminCreateMeal}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all font-medium"
                 >
-                  Yes, Approve
+                  Create Meal
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Modal */}
+      {showApproveModal && selectedSubscription && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
+            <div className="p-6 border-b border-purple-100 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Approve Subscription</h3>
+                <button
+                  onClick={() => setShowApproveModal(false)}
+                  className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <X className="text-gray-400" size={20} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Are you sure you want to approve subscription for {selectedSubscription.userInfo?.firstName} {selectedSubscription.userInfo?.lastName}?
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Note (Optional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Add approval note..."
+                    onChange={(e) => setUpdateForm({...updateForm, note: e.target.value})}
+                  />
+                </div>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowApproveModal(false)}
+                    className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleUpdateSubscriptionStatus('approve')}
+                    className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium"
+                  >
+                    Approve
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2372,53 +3005,54 @@ export default function MealPage() {
       )}
 
       {/* Reject Modal */}
-      {showRejectModal && selectedRequest && (
+      {showRejectModal && selectedSubscription && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
             <div className="p-6 border-b border-purple-100 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">Reject Subscription</h3>
                 <button
-                  onClick={() => {
-                    setShowRejectModal(false);
-                    setSelectedRequest(null);
-                  }}
+                  onClick={() => setShowRejectModal(false)}
                   className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
                   <X className="text-gray-400" size={20} />
                 </button>
               </div>
             </div>
-
+            
             <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-to-r from-red-100 to-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <XCircle className="text-red-600" size={32} />
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Are you sure you want to reject subscription for {selectedSubscription.userInfo?.firstName} {selectedSubscription.userInfo?.lastName}?
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Reason (Required)
+                  </label>
+                  <textarea
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Enter rejection reason..."
+                    onChange={(e) => setUpdateForm({...updateForm, note: e.target.value})}
+                    required
+                  />
                 </div>
-                <h4 className="font-bold text-gray-900 dark:text-white mb-2">
-                  Reject subscription for {selectedRequest.userInfo?.firstName}?
-                </h4>
-                <p className="text-gray-600 dark:text-gray-400">
-                  This will reject their {selectedRequest.preference} meal subscription
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowRejectModal(false);
-                    setSelectedRequest(null);
-                  }}
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleUpdateRequestStatus('reject')}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all font-medium"
-                >
-                  Yes, Reject
-                </button>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowRejectModal(false)}
+                    className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleUpdateSubscriptionStatus('reject')}
+                    className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium"
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2426,63 +3060,43 @@ export default function MealPage() {
       )}
 
       {/* Delete Modal */}
-      {showDeleteModal && selectedRequest && (
+      {showDeleteModal && (selectedSubscription || selectedMeal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
             <div className="p-6 border-b border-purple-100 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                  {isAdmin || isModerator ? 'Delete Subscription' : 'Cancel Request'}
+                  {selectedSubscription ? 'Delete Subscription' : 'Cancel Meal Request'}
                 </h3>
                 <button
-                  onClick={() => {
-                    setShowDeleteModal(false);
-                    setSelectedRequest(null);
-                  }}
+                  onClick={() => setShowDeleteModal(false)}
                   className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
                   <X className="text-gray-400" size={20} />
                 </button>
               </div>
             </div>
-
+            
             <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-to-r from-red-100 to-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Trash2 className="text-red-600" size={32} />
-                </div>
-                <h4 className="font-bold text-gray-900 dark:text-white mb-2">
-                  {isAdmin || isModerator 
-                    ? `Delete subscription for ${selectedRequest.userInfo?.firstName}?`
-                    : 'Cancel your meal request?'}
-                </h4>
-                <p className="text-gray-600 dark:text-gray-400">
-                  {isAdmin || isModerator
-                    ? `This will permanently delete the meal subscription`
-                    : `This will cancel your ${selectedRequest.preference} meal request`}
-                </p>
-                {(selectedRequest.status === 'active' || selectedRequest.status === 'approved') && (
-                  <p className="text-sm text-red-600 mt-2">
-                    Warning: This is currently active!
-                  </p>
-                )}
-              </div>
-
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                {selectedSubscription 
+                  ? `Are you sure you want to delete subscription for ${selectedSubscription.userInfo?.firstName} ${selectedSubscription.userInfo?.lastName}?`
+                  : `Are you sure you want to cancel meal request for ${formatDate(selectedMeal?.date)}?`
+                }
+              </p>
+              
               <div className="flex gap-3">
                 <button
-                  onClick={() => {
-                    setShowDeleteModal(false);
-                    setSelectedRequest(null);
-                  }}
+                  onClick={() => setShowDeleteModal(false)}
                   className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={isAdmin || isModerator ? handleAdminDeleteMealRequest : handleDeleteMyMealRequest}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all font-medium"
+                  onClick={selectedSubscription ? handleDeleteSubscription : handleCancelMealRequest}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium"
                 >
-                  {isAdmin || isModerator ? 'Yes, Delete' : 'Yes, Cancel'}
+                  {selectedSubscription ? 'Delete' : 'Cancel'}
                 </button>
               </div>
             </div>
