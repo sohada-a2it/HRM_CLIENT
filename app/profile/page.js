@@ -41,7 +41,9 @@ import {
   MoreVertical,
   Bell,
   AlertTriangle,
-  Settings
+  Settings,
+  ChevronLeft,
+  ChevronRight as ChevronRightIcon
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -65,6 +67,11 @@ export default function ProfilePage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Pagination for sessions
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sessionsPerPage] = useState(10);
+  
   const fileInputRef = useRef(null);
   const router = useRouter();
 
@@ -340,7 +347,7 @@ export default function ProfilePage() {
     fetchUserSessions();
   }, []);
 
-  // Handle file selection
+  // Handle file selection with improved preview
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -365,29 +372,46 @@ export default function ProfilePage() {
     reader.onload = (e) => {
       const previewUrl = e.target.result;
       
-      // Update state for immediate preview
-      setUser(prev => ({
-        ...prev,
-        picture: previewUrl
-      }));
-      
-      // Update profile form
-      setProfileForm(prev => ({
-        ...prev,
-        picture: previewUrl
-      }));
-      
-      // Save to localStorage for persistence
-      const userType = getUserType();
-      const localUserKey = `${userType}UserData`;
-      const existingData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
-      localStorage.setItem(localUserKey, JSON.stringify({
-        ...existingData,
-        picture: previewUrl,
-        isPreview: true
-      }));
-      
-      toast.success('Preview updated! Click "Upload Photo" to save.');
+      // Create blurred preview
+      const img = new Image();
+      img.src = previewUrl;
+      img.onload = () => {
+        // Create a canvas for blur effect
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Apply blur effect 
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        const blurredUrl = canvas.toDataURL('image/jpeg', 0.7);
+        
+        // Update state with blurred preview
+        setUser(prev => ({
+          ...prev,
+          picture: previewUrl,
+          previewPicture: previewUrl // Store original for upload
+        }));
+        
+        setProfileForm(prev => ({
+          ...prev,
+          picture: previewUrl
+        }));
+        
+        // Save to localStorage for persistence
+        const userType = getUserType();
+        const localUserKey = `${userType}UserData`;
+        const existingData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
+        localStorage.setItem(localUserKey, JSON.stringify({
+          ...existingData,
+          picture: previewUrl,
+          previewPicture: previewUrl,
+          isPreview: true
+        }));
+        
+        toast.success('Preview updated! Click "Upload Photo" to save.');
+      };
     };
     
     reader.onerror = () => {
@@ -451,33 +475,48 @@ export default function ProfilePage() {
       
       if (data.success) {
         // Immediately update state with new picture
-        const pictureUrl = data.pictureUrl;
+        const pictureUrl = data.pictureUrl
         
-        setUser(prev => ({
-          ...prev,
-          picture: pictureUrl
-        }));
+        // Apply blur effect to uploaded image
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = pictureUrl + '?t=' + new Date().getTime(); // Cache busting
+        
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height; 
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const blurredUrl = canvas.toDataURL('image/jpeg', 0.7);
+          
+          setUser(prev => ({
+            ...prev,
+            picture: pictureUrl,
+            serverPicture: pictureUrl
+          }));
 
-        setProfileForm(prev => ({
-          ...prev,
-          picture: pictureUrl
-        }));
-        
-        // Also save to localStorage as backup
-        const userType = getUserType();
-        const localUserKey = `${userType}UserData`;
-        const existingData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
-        localStorage.setItem(localUserKey, JSON.stringify({
-          ...existingData,
-          picture: pictureUrl,
-          serverPicture: pictureUrl,
-          lastUpdated: new Date().toISOString(),
-          isPreview: false
-        }));
+          setProfileForm(prev => ({
+            ...prev,
+            picture: pictureUrl
+          }));
+          
+          // Save to localStorage as backup
+          const userType = getUserType();
+          const localUserKey = `${userType}UserData`;
+          const existingData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
+          localStorage.setItem(localUserKey, JSON.stringify({
+            ...existingData,
+            picture: pictureUrl,
+            serverPicture: pictureUrl,
+            lastUpdated: new Date().toISOString(),
+            isPreview: false
+          }));
+        };
         
         toast.success(data.message || 'Profile picture uploaded successfully!');
         
-        // Delay refresh to ensure update
+        // Refresh profile data after upload
         setTimeout(() => {
           fetchUserProfile();
         }, 500);
@@ -493,30 +532,37 @@ export default function ProfilePage() {
       reader.onload = (e) => {
         const localUrl = e.target.result;
         
-        // Update state
-        setUser(prev => ({
-          ...prev,
-          picture: localUrl
-        }));
+        // Create blurred version
+        const img = new Image();
+        img.src = localUrl;
+        img.onload = () => {
+          const localUrl = e.target.result;
+          
+          setUser(prev => ({
+            ...prev,
+            picture: localUrl
+          }));
 
-        setProfileForm(prev => ({
-          ...prev,
-          picture: localUrl
-        }));
-        
-        // Save to localStorage
-        const userType = getUserType();
-        const localUserKey = `${userType}UserData`;
-        const existingData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
-        localStorage.setItem(localUserKey, JSON.stringify({
-          ...existingData,
-          picture: localUrl,
-          isLocal: true,
-          lastUpdated: new Date().toISOString(),
-          isPreview: false
-        }));
-        
-        toast.success('Profile picture saved locally (server unavailable)');
+          setProfileForm(prev => ({
+            ...prev,
+            picture: localUrl
+          }));
+          
+          // Save to localStorage
+          const userType = getUserType();
+          const localUserKey = `${userType}UserData`;
+          const existingData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
+          localStorage.setItem(localUserKey, JSON.stringify({
+            ...existingData,
+            picture: localUrl,
+            previewPicture: localUrl,
+            isLocal: true,
+            lastUpdated: new Date().toISOString(),
+            isPreview: false
+          }));
+          
+          toast.success('Profile picture saved locally (server unavailable)');
+        };
       };
       reader.readAsDataURL(selectedFile);
       
@@ -589,7 +635,9 @@ export default function ProfilePage() {
         // Update local user state
         setUser(prev => ({
           ...prev,
-          picture: null
+          picture: null,
+          previewPicture: null,
+          serverPicture: null
         }));
 
         setProfileForm(prev => ({
@@ -601,10 +649,10 @@ export default function ProfilePage() {
         const userType = getUserType();
         const localUserKey = `${userType}UserData`;
         const existingData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
-        const { picture, serverPicture, isLocal, isPreview, ...restData } = existingData;
+        const { picture, previewPicture, serverPicture, isLocal, isPreview, ...restData } = existingData;
         localStorage.setItem(localUserKey, JSON.stringify(restData));
         
-        toast.success(data.message || 'Profile picture removed successfully from Cloudinary!');
+        toast.success('Profile picture removed successfully!');
         
         // Refresh profile data
         setTimeout(() => {
@@ -622,7 +670,9 @@ export default function ProfilePage() {
         // Still update UI to remove any local references
         setUser(prev => ({
           ...prev,
-          picture: null
+          picture: null,
+          previewPicture: null,
+          serverPicture: null
         }));
 
         setProfileForm(prev => ({
@@ -634,7 +684,7 @@ export default function ProfilePage() {
         const userType = getUserType();
         const localUserKey = `${userType}UserData`;
         const existingData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
-        const { picture, serverPicture, isLocal, isPreview, ...restData } = existingData;
+        const { picture, previewPicture, serverPicture, isLocal, isPreview, ...restData } = existingData;
         localStorage.setItem(localUserKey, JSON.stringify(restData));
       } else {
         toast.error(error.message || 'Failed to remove profile picture');
@@ -662,7 +712,32 @@ export default function ProfilePage() {
     const localData = JSON.parse(localStorage.getItem(localUserKey) || '{}');
     
     // Better picture restoration logic
-    if (localData.picture && !localData.isPreview) {
+    if (localData.serverPicture) {
+      // Restore from server picture
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = localData.serverPicture + '?t=' + new Date().getTime();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height; 
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blurredUrl = canvas.toDataURL('image/jpeg', 0.7);
+        
+        setUser(prev => ({
+          ...prev,
+          picture: blurredUrl,
+          serverPicture: localData.serverPicture
+        }));
+
+        setProfileForm(prev => ({
+          ...prev,
+          picture: localData.serverPicture
+        }));
+      };
+    } else if (localData.picture && !localData.isPreview) {
+      // Restore local picture with blur
       setUser(prev => ({
         ...prev,
         picture: localData.picture
@@ -670,10 +745,27 @@ export default function ProfilePage() {
 
       setProfileForm(prev => ({
         ...prev,
-        picture: localData.picture
+        picture: localData.previewPicture || localData.picture
       }));
-    } else if (user?.picture && !user.picture.includes('data:') && !user.picture.includes('preview')) {
+    } else if (user?.serverPicture) {
       // Keep server picture if exists
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = user.serverPicture + '?t=' + new Date().getTime();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.filter = 'blur(10px) brightness(0.9)';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blurredUrl = canvas.toDataURL('image/jpeg', 0.7);
+        
+        setUser(prev => ({
+          ...prev,
+          picture: blurredUrl
+        }));
+      };
     } else {
       setUser(prev => ({
         ...prev,
@@ -687,183 +779,177 @@ export default function ProfilePage() {
     }
   };
 
-  // Fixed Profile Update Function
-const handleUpdateProfile = async () => {
-  // Prevent multiple clicks
-  if (updating) return;
-  
-  setUpdating(true);
-  
-  console.log("=== PROFILE UPDATE START ===");
-  console.log("User Role:", user?.role);
-  console.log("Profile Form Data to Update:", profileForm);
-  
-  try {
-    const token = getCurrentToken();
+  // Fixed Profile Update Function with success message fix
+  const handleUpdateProfile = async () => {
+    // Prevent multiple clicks
+    if (updating) return;
     
-    if (!token) {
-      toast.error("No authentication token found. Please login again.");
-      localStorage.clear();
-      router.push("/");
-      return;
-    }
-
-    // Use correct endpoint based on user role
-    let endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/updateProfile`;
+    setUpdating(true);
     
-    console.log("API Endpoint:", endpoint);
-    console.log("Token exists:", !!token);
-
-    // Basic validation
-    if (!profileForm.firstName?.trim()) {
-      toast.error("First name is required");
-      setUpdating(false);
-      return;
-    }
-
-    if (!profileForm.lastName?.trim()) {
-      toast.error("Last name is required");
-      setUpdating(false);
-      return;
-    }
-
-    // Prepare update data
-    const updateData = {
-      // Personal Information
-      firstName: profileForm.firstName.trim(),
-      lastName: profileForm.lastName.trim(),
-      phone: profileForm.phone?.trim() || "",
-      address: profileForm.address?.trim() || "",
+    console.log("=== PROFILE UPDATE START ===");
+    console.log("User Role:", user?.role);
+    console.log("Profile Form Data to Update:", profileForm);
+    
+    try {
+      const token = getCurrentToken();
       
-      // Professional Information
-      department: profileForm.department?.trim() || "",
-      designation: profileForm.designation?.trim() || "",
-      employeeId: profileForm.employeeId?.trim() || "",
-      joiningDate: profileForm.joiningDate || "",
-      
-      // Work Information
-      workLocationType: profileForm.workLocationType || "onsite",
-      workArrangement: profileForm.workArrangement || "full-time",
-      contractType: profileForm.contractType || "",
-      
-      // Salary Information
-      salaryType: profileForm.salaryType || "",
-      rate: profileForm.rate ? parseFloat(profileForm.rate) : 0,
-      basicSalary: profileForm.basicSalary ? parseFloat(profileForm.basicSalary) : 0,
-      salary: profileForm.basicSalary ? parseFloat(profileForm.basicSalary) : 0,
-      
-      // Profile Picture
-      picture: profileForm.picture || "",
-      
-      // Status
-      status: user?.status || 'active',
-      isActive: user?.isActive !== undefined ? user.isActive : true
-    };
+      if (!token) {
+        toast.error("No authentication token found. Please login again.");
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
 
-    // Add role-specific fields based on user's role
-    if (user?.role === "admin" || user?.role === "superAdmin") {
-      updateData.companyName = profileForm.companyName?.trim() || "";
-      updateData.adminPosition = profileForm.adminPosition?.trim() || "";
-      updateData.adminLevel = profileForm.adminLevel || "";
-      updateData.permissions = profileForm.permissions || [];
-      updateData.isSuperAdmin = profileForm.isSuperAdmin || false;
-      updateData.canManageUsers = profileForm.canManageUsers !== undefined ? profileForm.canManageUsers : false;
-      updateData.canManagePayroll = profileForm.canManagePayroll !== undefined ? profileForm.canManagePayroll : false;
-    }
+      // Use correct endpoint based on user role
+      let endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/updateProfile`;
+      
+      console.log("API Endpoint:", endpoint);
+      console.log("Token exists:", !!token);
 
-    if (user?.role === "moderator") {
-      updateData.moderatorLevel = profileForm.moderatorLevel || "";
-      updateData.moderatorScope = profileForm.moderatorScope || [];
-      updateData.canModerateUsers = profileForm.canModerateUsers !== undefined ? profileForm.canModerateUsers : false;
-      updateData.canModerateContent = profileForm.canModerateContent !== undefined ? profileForm.canModerateContent : true;
-      updateData.canViewReports = profileForm.canViewReports !== undefined ? profileForm.canViewReports : true;
-      updateData.canManageReports = profileForm.canManageReports !== undefined ? profileForm.canManageReports : false;
-      updateData.moderationLimits = profileForm.moderationLimits || {
-        dailyActions: 50,
-        warningLimit: 3,
-        canBanUsers: false,
-        canDeleteContent: true,
-        canEditContent: true,
-        canWarnUsers: true
+      // Basic validation
+      if (!profileForm.firstName?.trim()) {
+        toast.error("First name is required");
+        setUpdating(false);
+        return;
+      }
+
+      if (!profileForm.lastName?.trim()) {
+        toast.error("Last name is required");
+        setUpdating(false);
+        return;
+      }
+
+      // Prepare update data
+      const updateData = {
+        // Personal Information
+        firstName: profileForm.firstName.trim(),
+        lastName: profileForm.lastName.trim(),
+        phone: profileForm.phone?.trim() || "",
+        address: profileForm.address?.trim() || "",
+        
+        // Professional Information
+        department: profileForm.department?.trim() || "",
+        designation: profileForm.designation?.trim() || "",
+        employeeId: profileForm.employeeId?.trim() || "",
+        joiningDate: profileForm.joiningDate || "",
+        
+        // Work Information
+        workLocationType: profileForm.workLocationType || "onsite",
+        workArrangement: profileForm.workArrangement || "full-time",
+        contractType: profileForm.contractType || "",
+        
+        // Salary Information
+        salaryType: profileForm.salaryType || "",
+        dailyRate: profileForm.rate ? parseFloat(profileForm.rate) / 23 : 0,
+        basicSalary: profileForm.basicSalary ? parseFloat(profileForm.basicSalary) : 0,
+        salary: profileForm.basicSalary ? parseFloat(profileForm.basicSalary) : 0,
+        
+        // Profile Picture
+        picture: profileForm.picture || "",
+        
+        // Status
+        status: user?.status || 'active',
+        isActive: user?.isActive !== undefined ? user.isActive : true
       };
-      updateData.permissions = profileForm.permissions || [];
-    }
 
-    if (user?.role === "employee") {
-      // FIX: Only send managerId if it's a valid ObjectId or has value
-      if (profileForm.managerId && profileForm.managerId.trim() !== "") {
-        updateData.managerId = profileForm.managerId.trim();
+      // Add role-specific fields based on user's role
+      if (user?.role === "admin" || user?.role === "superAdmin") {
+        updateData.companyName = profileForm.companyName?.trim() || "";
+        updateData.adminPosition = profileForm.adminPosition?.trim() || "";
+        updateData.adminLevel = profileForm.adminLevel || "";
+        updateData.permissions = profileForm.permissions || [];
+        updateData.isSuperAdmin = profileForm.isSuperAdmin || false;
+        updateData.canManageUsers = profileForm.canManageUsers !== undefined ? profileForm.canManageUsers : false;
+        updateData.canManagePayroll = profileForm.canManagePayroll !== undefined ? profileForm.canManagePayroll : false;
       }
-      
-      // FIX: Only send attendanceId if it has value
-      if (profileForm.attendanceId && profileForm.attendanceId.trim() !== "") {
-        updateData.attendanceId = profileForm.attendanceId.trim();
-      }
-      
-      // Send shiftTiming only if it exists
-      if (profileForm.shiftTiming) {
-        updateData.shiftTiming = profileForm.shiftTiming;
-      }
-    }
 
-    // Bank Details (if provided)
-    if (profileForm.bankDetails && 
-        (profileForm.bankDetails.bankName || profileForm.bankDetails.accountNumber)) {
-      updateData.bankDetails = {
-        bankName: profileForm.bankDetails.bankName?.trim() || "",
-        accountNumber: profileForm.bankDetails.accountNumber?.toString() || "",
-        accountHolderName: profileForm.bankDetails.accountHolderName?.trim() || "",
-        branchName: profileForm.bankDetails.branchName?.trim() || "",
-        routingNumber: profileForm.bankDetails.routingNumber?.toString() || "",
-        accountType: profileForm.bankDetails.accountType || "savings",
-        swiftCode: profileForm.bankDetails.swiftCode || ""
-      };
-    }
+      if (user?.role === "moderator") {
+        updateData.moderatorLevel = profileForm.moderatorLevel || "";
+        updateData.moderatorScope = profileForm.moderatorScope || [];
+        updateData.canModerateUsers = profileForm.canModerateUsers !== undefined ? profileForm.canModerateUsers : false;
+        updateData.canModerateContent = profileForm.canModerateContent !== undefined ? profileForm.canModerateContent : true;
+        updateData.canViewReports = profileForm.canViewReports !== undefined ? profileForm.canViewReports : true;
+        updateData.canManageReports = profileForm.canManageReports !== undefined ? profileForm.canManageReports : false;
+        updateData.moderationLimits = profileForm.moderationLimits || {
+          dailyActions: 50,
+          warningLimit: 3,
+          canBanUsers: false,
+          canDeleteContent: true,
+          canEditContent: true,
+          canWarnUsers: true
+        };
+        updateData.permissions = profileForm.permissions || [];
+      }
 
-    // Clean up undefined/null/empty string values
-    const cleanUpdateData = Object.keys(updateData).reduce((acc, key) => {
-      const value = updateData[key];
-      
-      // Skip empty strings, null, undefined
-      if (value !== undefined && value !== null && value !== "") {
-        // For nested objects, check if they have any properties
-        if (typeof value === 'object' && !Array.isArray(value)) {
-          const hasProperties = Object.keys(value).some(k => 
-            value[k] !== undefined && value[k] !== null && value[k] !== ""
-          );
-          if (hasProperties) {
-            acc[key] = value;
-          }
-        } else if (Array.isArray(value)) {
-          // Keep empty arrays
-          acc[key] = value;
-        } else {
-          acc[key] = value;
+      if (user?.role === "employee") {
+        if (profileForm.managerId && profileForm.managerId.trim() !== "") {
+          updateData.managerId = profileForm.managerId.trim();
+        }
+        
+        if (profileForm.attendanceId && profileForm.attendanceId.trim() !== "") {
+          updateData.attendanceId = profileForm.attendanceId.trim();
+        }
+        
+        if (profileForm.shiftTiming) {
+          updateData.shiftTiming = profileForm.shiftTiming;
         }
       }
-      return acc;
-    }, {});
 
-    console.log("📤 Sending Update Data:", cleanUpdateData);
+      // Bank Details (if provided)
+      if (profileForm.bankDetails && 
+          (profileForm.bankDetails.bankName || profileForm.bankDetails.accountNumber)) {
+        updateData.bankDetails = {
+          bankName: profileForm.bankDetails.bankName?.trim() || "",
+          accountNumber: profileForm.bankDetails.accountNumber?.toString() || "",
+          accountHolderName: profileForm.bankDetails.accountHolderName?.trim() || "",
+          branchName: profileForm.bankDetails.branchName?.trim() || "",
+          routingNumber: profileForm.bankDetails.routingNumber?.toString() || "",
+          accountType: profileForm.bankDetails.accountType || "savings",
+          swiftCode: profileForm.bankDetails.swiftCode || ""
+        };
+      }
 
-    // Send request to server
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify(cleanUpdateData)
-    });
+      // Clean up undefined/null/empty string values
+      const cleanUpdateData = Object.keys(updateData).reduce((acc, key) => {
+        const value = updateData[key];
+        
+        if (value !== undefined && value !== null && value !== "") {
+          if (typeof value === 'object' && !Array.isArray(value)) {
+            const hasProperties = Object.keys(value).some(k => 
+              value[k] !== undefined && value[k] !== null && value[k] !== ""
+            );
+            if (hasProperties) {
+              acc[key] = value;
+            }
+          } else if (Array.isArray(value)) {
+            acc[key] = value;
+          } else {
+            acc[key] = value;
+          }
+        }
+        return acc;
+      }, {});
 
-    console.log("📥 Response Status:", response.status);
+      console.log("📤 Sending Update Data:", cleanUpdateData);
 
-    const result = await response.json();
-    console.log("📥 Response Data:", result);
+      // Send request to server
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(cleanUpdateData)
+      });
 
-    if (response.ok) {
-      if (result.success || result.user) {
-        toast.success(result.message || "Profile updated successfully!");
+      console.log("📥 Response Status:", response.status);
+
+      const result = await response.json();
+      console.log("📥 Response Data:", result);
+
+      if (response.ok) {
+        // Show success message for any successful update
+        toast.success("Profile updated successfully!");
         
         // Update local user state with new data
         if (result.user) {
@@ -883,44 +969,40 @@ const handleUpdateProfile = async () => {
         }, 1000);
         
       } else {
-        toast.error(result.message || "Failed to update profile");
-      }
-    } else {
-      // Handle specific error cases
-      if (response.status === 401) {
-        toast.error("Session expired. Please login again.");
-        localStorage.clear();
-        router.push("/");
-      } else if (response.status === 400) {
-        // Show specific validation error from server
-        if (result.message && result.message.includes('Validation failed')) {
-          const validationError = result.message.split(': ')[1] || result.message;
-          toast.error(`Validation Error: ${validationError}`);
+        // Handle specific error cases
+        if (response.status === 401) {
+          toast.error("Session expired. Please login again.");
+          localStorage.clear();
+          router.push("/");
+        } else if (response.status === 400) {
+          if (result.message && result.message.includes('Validation failed')) {
+            const validationError = result.message.split(': ')[1] || result.message;
+            toast.error(`Validation Error: ${validationError}`);
+          } else {
+            toast.error(result.message || "Invalid data. Please check your inputs.");
+          }
+        } else if (response.status === 403) {
+          toast.error("You don't have permission to update this profile.");
         } else {
-          toast.error(result.message || "Invalid data. Please check your inputs.");
+          toast.error(result.message || `Update failed (Status: ${response.status})`);
         }
-      } else if (response.status === 403) {
-        toast.error("You don't have permission to update this profile.");
-      } else {
-        toast.error(result.message || `Update failed (Status: ${response.status})`);
       }
+      
+    } catch (error) {
+      console.error("❌ Profile update error:", error);
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        toast.error("Network error. Please check your connection and try again.");
+      } else if (error.name === 'SyntaxError') {
+        toast.error("Server response error. Please try again.");
+      } else {
+        toast.error(error.message || "An unexpected error occurred.");
+      }
+    } finally {
+      setUpdating(false);
+      console.log("=== PROFILE UPDATE END ===");
     }
-    
-  } catch (error) {
-    console.error("❌ Profile update error:", error);
-    
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      toast.error("Network error. Please check your connection and try again.");
-    } else if (error.name === 'SyntaxError') {
-      toast.error("Server response error. Please try again.");
-    } else {
-      toast.error(error.message || "An unexpected error occurred.");
-    }
-  } finally {
-    setUpdating(false);
-    console.log("=== PROFILE UPDATE END ===");
-  }
-};
+  };
 
   // Change password
   const handleChangePassword = async () => {
@@ -951,8 +1033,9 @@ const handleUpdateProfile = async () => {
         })
       });
 
+      const data = await response.json();
+      
       if (response.ok) {
-        const data = await response.json();
         if (data.success) {
           toast.success("Password changed successfully!");
           setPasswordForm({
@@ -964,7 +1047,6 @@ const handleUpdateProfile = async () => {
           toast.error(data.message || "Failed to change password");
         }
       } else {
-        const data = await response.json();
         toast.error(data.message || "Failed to change password");
       }
     } catch (error) {
@@ -1091,10 +1173,8 @@ const handleUpdateProfile = async () => {
         if (data.success) {
           toast.success(`User "${userToDelete.email}" deleted successfully!`);
           
-          // Remove from search results if exists
           setSearchResults(prev => prev.filter(u => u._id !== userToDelete._id));
           
-          // Close modal
           setShowDeleteModal(false);
           setUserToDelete(null);
         } else {
@@ -1113,13 +1193,11 @@ const handleUpdateProfile = async () => {
 
   // Open delete confirmation modal
   const openDeleteModal = (userData) => {
-    // Prevent self-deletion
     if (userData._id === user?._id) {
       toast.error("You cannot delete your own account");
       return;
     }
 
-    // Prevent deleting super admin if not super admin
     if ((userData.isSuperAdmin || userData.adminLevel === 'super') && 
         (!user?.isSuperAdmin && user?.adminLevel !== 'super')) {
       toast.error("Cannot delete super admin without super admin privileges");
@@ -1130,6 +1208,7 @@ const handleUpdateProfile = async () => {
     setShowDeleteModal(true);
   };
 
+  // Format date
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     try {
@@ -1143,6 +1222,7 @@ const handleUpdateProfile = async () => {
     }
   };
 
+  // Format currency
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return "N/A";
     return new Intl.NumberFormat('en-US', {
@@ -1201,10 +1281,36 @@ const handleUpdateProfile = async () => {
     return `${arrangement} • ${location}`;
   };
 
+  // Pagination calculations for sessions
+  const indexOfLastSession = currentPage * sessionsPerPage;
+  const indexOfFirstSession = indexOfLastSession - sessionsPerPage;
+  const currentSessions = sessions.slice(indexOfFirstSession, indexOfLastSession);
+  const totalPages = Math.ceil(sessions.length / sessionsPerPage);
+
+  // Pagination handlers
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handlePageClick = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50/30">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading profile...</p>
+        </div>
       </div>
     );
   }
@@ -1214,22 +1320,13 @@ const handleUpdateProfile = async () => {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Profile</h1>
               <p className="text-gray-600 mt-2">Manage your personal information and security</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => router.push("/dashboard")}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <ChevronRight className="rotate-180" size={18} />
-                Back to Dashboard
-              </button>
-            </div>
+            </div> 
           </div>
-        </div> 
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Profile Card */}
@@ -1240,7 +1337,7 @@ const handleUpdateProfile = async () => {
                 <div className="flex flex-col items-center relative">
                   {/* Profile Picture Container */}
                   <div className="relative group mb-4">
-                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-white shadow-xl overflow-hidden">
+                    <div className="w-24 h-24 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border-4 border-white/30 shadow-xl overflow-hidden">
                       {hasValidPicture() ? (
                         <img
                           src={user.picture}
@@ -1250,14 +1347,14 @@ const handleUpdateProfile = async () => {
                             e.target.onerror = null;
                             e.target.style.display = 'none';
                             e.target.parentElement.innerHTML = `
-                              <div class="w-full h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                              <div class="w-full h-full bg-gradient-to-r from-purple-500/90 to-pink-500/90 backdrop-blur-sm rounded-full flex items-center justify-center">
                                 <span class="text-white text-2xl font-bold">${getUserInitials()}</span>
                               </div>
                             `;
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                        <div className="w-full h-full bg-gradient-to-r from-purple-500/90 to-pink-500/90 backdrop-blur-sm rounded-full flex items-center justify-center">
                           <span className="text-white text-2xl font-bold">
                             {getUserInitials()}
                           </span>
@@ -1267,11 +1364,11 @@ const handleUpdateProfile = async () => {
                     
                     {/* Upload Overlay - Show only when in edit mode */}
                     {editMode && (
-                      <div className="absolute inset-0 rounded-full bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                      <div className="absolute inset-0 rounded-full bg-black/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
                         <button
                           onClick={triggerFileInput}
                           disabled={uploading}
-                          className="bg-white p-2 rounded-full hover:bg-gray-100 transition-colors"
+                          className="bg-white/90 p-2.5 rounded-full hover:bg-white transition-all duration-200 hover:scale-110"
                           title="Change photo"
                         >
                           <Camera className="text-gray-700" size={20} />
@@ -1281,7 +1378,7 @@ const handleUpdateProfile = async () => {
                           <button
                             onClick={handleDeleteProfilePicture}
                             disabled={uploading}
-                            className="absolute top-0 right-0 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors"
+                            className="absolute top-0 right-0 bg-red-500/90 text-white p-1.5 rounded-full hover:bg-red-600 transition-all duration-200 hover:scale-110"
                             title="Remove photo"
                           >
                             <Trash2 size={14} />
@@ -1292,10 +1389,10 @@ const handleUpdateProfile = async () => {
                     
                     {/* Upload Progress */}
                     {uploading && (
-                      <div className="absolute inset-0 rounded-full bg-black bg-opacity-70 flex items-center justify-center">
+                      <div className="absolute inset-0 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center">
                         <div className="text-white text-center">
                           <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                          <p className="text-xs">{uploadProgress}%</p>
+                          <p className="text-xs font-medium">{uploadProgress}%</p>
                         </div>
                       </div>
                     )}
@@ -1313,9 +1410,9 @@ const handleUpdateProfile = async () => {
                   <h2 className="text-xl font-bold text-white text-center">
                     {user?.firstName || user?.name?.split(' ')[0] || user?.email?.split('@')[0]} {user?.lastName || user?.name?.split(' ').slice(1).join(' ') || ''}
                   </h2>
-                  <p className="text-purple-100 mt-1 text-center">{user?.email}</p>
+                  <p className="text-purple-100/90 mt-1 text-center">{user?.email}</p>
                   <div className="mt-3">
-                    <span className={`px-3 py-1 text-white rounded-full text-sm font-medium bg-gradient-to-r ${getRoleBadgeColor()}`}>
+                    <span className={`px-3 py-1 text-white rounded-full text-sm font-medium bg-gradient-to-r ${getRoleBadgeColor()} backdrop-blur-sm`}>
                       {getRoleDisplayText()}
                     </span>
                   </div>
@@ -1326,7 +1423,7 @@ const handleUpdateProfile = async () => {
                       <button
                         onClick={triggerFileInput}
                         disabled={uploading}
-                        className="w-full px-4 py-2 bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        className="w-full px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition-all duration-200 backdrop-blur-sm flex items-center justify-center gap-2"
                       >
                         <Camera size={14} />
                         {uploading ? 'Uploading...' : selectedFile ? 'Change Selection' : 'Upload Photo'}
@@ -1337,7 +1434,7 @@ const handleUpdateProfile = async () => {
                           <button
                             onClick={() => setShowUploadConfirm(true)}
                             disabled={uploading}
-                            className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            className="flex-1 px-4 py-2 bg-green-600/90 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 backdrop-blur-sm flex items-center justify-center gap-2"
                           >
                             {uploading ? (
                               <>
@@ -1354,7 +1451,7 @@ const handleUpdateProfile = async () => {
                           <button
                             onClick={cancelFileSelection}
                             disabled={uploading}
-                            className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            className="flex-1 px-4 py-2 bg-red-600/90 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 backdrop-blur-sm flex items-center justify-center gap-2"
                           >
                             <X size={14} />
                             Cancel
@@ -1369,9 +1466,9 @@ const handleUpdateProfile = async () => {
               {/* Profile Stats */}
               <div className="p-6">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-xl border border-gray-100">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 bg-purple-100/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                         <ShieldCheck className="text-purple-600" size={20} />
                       </div>
                       <div>
@@ -1385,9 +1482,9 @@ const handleUpdateProfile = async () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-xl border border-gray-100">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 bg-blue-100/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                         <Briefcase className="text-blue-600" size={20} />
                       </div>
                       <div>
@@ -1399,9 +1496,9 @@ const handleUpdateProfile = async () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-xl border border-gray-100">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 bg-green-100/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                         <Building className="text-green-600" size={20} />
                       </div>
                       <div>
@@ -1414,9 +1511,9 @@ const handleUpdateProfile = async () => {
                   </div>
 
                   {/* Work Type Info */}
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-xl border border-gray-100">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 bg-cyan-100/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                         <Briefcase className="text-cyan-600" size={20} />
                       </div>
                       <div>
@@ -1430,9 +1527,9 @@ const handleUpdateProfile = async () => {
 
                   {/* Role-specific additional info */}
                   {isAdmin() && user?.adminLevel && (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-xl border border-gray-100">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 bg-indigo-100/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                           <ShieldCheck className="text-indigo-600" size={20} />
                         </div>
                         <div>
@@ -1446,9 +1543,9 @@ const handleUpdateProfile = async () => {
                   )}
 
                   {isModerator() && user?.moderatorLevel && (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-xl border border-gray-100">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 bg-orange-100/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                           <ShieldCheck className="text-orange-600" size={20} />
                         </div>
                         <div>
@@ -1465,64 +1562,20 @@ const handleUpdateProfile = async () => {
                 {/* Quick Actions */}
                 <div className="mt-6 space-y-3">
                   <button
-                    onClick={() => setActiveTab("personal")}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <User className="text-gray-600" size={20} />
-                      <span className="font-medium text-gray-700">Personal Info</span>
-                    </div>
-                    <ChevronRight className="text-gray-400" size={16} />
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab("bank")}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <CreditCard className="text-gray-600" size={20} />
-                      <span className="font-medium text-gray-700">Bank Information</span>
-                    </div>
-                    <ChevronRight className="text-gray-400" size={16} />
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab("security")}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Shield className="text-gray-600" size={20} />
-                      <span className="font-medium text-gray-700">Security Settings</span>
-                    </div>
-                    <ChevronRight className="text-gray-400" size={16} />
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab("settings")}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Settings className="text-gray-600" size={20} />
-                      <span className="font-medium text-gray-700">Account Settings</span>
-                    </div>
-                    <ChevronRight className="text-gray-400" size={16} />
-                  </button>
-
-                  <button
                     onClick={() => setActiveTab("sessions")}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                    className="w-full flex items-center justify-between p-3 bg-gray-50/50 hover:bg-gray-100/50 backdrop-blur-sm rounded-xl transition-all duration-200 border border-gray-100"
                   >
                     <div className="flex items-center gap-3">
                       <History className="text-gray-600" size={20} />
                       <span className="font-medium text-gray-700">Session History</span>
                     </div>
-                    <span className="text-sm text-gray-500">{sessions.length}</span>
+                    <span className="text-sm text-gray-500 bg-white/50 px-2 py-1 rounded-full">{sessions.length}</span>
                   </button>
 
                   {isAdmin() && (
                     <button
-                      onClick={() => router.push("/admin/users")}
-                      className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+                      onClick={() => router.push("/user-roles")}
+                      className="w-full flex items-center justify-between p-3 bg-gray-50/50 hover:bg-gray-100/50 backdrop-blur-sm rounded-xl transition-all duration-200 border border-gray-100"
                     >
                       <div className="flex items-center gap-3">
                         <Users className="text-gray-600" size={20} />
@@ -1539,54 +1592,37 @@ const handleUpdateProfile = async () => {
           {/* Right Column - Content */}
           <div className="lg:col-span-2">
             {/* Tabs */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 mb-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 mb-6 overflow-hidden">
               <div className="flex border-b border-gray-200 overflow-x-auto">
                 <button
                   onClick={() => setActiveTab("personal")}
-                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-200 min-w-0 ${
                     activeTab === "personal"
-                      ? "text-purple-600 border-b-2 border-purple-600"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50/50"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-50/50"
                   }`}
                 >
                   Personal Info
                 </button>
-                <button
-                  onClick={() => setActiveTab("bank")}
-                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
-                    activeTab === "bank"
-                      ? "text-purple-600 border-b-2 border-purple-600"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  Bank Info
-                </button>
-                <button
-                  onClick={() => setActiveTab("security")}
-                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
-                    activeTab === "security"
-                      ? "text-purple-600 border-b-2 border-purple-600"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  Security
-                </button>
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
-                    activeTab === "settings"
-                      ? "text-purple-600 border-b-2 border-purple-600"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  Settings
-                </button>
+                {/* Hide Bank Info tab for Admin */}
+                {!isAdmin() && (
+                  <button
+                    onClick={() => setActiveTab("bank")}
+                    className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-200 min-w-0 ${
+                      activeTab === "bank"
+                        ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50/50"
+                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-50/50"
+                    }`}
+                  >
+                    Bank Info
+                  </button>
+                )}
                 <button
                   onClick={() => setActiveTab("sessions")}
-                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors min-w-0 ${
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-200 min-w-0 ${
                     activeTab === "sessions"
-                      ? "text-purple-600 border-b-2 border-purple-600"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50/50"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-50/50"
                   }`}
                 >
                   Sessions
@@ -1596,7 +1632,7 @@ const handleUpdateProfile = async () => {
               {/* Personal Info Tab */}
               {activeTab === "personal" && (
                 <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900">Personal Information</h3>
                       <p className="text-gray-600 mt-1">Update your personal details</p>
@@ -1604,7 +1640,7 @@ const handleUpdateProfile = async () => {
                     {!editMode ? (
                       <button
                         onClick={() => setEditMode(true)}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                        className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center gap-2"
                       >
                         <Edit size={16} />
                         Edit Profile
@@ -1616,7 +1652,7 @@ const handleUpdateProfile = async () => {
                             setEditMode(false);
                             fetchUserProfile();
                           }}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                          className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center gap-2"
                         >
                           <X size={16} />
                           Cancel
@@ -1624,7 +1660,7 @@ const handleUpdateProfile = async () => {
                         <button
                           onClick={handleUpdateProfile}
                           disabled={updating}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {updating ? (
                             <>
@@ -1646,10 +1682,10 @@ const handleUpdateProfile = async () => {
                   {!editMode ? (
                     <div className="space-y-6">
                       {/* Profile Picture View Card */}
-                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-100">
+                      {/* <div className="bg-gradient-to-r from-purple-50/80 to-pink-50/80 backdrop-blur-sm rounded-2xl p-6 border border-purple-100 shadow-sm">
                         <div className="flex items-center justify-between mb-6">
                           <h4 className="text-lg font-bold text-gray-900 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                               <ImageIcon className="text-purple-600" size={22} />
                             </div>
                             Profile Picture
@@ -1658,7 +1694,7 @@ const handleUpdateProfile = async () => {
                         
                         <div className="flex flex-col items-center">
                           <div className="relative mb-4">
-                            <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center border-4 border-white shadow-lg overflow-hidden">
+                            <div className="w-32 h-32 bg-white/60 backdrop-blur-sm rounded-full flex items-center justify-center border-4 border-white/50 shadow-lg overflow-hidden">
                               {hasValidPicture() ? (
                                 <img
                                   src={user.picture}
@@ -1668,14 +1704,14 @@ const handleUpdateProfile = async () => {
                                     e.target.onerror = null;
                                     e.target.style.display = 'none';
                                     e.target.parentElement.innerHTML = `
-                                      <div class="w-full h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                                      <div class="w-full h-full bg-gradient-to-r from-purple-500/90 to-pink-500/90 backdrop-blur-sm rounded-full flex items-center justify-center">
                                         <span class="text-white text-4xl font-bold">${getUserInitials()}</span>
                                       </div>
                                     `;
                                   }}
                                 />
                               ) : (
-                                <div className="w-full h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                                <div className="w-full h-full bg-gradient-to-r from-purple-500/90 to-pink-500/90 backdrop-blur-sm rounded-full flex items-center justify-center">
                                   <span className="text-white text-4xl font-bold">
                                     {getUserInitials()}
                                   </span>
@@ -1696,13 +1732,13 @@ const handleUpdateProfile = async () => {
                             </p>
                           </div>
                         </div>
-                      </div>
+                      </div> */}
 
                       {/* Basic Info Card */}
-                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-100">
+                      <div className="bg-gradient-to-r from-purple-50/80 to-pink-50/80 backdrop-blur-sm rounded-2xl p-6 border border-purple-100 shadow-sm">
                         <div className="flex items-center justify-between mb-6">
                           <h4 className="text-lg font-bold text-gray-900 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                               <User className="text-purple-600" size={22} />
                             </div>
                             Basic Information
@@ -1753,9 +1789,9 @@ const handleUpdateProfile = async () => {
                       </div>
 
                       {/* Work Information Card */}
-                      <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-2xl p-6 border border-cyan-100">
+                      <div className="bg-gradient-to-r from-cyan-50/80 to-blue-50/80 backdrop-blur-sm rounded-2xl p-6 border border-cyan-100 shadow-sm">
                         <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                          <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                             <Briefcase className="text-cyan-600" size={22} />
                           </div>
                           Work Information
@@ -1778,9 +1814,9 @@ const handleUpdateProfile = async () => {
 
                       {/* Admin Information Card */}
                       {isAdmin() && (
-                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">
+                        <div className="bg-gradient-to-r from-indigo-50/80 to-purple-50/80 backdrop-blur-sm rounded-2xl p-6 border border-indigo-100 shadow-sm">
                           <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                               <Shield className="text-indigo-600" size={22} />
                             </div>
                             Administrator Information
@@ -1812,11 +1848,11 @@ const handleUpdateProfile = async () => {
                             <div className="space-y-4">
                               <div>
                                 <p className="text-sm text-gray-500 mb-1">Admin Level</p>
-                                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                                  user?.adminLevel === 'super' ? 'bg-purple-50 text-purple-800' :
-                                  user?.adminLevel === 'admin' ? 'bg-blue-50 text-blue-800' :
-                                  user?.adminLevel === 'manager' ? 'bg-green-50 text-green-800' :
-                                  'bg-gray-50 text-gray-800'
+                                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl backdrop-blur-sm ${
+                                  user?.adminLevel === 'super' ? 'bg-purple-100/80 text-purple-800' :
+                                  user?.adminLevel === 'admin' ? 'bg-blue-100/80 text-blue-800' :
+                                  user?.adminLevel === 'manager' ? 'bg-green-100/80 text-green-800' :
+                                  'bg-gray-100/80 text-gray-800'
                                 }`}>
                                   <ShieldCheck className={
                                     user?.adminLevel === 'super' ? 'text-purple-600' :
@@ -1832,7 +1868,7 @@ const handleUpdateProfile = async () => {
                                 <p className="text-sm text-gray-500 mb-1">Permissions</p>
                                 <div className="flex flex-wrap gap-2">
                                   {user?.permissions?.map((perm, index) => (
-                                    <span key={index} className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full font-medium">
+                                    <span key={index} className="px-3 py-1 bg-indigo-100/80 backdrop-blur-sm text-indigo-800 text-xs rounded-full font-medium">
                                       {perm}
                                     </span>
                                   )) || (
@@ -1847,9 +1883,9 @@ const handleUpdateProfile = async () => {
 
                       {/* Moderator Information Card */}
                       {isModerator() && (
-                        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl p-6 border border-orange-100">
+                        <div className="bg-gradient-to-r from-orange-50/80 to-red-50/80 backdrop-blur-sm rounded-2xl p-6 border border-orange-100 shadow-sm">
                           <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                               <ShieldCheck className="text-orange-600" size={22} />
                             </div>
                             Moderator Information
@@ -1859,10 +1895,10 @@ const handleUpdateProfile = async () => {
                             <div className="space-y-4">
                               <div>
                                 <p className="text-sm text-gray-500 mb-1">Moderator Level</p>
-                                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                                  user?.moderatorLevel === 'senior' ? 'bg-red-50 text-red-800' :
-                                  user?.moderatorLevel === 'junior' ? 'bg-orange-50 text-orange-800' :
-                                  'bg-yellow-50 text-yellow-800'
+                                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl backdrop-blur-sm ${
+                                  user?.moderatorLevel === 'senior' ? 'bg-red-100/80 text-red-800' :
+                                  user?.moderatorLevel === 'junior' ? 'bg-orange-100/80 text-orange-800' :
+                                  'bg-yellow-100/80 text-yellow-800'
                                 }`}>
                                   <ShieldCheck className={
                                     user?.moderatorLevel === 'senior' ? 'text-red-600' :
@@ -1877,7 +1913,7 @@ const handleUpdateProfile = async () => {
                                 <p className="text-sm text-gray-500 mb-1">Moderation Scope</p>
                                 <div className="flex flex-wrap gap-2">
                                   {user?.moderatorScope?.map((scope, index) => (
-                                    <span key={index} className="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full font-medium">
+                                    <span key={index} className="px-3 py-1 bg-orange-100/80 backdrop-blur-sm text-orange-800 text-xs rounded-full font-medium">
                                       {scope}
                                     </span>
                                   )) || (
@@ -1892,7 +1928,7 @@ const handleUpdateProfile = async () => {
                                 <p className="text-sm text-gray-500 mb-1">Permissions</p>
                                 <div className="flex flex-wrap gap-2">
                                   {user?.permissions?.map((perm, index) => (
-                                    <span key={index} className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full font-medium">
+                                    <span key={index} className="px-3 py-1 bg-indigo-100/80 backdrop-blur-sm text-indigo-800 text-xs rounded-full font-medium">
                                       {perm}
                                     </span>
                                   )) || (
@@ -1915,9 +1951,9 @@ const handleUpdateProfile = async () => {
                       )}
 
                       {/* Professional Info Card */}
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
+                      <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm rounded-2xl p-6 border border-blue-100 shadow-sm">
                         <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                          <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                             <Briefcase className="text-blue-600" size={22} />
                           </div>
                           Professional Information
@@ -1964,9 +2000,9 @@ const handleUpdateProfile = async () => {
 
                       {/* Salary Info Card */}
                       {(isEmployee() || isModerator()) && user?.salaryType && (
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+                        <div className="bg-gradient-to-r from-green-50/80 to-emerald-50/80 backdrop-blur-sm rounded-2xl p-6 border border-green-100 shadow-sm">
                           <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                               <CreditCard className="text-green-600" size={22} />
                             </div>
                             Salary Information
@@ -1982,19 +2018,17 @@ const handleUpdateProfile = async () => {
                             </div>
                             
                             <div>
-                              <p className="text-sm text-gray-500 mb-1">Rate</p>
-                              <div className="flex items-center gap-2">
-                                <DollarSign className="text-gray-400" size={16} />
+                              <p className="text-sm text-gray-500 mb-1">Daily Rate</p>
+                              <div className="flex items-center gap-2"> 
                                 <p className="text-lg font-semibold text-gray-900">
-                                  ৳{formatCurrency(user?.rate)} {user?.salaryType ? `/${user.salaryType}` : ''}
+                                  ৳{Math.round(user.rate / 23).toLocaleString()}
                                 </p>
                               </div>
                             </div>
                             
                             <div>
                               <p className="text-sm text-gray-500 mb-1">Basic Salary</p>
-                              <div className="flex items-center gap-2">
-                                <DollarSign className="text-gray-400" size={16} />
+                              <div className="flex items-center gap-2"> 
                                 <p className="text-lg font-semibold text-gray-900">
                                   ৳{formatCurrency(user?.basicSalary || user?.salary)}
                                 </p>
@@ -2004,11 +2038,11 @@ const handleUpdateProfile = async () => {
                         </div>
                       )}
 
-                      {/* Bank Details Card */}
-                      {(isEmployee() || isModerator()) && user?.bankDetails?.bankName && (
-                        <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 border border-emerald-100">
+                      {/* Bank Details Card - Only for non-admin users */}
+                      {!isAdmin() && (isEmployee() || isModerator()) && user?.bankDetails?.bankName && (
+                        <div className="bg-gradient-to-r from-emerald-50/80 to-green-50/80 backdrop-blur-sm rounded-2xl p-6 border border-emerald-100 shadow-sm">
                           <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                               <CreditCard className="text-emerald-600" size={22} />
                             </div>
                             Bank Details
@@ -2043,9 +2077,9 @@ const handleUpdateProfile = async () => {
                       )}
 
                       {/* Account Status Card */}
-                      <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-2xl p-6 border border-gray-200">
+                      <div className="bg-gradient-to-r from-gray-50/80 to-slate-50/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 shadow-sm">
                         <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                          <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                             <ShieldCheck className="text-gray-600" size={22} />
                           </div>
                           Account Information
@@ -2055,10 +2089,10 @@ const handleUpdateProfile = async () => {
                           <div className="space-y-4">
                             <div>
                               <p className="text-sm text-gray-500 mb-1">Account Status</p>
-                              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                                user?.status === 'active' ? 'bg-green-50 text-green-800' :
-                                user?.status === 'inactive' ? 'bg-red-50 text-red-800' :
-                                'bg-gray-50 text-gray-800'
+                              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl backdrop-blur-sm ${
+                                user?.status === 'active' ? 'bg-green-100/80 text-green-800' :
+                                user?.status === 'inactive' ? 'bg-red-100/80 text-red-800' :
+                                'bg-gray-100/80 text-gray-800'
                               }`}>
                                 {user?.status === 'active' ? (
                                   <CheckCircle className="text-green-600" size={18} />
@@ -2071,10 +2105,10 @@ const handleUpdateProfile = async () => {
                             
                             <div>
                               <p className="text-sm text-gray-500 mb-1">Account Role</p>
-                              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                                isAdmin() ? 'bg-purple-50 text-purple-800' : 
-                                isModerator() ? 'bg-orange-50 text-orange-800' : 
-                                'bg-blue-50 text-blue-800'
+                              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl backdrop-blur-sm ${
+                                isAdmin() ? 'bg-purple-100/80 text-purple-800' : 
+                                isModerator() ? 'bg-orange-100/80 text-orange-800' : 
+                                'bg-blue-100/80 text-blue-800'
                               }`}>
                                 <Shield className={
                                   isAdmin() ? "text-purple-600" : 
@@ -2110,10 +2144,10 @@ const handleUpdateProfile = async () => {
                     /* Edit Mode - Input Forms */
                     <div className="space-y-6">
                       {/* Profile Picture Upload Section */}
-                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
-                        <div className="flex items-center justify-between mb-4">
+                      <div className="bg-gradient-to-r from-purple-50/80 to-pink-50/80 backdrop-blur-sm rounded-xl p-4 border border-purple-100 shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <div className="w-10 h-10 bg-purple-100/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                               <ImageIcon className="text-purple-600" size={20} />
                             </div>
                             <div>
@@ -2122,31 +2156,31 @@ const handleUpdateProfile = async () => {
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <button
+                            {/* <button
                               onClick={triggerFileInput}
                               disabled={uploading}
-                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <Camera size={16} />
                               {selectedFile ? 'Change' : 'Change Photo'}
-                            </button>
+                            </button> */}
                             
-                            {selectedFile && (
+                            {/* {selectedFile && (
                               <button
                                 onClick={() => setShowUploadConfirm(true)}
                                 disabled={uploading}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Upload size={16} />
                                 Save
                               </button>
-                            )}
+                            )} */}
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-6">
+                        <div className="flex flex-col sm:flex-row items-center gap-6">
                           <div className="relative">
-                            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center border-4 border-white shadow-sm overflow-hidden">
+                            <div className="w-20 h-20 bg-white/60 backdrop-blur-sm rounded-full flex items-center justify-center border-4 border-white/40 shadow-sm overflow-hidden">
                               {hasValidPicture() ? (
                                 <img
                                   src={user.picture}
@@ -2154,7 +2188,7 @@ const handleUpdateProfile = async () => {
                                   className="w-full h-full object-cover rounded-full"
                                 />
                               ) : (
-                                <div className="w-full h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                                <div className="w-full h-full bg-gradient-to-r from-purple-500/90 to-pink-500/90 backdrop-blur-sm rounded-full flex items-center justify-center">
                                   <span className="text-white text-2xl font-bold">
                                     {getUserInitials()}
                                   </span>
@@ -2162,7 +2196,7 @@ const handleUpdateProfile = async () => {
                               )}
                               
                               {uploading && (
-                                <div className="absolute inset-0 rounded-full bg-black bg-opacity-70 flex items-center justify-center">
+                                <div className="absolute inset-0 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center">
                                   <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                 </div>
                               )}
@@ -2201,8 +2235,8 @@ const handleUpdateProfile = async () => {
                         
                         {/* Upload Confirmation Modal */}
                         {showUploadConfirm && (
-                          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                            <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4">
+                          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white/90 backdrop-blur-md rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
                               <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Upload</h3>
                               <p className="text-gray-600 mb-6">
                                 Are you sure you want to upload this image as your new profile picture?
@@ -2210,14 +2244,14 @@ const handleUpdateProfile = async () => {
                               <div className="flex gap-3">
                                 <button
                                   onClick={() => setShowUploadConfirm(false)}
-                                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200"
                                 >
                                   Cancel
                                 </button>
                                 <button
                                   onClick={handleProfilePictureUpload}
                                   disabled={uploading}
-                                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                                  className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 disabled:opacity-50"
                                 >
                                   {uploading ? 'Uploading...' : 'Yes, Upload'}
                                 </button>
@@ -2239,7 +2273,7 @@ const handleUpdateProfile = async () => {
                               type="text"
                               value={profileForm.firstName}
                               onChange={(e) => setProfileForm({...profileForm, firstName: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-200"
                               required
                             />
                           </div>
@@ -2251,7 +2285,7 @@ const handleUpdateProfile = async () => {
                               type="text"
                               value={profileForm.lastName}
                               onChange={(e) => setProfileForm({...profileForm, lastName: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-200"
                               required
                             />
                           </div>
@@ -2263,7 +2297,7 @@ const handleUpdateProfile = async () => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Email Address
                         </label>
-                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-300">
+                        <div className="flex items-center gap-3 p-3 bg-gray-50/80 backdrop-blur-sm rounded-lg border border-gray-300">
                           <Mail className="text-gray-400" size={20} />
                           <span className="text-gray-900">{user?.email}</span>
                           <span className="ml-auto px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
@@ -2286,7 +2320,7 @@ const handleUpdateProfile = async () => {
                               value={profileForm.phone}
                               onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
                               placeholder="+8801XXXXXXXXX"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -2299,14 +2333,14 @@ const handleUpdateProfile = async () => {
                               value={profileForm.address}
                               onChange={(e) => setProfileForm({...profileForm, address: e.target.value})}
                               placeholder="City, Country"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
                         </div>
                       </div>
 
                       {/* Work Information Section */}
-                      <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl p-4 border border-cyan-100">
+                      <div className="bg-gradient-to-r from-cyan-50/80 to-blue-50/80 backdrop-blur-sm rounded-xl p-4 border border-cyan-100 shadow-sm">
                         <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                           <Briefcase size={18} />
                           Work Information
@@ -2320,7 +2354,7 @@ const handleUpdateProfile = async () => {
                             <select
                               value={profileForm.workLocationType}
                               onChange={(e) => setProfileForm({...profileForm, workLocationType: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all duration-200"
                             >
                               <option value="onsite">Onsite</option>
                               <option value="remote">Remote</option>
@@ -2335,7 +2369,7 @@ const handleUpdateProfile = async () => {
                             <select
                               value={profileForm.workArrangement}
                               onChange={(e) => setProfileForm({...profileForm, workArrangement: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all duration-200"
                             >
                               <option value="full-time">Full-time</option>
                               <option value="part-time">Part-time</option>
@@ -2355,7 +2389,7 @@ const handleUpdateProfile = async () => {
                               value={profileForm.contractType}
                               onChange={(e) => setProfileForm({...profileForm, contractType: e.target.value})}
                               placeholder="e.g., Permanent, Probation, Project-based"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
                         </div>
@@ -2363,7 +2397,7 @@ const handleUpdateProfile = async () => {
 
                       {/* Admin Information Section */}
                       {isAdmin() && (
-                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100">
+                        <div className="bg-gradient-to-r from-indigo-50/80 to-purple-50/80 backdrop-blur-sm rounded-xl p-4 border border-indigo-100 shadow-sm">
                           <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                             <Shield size={18} />
                             Administrator Information
@@ -2378,7 +2412,7 @@ const handleUpdateProfile = async () => {
                                 type="text"
                                 value={profileForm.companyName}
                                 onChange={(e) => setProfileForm({...profileForm, companyName: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2390,7 +2424,7 @@ const handleUpdateProfile = async () => {
                                 type="text"
                                 value={profileForm.adminPosition}
                                 onChange={(e) => setProfileForm({...profileForm, adminPosition: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2401,7 +2435,7 @@ const handleUpdateProfile = async () => {
                               <select
                                 value={profileForm.adminLevel}
                                 onChange={(e) => setProfileForm({...profileForm, adminLevel: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-200"
                               >
                                 <option value="">Select Level</option>
                                 <option value="super">Super Admin</option>
@@ -2420,7 +2454,7 @@ const handleUpdateProfile = async () => {
                                 value={profileForm.permissions.join(', ')}
                                 onChange={(e) => setProfileForm({...profileForm, permissions: e.target.value.split(',').map(p => p.trim())})}
                                 placeholder="user:read, user:write, etc."
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                               <p className="text-xs text-gray-500 mt-1">Comma separated values</p>
                             </div>
@@ -2460,7 +2494,7 @@ const handleUpdateProfile = async () => {
 
                       {/* Moderator Information Section */}
                       {isModerator() && (
-                        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-100">
+                        <div className="bg-gradient-to-r from-orange-50/80 to-red-50/80 backdrop-blur-sm rounded-xl p-4 border border-orange-100 shadow-sm">
                           <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                             <ShieldCheck size={18} />
                             Moderator Information
@@ -2474,7 +2508,7 @@ const handleUpdateProfile = async () => {
                               <select
                                 value={profileForm.moderatorLevel}
                                 onChange={(e) => setProfileForm({...profileForm, moderatorLevel: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all duration-200"
                               >
                                 <option value="">Select Level</option>
                                 <option value="trainee">Trainee</option>
@@ -2492,7 +2526,7 @@ const handleUpdateProfile = async () => {
                                 value={profileForm.moderatorScope.join(', ')}
                                 onChange={(e) => setProfileForm({...profileForm, moderatorScope: e.target.value.split(',').map(s => s.trim())})}
                                 placeholder="content, users, reports, etc."
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                               <p className="text-xs text-gray-500 mt-1">Comma separated values</p>
                             </div>
@@ -2558,7 +2592,7 @@ const handleUpdateProfile = async () => {
                                     dailyActions: parseInt(e.target.value) || 50
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2576,7 +2610,7 @@ const handleUpdateProfile = async () => {
                                     warningLimit: parseInt(e.target.value) || 3
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2589,7 +2623,7 @@ const handleUpdateProfile = async () => {
                                 value={profileForm.permissions.join(', ')}
                                 onChange={(e) => setProfileForm({...profileForm, permissions: e.target.value.split(',').map(p => p.trim())})}
                                 placeholder="content:edit, user:view, report:view, etc."
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                               <p className="text-xs text-gray-500 mt-1">Comma separated values</p>
                             </div>
@@ -2598,7 +2632,7 @@ const handleUpdateProfile = async () => {
                       )}
 
                       {/* Professional Info Section */}
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                      <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm rounded-xl p-4 border border-blue-100 shadow-sm">
                         <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                           <Briefcase size={18} />
                           Professional Information
@@ -2613,7 +2647,7 @@ const handleUpdateProfile = async () => {
                               type="text"
                               value={profileForm.department}
                               onChange={(e) => setProfileForm({...profileForm, department: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -2625,7 +2659,7 @@ const handleUpdateProfile = async () => {
                               type="text"
                               value={profileForm.designation}
                               onChange={(e) => setProfileForm({...profileForm, designation: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -2637,7 +2671,7 @@ const handleUpdateProfile = async () => {
                               type="text"
                               value={profileForm.employeeId}
                               onChange={(e) => setProfileForm({...profileForm, employeeId: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -2649,15 +2683,15 @@ const handleUpdateProfile = async () => {
                               type="date"
                               value={profileForm.joiningDate ? new Date(profileForm.joiningDate).toISOString().split('T')[0] : ''}
                               onChange={(e) => setProfileForm({...profileForm, joiningDate: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
                         </div>
                       </div>
 
-                      {/* Bank Details Section (for employees and moderators) */}
-                      {(isEmployee() || isModerator()) && (
-                        <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-100">
+                      {/* Bank Details Section (for employees and moderators only - not for admin) */}
+                      {!isAdmin() && (isEmployee() || isModerator()) && (
+                        <div className="bg-gradient-to-r from-emerald-50/80 to-green-50/80 backdrop-blur-sm rounded-xl p-4 border border-emerald-100 shadow-sm">
                           <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                             <CreditCard size={18} />
                             Bank Details
@@ -2678,7 +2712,8 @@ const handleUpdateProfile = async () => {
                                     bankName: e.target.value
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                placeholder="e.g., DBBL, City Bank, Brac Bank"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2696,7 +2731,8 @@ const handleUpdateProfile = async () => {
                                     accountNumber: e.target.value
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                placeholder="e.g., 1234567890"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2714,7 +2750,8 @@ const handleUpdateProfile = async () => {
                                     accountHolderName: e.target.value
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                placeholder="Your full name as in bank account"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2732,7 +2769,8 @@ const handleUpdateProfile = async () => {
                                     branchName: e.target.value
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                placeholder="e.g., Gulshan, Motijheel, Dhanmondi"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2750,7 +2788,50 @@ const handleUpdateProfile = async () => {
                                     routingNumber: e.target.value
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                placeholder="e.g., 123456789"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Account Type
+                              </label>
+                              <select
+                                value={profileForm.bankDetails?.accountType || 'savings'}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  bankDetails: {
+                                    ...profileForm.bankDetails,
+                                    accountType: e.target.value
+                                  }
+                                })}
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
+                              >
+                                <option value="savings">Savings Account</option>
+                                <option value="current">Current Account</option>
+                                <option value="salary">Salary Account</option>
+                                <option value="student">Student Account</option>
+                                <option value="joint">Joint Account</option>
+                              </select>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Swift Code / IBAN (if applicable)
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.bankDetails?.swiftCode || ''}
+                                onChange={(e) => setProfileForm({
+                                  ...profileForm,
+                                  bankDetails: {
+                                    ...profileForm.bankDetails,
+                                    swiftCode: e.target.value
+                                  }
+                                })}
+                                placeholder="e.g., DBBLBDDH123"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
                           </div>
@@ -2759,7 +2840,7 @@ const handleUpdateProfile = async () => {
 
                       {/* Salary Info Section */}
                       {(isEmployee() || isModerator()) && (
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                        <div className="bg-gradient-to-r from-green-50/80 to-emerald-50/80 backdrop-blur-sm rounded-xl p-4 border border-green-100 shadow-sm">
                           <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                             <CreditCard size={18} />
                             Salary Information
@@ -2773,7 +2854,7 @@ const handleUpdateProfile = async () => {
                               <select
                                 value={profileForm.salaryType}
                                 onChange={(e) => setProfileForm({...profileForm, salaryType: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
                               >
                                 <option value="">Select Type</option>
                                 <option value="monthly">Monthly</option>
@@ -2794,7 +2875,7 @@ const handleUpdateProfile = async () => {
                                 type="number"
                                 value={profileForm.rate}
                                 onChange={(e) => setProfileForm({...profileForm, rate: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2806,7 +2887,7 @@ const handleUpdateProfile = async () => {
                                 type="number"
                                 value={profileForm.basicSalary}
                                 onChange={(e) => setProfileForm({...profileForm, basicSalary: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
                           </div>
@@ -2815,7 +2896,7 @@ const handleUpdateProfile = async () => {
 
                       {/* Employee-specific fields */}
                       {isEmployee() && (
-                        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
+                        <div className="bg-gradient-to-r from-blue-50/80 to-cyan-50/80 backdrop-blur-sm rounded-xl p-4 border border-blue-100 shadow-sm">
                           <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                             <Users size={18} />
                             Employee Information
@@ -2830,7 +2911,7 @@ const handleUpdateProfile = async () => {
                                 type="text"
                                 value={profileForm.managerId}
                                 onChange={(e) => setProfileForm({...profileForm, managerId: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2842,7 +2923,7 @@ const handleUpdateProfile = async () => {
                                 type="text"
                                 value={profileForm.attendanceId}
                                 onChange={(e) => setProfileForm({...profileForm, attendanceId: e.target.value})}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2860,7 +2941,7 @@ const handleUpdateProfile = async () => {
                                     start: e.target.value
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
 
@@ -2878,7 +2959,7 @@ const handleUpdateProfile = async () => {
                                     end: e.target.value
                                   }
                                 })}
-                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                               />
                             </div>
                           </div>
@@ -2889,10 +2970,10 @@ const handleUpdateProfile = async () => {
                 </div>
               )}
 
-              {/* Bank Information Tab */}
-              {activeTab === "bank" && (
+              {/* Bank Information Tab - Hidden for Admin */}
+              {activeTab === "bank" && !isAdmin() && (
                 <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900">Bank Information</h3>
                       <p className="text-gray-600 mt-1">Manage your bank account details</p>
@@ -2900,7 +2981,7 @@ const handleUpdateProfile = async () => {
                     {!editMode ? (
                       <button
                         onClick={() => setEditMode(true)}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                        className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center gap-2"
                       >
                         <Edit size={16} />
                         Edit Bank Info
@@ -2912,7 +2993,7 @@ const handleUpdateProfile = async () => {
                             setEditMode(false);
                             fetchUserProfile();
                           }}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                          className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center gap-2"
                         >
                           <X size={16} />
                           Cancel
@@ -2920,7 +3001,7 @@ const handleUpdateProfile = async () => {
                         <button
                           onClick={handleUpdateProfile}
                           disabled={updating}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {updating ? (
                             <>
@@ -2943,9 +3024,9 @@ const handleUpdateProfile = async () => {
                     <div className="space-y-6">
                       {/* Bank Details Card */}
                       {(isEmployee() || isModerator()) && user?.bankDetails?.bankName ? (
-                        <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 border border-emerald-100">
+                        <div className="bg-gradient-to-r from-emerald-50/80 to-green-50/80 backdrop-blur-sm rounded-2xl p-6 border border-emerald-100 shadow-sm">
                           <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
                               <CreditCard className="text-emerald-600" size={22} />
                             </div>
                             Bank Account Details
@@ -2988,8 +3069,8 @@ const handleUpdateProfile = async () => {
                           </div>
                           
                           {/* Account Status */}
-                          <div className="mt-8 pt-6 border-t border-emerald-200">
-                            <div className="flex items-center justify-between">
+                          <div className="mt-8 pt-6 border-t border-emerald-200/50">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                               <div>
                                 <p className="text-sm text-gray-500 mb-1">Verification Status</p>
                                 <div className="flex items-center gap-2">
@@ -3011,31 +3092,26 @@ const handleUpdateProfile = async () => {
                         </div>
                       ) : (
                         // No Bank Information Card
-                        <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-2xl p-8 border border-gray-200 text-center">
-                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div className="bg-gradient-to-r from-gray-50/80 to-slate-50/80 backdrop-blur-sm rounded-2xl p-8 border border-gray-200 text-center">
+                          <div className="w-16 h-16 bg-gray-100/80 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
                             <CreditCard className="text-gray-400" size={24} />
                           </div>
                           <h4 className="text-lg font-bold text-gray-900 mb-2">No Bank Information</h4>
                           <p className="text-gray-600 mb-4">
-                            {isAdmin() 
-                              ? "Bank information is not applicable for admin accounts"
-                              : "You haven't added your bank account details yet"
-                            }
+                            You haven't added your bank account details yet
                           </p>
-                          {!isAdmin() && (
-                            <button
-                              onClick={() => setEditMode(true)}
-                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors inline-flex items-center gap-2"
-                            >
-                              <Edit size={16} />
-                              Add Bank Details
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setEditMode(true)}
+                            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-sm hover:shadow-md inline-flex items-center gap-2"
+                          >
+                            <Edit size={16} />
+                            Add Bank Details
+                          </button>
                         </div>
                       )}
 
                       {/* Security Note */}
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                      <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm rounded-xl p-4 border border-blue-100">
                         <div className="flex items-start gap-3">
                           <ShieldCheck className="text-blue-600 mt-0.5" size={18} />
                           <div>
@@ -3051,7 +3127,7 @@ const handleUpdateProfile = async () => {
                     /* Edit Mode - Bank Information Form */
                     <div className="space-y-6">
                       {/* Bank Details Form */}
-                      <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6 border border-emerald-100">
+                      <div className="bg-gradient-to-r from-emerald-50/80 to-green-50/80 backdrop-blur-sm rounded-xl p-6 border border-emerald-100 shadow-sm">
                         <h4 className="font-bold text-gray-900 mb-6 flex items-center gap-2 text-lg">
                           <CreditCard size={20} />
                           Bank Account Details
@@ -3073,7 +3149,7 @@ const handleUpdateProfile = async () => {
                                 }
                               })}
                               placeholder="e.g., DBBL, City Bank, Brac Bank"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -3092,7 +3168,7 @@ const handleUpdateProfile = async () => {
                                 }
                               })}
                               placeholder="e.g., 1234567890"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -3111,7 +3187,7 @@ const handleUpdateProfile = async () => {
                                 }
                               })}
                               placeholder="Your full name as in bank account"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -3130,7 +3206,7 @@ const handleUpdateProfile = async () => {
                                 }
                               })}
                               placeholder="e.g., Gulshan, Motijheel, Dhanmondi"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -3149,7 +3225,7 @@ const handleUpdateProfile = async () => {
                                 }
                               })}
                               placeholder="e.g., 123456789"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
 
@@ -3166,7 +3242,7 @@ const handleUpdateProfile = async () => {
                                   accountType: e.target.value
                                 }
                               })}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                             >
                               <option value="savings">Savings Account</option>
                               <option value="current">Current Account</option>
@@ -3191,13 +3267,13 @@ const handleUpdateProfile = async () => {
                                 }
                               })}
                               placeholder="e.g., DBBLBDDH123"
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all duration-200"
                             />
                           </div>
                         </div>
 
                         {/* Verification Checkbox */}
-                        <div className="mt-6 pt-6 border-t border-emerald-200">
+                        <div className="mt-6 pt-6 border-t border-emerald-200/50">
                           <div className="flex items-center gap-3">
                             <input
                               type="checkbox"
@@ -3224,7 +3300,7 @@ const handleUpdateProfile = async () => {
                       </div>
 
                       {/* Security Note */}
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
+                      <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm rounded-lg p-4 border border-blue-100">
                         <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                           <ShieldCheck size={16} />
                           Important Instructions
@@ -3249,483 +3325,161 @@ const handleUpdateProfile = async () => {
                 </div>
               )}
 
-              {/* Security Tab */}
-              {activeTab === "security" && (
-                <div className="p-6">
-                  <div className="mb-6">
-                    <h3 className="text-lg font-bold text-gray-900">Security Settings</h3>
-                    <p className="text-gray-600 mt-1">Manage your password and security preferences</p>
-                  </div>
-
-                  <div className="space-y-6">
-                    {/* Change Password */}
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <Lock className="text-purple-600" size={20} />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900">Change Password</h4>
-                            <p className="text-sm text-gray-600">Update your current password</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Current Password
-                          </label>
-                          <div className="relative">
-                            <input
-                              type={showCurrentPassword ? "text" : "password"}
-                              value={passwordForm.currentPassword}
-                              onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                            >
-                              {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            New Password
-                          </label>
-                          <div className="relative">
-                            <input
-                              type={showNewPassword ? "text" : "password"}
-                              value={passwordForm.newPassword}
-                              onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowNewPassword(!showNewPassword)}
-                              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                            >
-                              {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Confirm New Password
-                          </label>
-                          <div className="relative">
-                            <input
-                              type={showConfirmPassword ? "text" : "password"}
-                              value={passwordForm.confirmPassword}
-                              onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
-                              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                            >
-                              {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={handleChangePassword}
-                          className="w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors"
-                        >
-                          Update Password
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Session Management */}
-                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <History className="text-blue-600" size={20} />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900">Session Management</h4>
-                            <p className="text-sm text-gray-600">Manage your active sessions</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="flex items-center gap-3">
-                            <Smartphone className="text-gray-400" size={20} />
-                            <div>
-                              <p className="font-medium text-gray-900">Current Session</p>
-                              <p className="text-sm text-gray-500">This device • Just now</p>
-                            </div>
-                          </div>
-                          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                            Active
-                          </span>
-                        </div>
-
-                        <button
-                          onClick={handleLogoutAllSessions}
-                          className="w-full py-3 border-2 border-red-200 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors"
-                        >
-                          Logout From All Devices
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Password Guidelines */}
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
-                      <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <CheckCircle size={16} />
-                        Password Guidelines
-                      </h5>
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2">
-                          <CheckCircle className="text-green-600 mt-0.5" size={14} />
-                          <p className="text-sm text-gray-600">Minimum 6 characters in length</p>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <CheckCircle className="text-green-600 mt-0.5" size={14} />
-                          <p className="text-sm text-gray-600">Include numbers and special characters for better security</p>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <CheckCircle className="text-green-600 mt-0.5" size={14} />
-                          <p className="text-sm text-gray-600">Avoid using personal information in passwords</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Settings Tab */}
-              {activeTab === "settings" && (
-                <div className="p-6">
-                  <div className="mb-6">
-                    <h3 className="text-lg font-bold text-gray-900">Account Settings</h3>
-                    <p className="text-gray-600 mt-1">Configure your account preferences and notifications</p>
-                  </div>
-
-                  <div className="space-y-6">
-                    {/* Notification Settings */}
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <Bell className="text-purple-600" size={20} />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900">Notification Settings</h4>
-                            <p className="text-sm text-gray-600">Manage your notification preferences</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                          <div>
-                            <p className="font-medium text-gray-900">Email Notifications</p>
-                            <p className="text-sm text-gray-500">Receive updates via email</p>
-                          </div>
-                          <div className="relative inline-block w-12 h-6">
-                            <input
-                              type="checkbox"
-                              checked={true}
-                              onChange={() => {}}
-                              className="sr-only"
-                            />
-                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-purple-600' : 'bg-gray-300'}`}>
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                          <div>
-                            <p className="font-medium text-gray-900">Push Notifications</p>
-                            <p className="text-sm text-gray-500">Receive browser notifications</p>
-                          </div>
-                          <div className="relative inline-block w-12 h-6">
-                            <input
-                              type="checkbox"
-                              checked={true}
-                              onChange={() => {}}
-                              className="sr-only"
-                            />
-                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-purple-600' : 'bg-gray-300'}`}>
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                          <div>
-                            <p className="font-medium text-gray-900">Salary Alerts</p>
-                            <p className="text-sm text-gray-500">Get notified when salary is processed</p>
-                          </div>
-                          <div className="relative inline-block w-12 h-6">
-                            <input
-                              type="checkbox"
-                              checked={true}
-                              onChange={() => {}}
-                              className="sr-only"
-                            />
-                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-purple-600' : 'bg-gray-300'}`}>
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Privacy Settings */}
-                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <ShieldCheck className="text-blue-600" size={20} />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900">Privacy Settings</h4>
-                            <p className="text-sm text-gray-600">Control your privacy preferences</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                          <div>
-                            <p className="font-medium text-gray-900">Show Profile to Others</p>
-                            <p className="text-sm text-gray-500">Allow colleagues to view your profile</p>
-                          </div>
-                          <div className="relative inline-block w-12 h-6">
-                            <input
-                              type="checkbox"
-                              checked={true}
-                              onChange={() => {}}
-                              className="sr-only"
-                            />
-                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                          <div>
-                            <p className="font-medium text-gray-900">Show Contact Information</p>
-                            <p className="text-sm text-gray-500">Display phone and email to team members</p>
-                          </div>
-                          <div className="relative inline-block w-12 h-6">
-                            <input
-                              type="checkbox"
-                              checked={false}
-                              onChange={() => {}}
-                              className="sr-only"
-                            />
-                            <div className={`w-12 h-6 rounded-full transition-colors ${false ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${false ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                          <div>
-                            <p className="font-medium text-gray-900">Activity Status</p>
-                            <p className="text-sm text-gray-500">Show when you're online</p>
-                          </div>
-                          <div className="relative inline-block w-12 h-6">
-                            <input
-                              type="checkbox"
-                              checked={true}
-                              onChange={() => {}}
-                              className="sr-only"
-                            />
-                            <div className={`w-12 h-6 rounded-full transition-colors ${true ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${true ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Account Preferences */}
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                            <Settings className="text-green-600" size={20} />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900">Account Preferences</h4>
-                            <p className="text-sm text-gray-600">Customize your account experience</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Preferred Language
-                          </label>
-                          <select className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
-                            <option value="en">English</option>
-                            <option value="bn">Bangla</option>
-                            <option value="ar">Arabic</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Time Zone
-                          </label>
-                          <select className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
-                            <option value="Asia/Dhaka">Asia/Dhaka (Bangladesh)</option>
-                            <option value="UTC">UTC</option>
-                            <option value="America/New_York">America/New_York</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Date Format
-                          </label>
-                          <select className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
-                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Danger Zone */}
-                    <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-6 border border-red-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                            <AlertTriangle className="text-red-600" size={20} />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900">Danger Zone</h4>
-                            <p className="text-sm text-gray-600">Irreversible actions</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="p-4 bg-white rounded-lg border border-red-200">
-                          <p className="font-medium text-gray-900 mb-2">Deactivate Account</p>
-                          <p className="text-sm text-gray-600 mb-3">
-                            Temporarily deactivate your account. You can reactivate it later.
-                          </p>
-                          <button className="px-4 py-2 border-2 border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
-                            Deactivate Account
-                          </button>
-                        </div>
-
-                        <div className="p-4 bg-white rounded-lg border border-red-200">
-                          <p className="font-medium text-gray-900 mb-2">Delete Account</p>
-                          <p className="text-sm text-gray-600 mb-3">
-                            Permanently delete your account and all associated data. This action cannot be undone.
-                          </p>
-                          <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-                            Delete Account
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Sessions Tab */}
+              {/* Sessions Tab with Pagination */}
               {activeTab === "sessions" && (
                 <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900">Session History</h3>
                       <p className="text-gray-600 mt-1">View and manage your login sessions</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">
-                        {sessions.filter(s => !s.logoutAt).length} active • {sessions.length} total
-                      </span>
+                      <button
+                        onClick={handleLogoutAllSessions}
+                        className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:from-red-700 hover:to-orange-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
+                      >
+                        <LogOut size={16} />
+                        Logout All Sessions
+                      </button>
                     </div>
                   </div>
 
                   {sessions.length === 0 ? (
                     <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <div className="w-16 h-16 bg-gray-100/80 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
                         <History className="text-gray-400" size={24} />
                       </div>
                       <p className="text-gray-700 font-medium">No session history found</p>
                       <p className="text-gray-500 text-sm mt-1">Your login sessions will appear here</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {sessions.map((session, index) => (
-                        <div
-                          key={session._id || `session-${index}`}
-                          className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:bg-white transition-colors"
-                        >
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-3 h-3 rounded-full ${
-                                session.logoutAt ? "bg-gray-300" : "bg-green-500 animate-pulse"
-                              }`}></div>
-                              <div>
-                                <p className="font-medium text-gray-900">
-                                  {session.device || "Unknown Device"}
+                    <>
+                      <div className="space-y-3 mb-6">
+                        {currentSessions.map((session, index) => (
+                          <div
+                            key={session._id || `session-${index}`}
+                            className="bg-gray-50/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 hover:bg-white/50 transition-all duration-200"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-3 h-3 rounded-full ${
+                                  session.logoutAt ? "bg-gray-300" : "bg-green-500 animate-pulse"
+                                }`}></div>
+                                <div>
+                                  <p className="font-medium text-gray-900">
+                                    {session.device || "Unknown Device"}
+                                  </p>
+                                  <p className="text-sm text-gray-500">{session.ip || "Unknown IP"}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {session.loginAt ? new Date(session.loginAt).toLocaleDateString() : "N/A"}
                                 </p>
-                                <p className="text-sm text-gray-500">{session.ip || "Unknown IP"}</p>
+                                <p className="text-xs text-gray-500">
+                                  {session.loginAt ? new Date(session.loginAt).toLocaleTimeString() : "N/A"}
+                                </p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-gray-900">
-                                {session.loginAt ? new Date(session.loginAt).toLocaleDateString() : "N/A"}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {session.loginAt ? new Date(session.loginAt).toLocaleTimeString() : "N/A"}
-                              </p>
-                            </div>
-                          </div>
 
-                          <div className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-4">
-                              <span className="text-gray-600">
-                                <Clock size={14} className="inline mr-1" />
-                                Login: {session.loginAt ? new Date(session.loginAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "N/A"}
-                              </span>
-                              {session.logoutAt && (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm">
+                              <div className="flex flex-wrap items-center gap-4">
                                 <span className="text-gray-600">
                                   <Clock size={14} className="inline mr-1" />
-                                  Logout: {new Date(session.logoutAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  Login: {session.loginAt ? new Date(session.loginAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "N/A"}
                                 </span>
+                                {session.logoutAt && (
+                                  <span className="text-gray-600">
+                                    <Clock size={14} className="inline mr-1" />
+                                    Logout: {new Date(session.logoutAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </span>
+                                )}
+                              </div>
+
+                              {!session.logoutAt && index !== 0 && (
+                                <button
+                                  onClick={() => handleTerminateSession(session._id)}
+                                  className="px-3 py-1 text-red-600 hover:text-red-700 hover:bg-red-50/50 rounded-lg transition-all duration-200 text-sm"
+                                >
+                                  Terminate
+                                </button>
                               )}
                             </div>
+                          </div>
+                        ))}
+                      </div>
 
-                            {!session.logoutAt && index !== 0 && (
-                              <button
-                                onClick={() => handleTerminateSession(session._id)}
-                                className="px-3 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors text-sm"
-                              >
-                                Terminate
-                              </button>
-                            )}
+                      {/* Pagination */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between border-t border-gray-200 pt-6">
+                          <div className="text-sm text-gray-500">
+                            Showing {indexOfFirstSession + 1} to {Math.min(indexOfLastSession, sessions.length)} of {sessions.length} sessions
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handlePrevPage}
+                              disabled={currentPage === 1}
+                              className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                            >
+                              <ChevronLeft size={16} />
+                            </button>
+                            
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNumber;
+                                if (totalPages <= 5) {
+                                  pageNumber = i + 1;
+                                } else if (currentPage <= 3) {
+                                  pageNumber = i + 1;
+                                } else if (currentPage >= totalPages - 2) {
+                                  pageNumber = totalPages - 4 + i;
+                                } else {
+                                  pageNumber = currentPage - 2 + i;
+                                }
+                                
+                                return (
+                                  <button
+                                    key={pageNumber}
+                                    onClick={() => handlePageClick(pageNumber)}
+                                    className={`w-8 h-8 rounded-lg transition-all duration-200 ${
+                                      currentPage === pageNumber
+                                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                                        : 'hover:bg-gray-50/50 text-gray-700'
+                                    }`}
+                                  >
+                                    {pageNumber}
+                                  </button>
+                                );
+                              })}
+                              
+                              {totalPages > 5 && currentPage < totalPages - 2 && (
+                                <>
+                                  <span className="text-gray-400">...</span>
+                                  <button
+                                    onClick={() => handlePageClick(totalPages)}
+                                    className={`w-8 h-8 rounded-lg transition-all duration-200 ${
+                                      currentPage === totalPages
+                                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                                        : 'hover:bg-gray-50/50 text-gray-700'
+                                    }`}
+                                  >
+                                    {totalPages}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                            
+                            <button
+                              onClick={handleNextPage}
+                              disabled={currentPage === totalPages}
+                              className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                            >
+                              <ChevronRightIcon size={16} />
+                            </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -3736,10 +3490,10 @@ const handleUpdateProfile = async () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/90 backdrop-blur-md rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-red-100/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                 <Trash2 className="text-red-600" size={20} />
               </div>
               <div>
@@ -3748,7 +3502,7 @@ const handleUpdateProfile = async () => {
               </div>
             </div>
 
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="mb-6 p-4 bg-red-50/80 backdrop-blur-sm border border-red-200 rounded-lg">
               <p className="text-sm text-red-700">
                 Are you sure you want to delete the user <strong>{userToDelete?.name || userToDelete?.email}</strong>?
               </p>
@@ -3764,14 +3518,14 @@ const handleUpdateProfile = async () => {
                   setUserToDelete(null);
                 }}
                 disabled={deleteLoading}
-                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50/50 transition-all duration-200 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteUser}
                 disabled={deleteLoading}
-                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:from-red-700 hover:to-orange-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {deleteLoading ? (
                   <>
@@ -3792,3 +3546,22 @@ const handleUpdateProfile = async () => {
     </div>
   );
 }
+
+// Add LogOut icon component
+const LogOut = ({ size = 16 }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
