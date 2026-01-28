@@ -723,82 +723,113 @@ const handleSubmit = async (e) => {
     }, 100);
   };
 
-  const handleDelete = async (userId, userName) => {
-    toast.custom((t) => (
-      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} 
-        max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-        <div className="flex-1 w-0 p-4">
-          <div className="flex items-start">
-            <div className="flex-shrink-0 pt-0.5">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="text-red-600" size={20} />
-              </div>
+// handleDelete ফাংশনটা সম্পূর্ণ এভাবে পরিবর্তন করুন:
+const handleDelete = async (user) => {
+  const userName = `${user.firstName} ${user.lastName}`;
+  
+  toast.custom((t) => (
+    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} 
+      max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+      <div className="flex-1 w-0 p-4">
+        <div className="flex items-start">
+          <div className="flex-shrink-0 pt-0.5">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="text-red-600" size={20} />
             </div>
-            <div className="ml-3 flex-1">
-              <p className="text-sm font-medium text-gray-900">
-                Delete User
-              </p>
-              <p className="mt-1 text-sm text-gray-500">
-                Are you sure you want to delete <span className="font-semibold">{userName}</span>? This action cannot be undone.
-              </p>
+          </div>
+          <div className="ml-3 flex-1">
+            <p className="text-sm font-medium text-gray-900">
+              Delete User
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Are you sure you want to delete <span className="font-semibold">{userName}</span>? This action cannot be undone.
+            </p>
+            <div className="mt-2 text-xs text-gray-600">
+              <p>Role: <span className="font-semibold capitalize">{user.role}</span></p>
+              <p>Email: <span className="font-semibold">{user.email}</span></p>
+              {/* সরাসরি warning message দিন */}
+              {(user.role === 'admin' || user.role === 'superAdmin') && (
+                <p className="mt-1 text-yellow-600">
+                  <AlertCircle size={10} className="inline mr-1" />
+                  Note: Only Super Admin can delete Admin users
+                </p>
+              )}
             </div>
           </div>
         </div>
-        <div className="flex border-l border-gray-200">
-          <button
-            onClick={() => {
-              toast.dismiss(t.id);
-              confirmDelete(userId, userName);
-            }}
-            className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none"
-          >
-            Delete
-          </button>
-          <button
-            onClick={() => toast.dismiss(t.id)}
-            className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-500 focus:outline-none"
-          >
-            Cancel
-          </button>
-        </div>
       </div>
-    ), {
-      duration: 10000,
-      position: 'top-center',
-    });
-  };
+      <div className="flex border-l border-gray-200">
+        <button
+          onClick={() => {
+            toast.dismiss(t.id);
+            confirmDelete(user._id, userName, user.role);
+          }}
+          className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none hover:bg-red-50"
+        >
+          Delete
+        </button>
+        <button
+          onClick={() => toast.dismiss(t.id)}
+          className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-500 focus:outline-none hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  ), {
+    duration: 10000,
+    position: 'top-center',
+  });
+};
 
-  const confirmDelete = async (userId, userName) => {
-    const loadingToast = toast.loading(`Deleting ${userName}...`);
+const confirmDelete = async (userId, userName, userRole) => {
+  const loadingToast = toast.loading(`Deleting ${userName}...`);
+  
+  try {
+    const res = await deleteUserAPI(userId);
     
-    try {
-      const res = await deleteUserAPI(userId);
-      if (res.message === "User deleted successfully" || res.success) {
-        toast.dismiss(loadingToast);
-        toast.success(`${userName} deleted successfully!`, {
-          icon: '🗑️',
-          duration: 3000,
-          style: {
-            background: '#10B981',
-            color: '#fff',
-          }
-        });
-        fetchUsers();
-      } else {
-        toast.dismiss(loadingToast);
-        toast.error(res.message || "Failed to delete user", {
-          icon: '❌',
-          duration: 4000,
-        });
-      }
-    } catch (error) {
+    if (res.message === "User deleted successfully" || res.success) {
       toast.dismiss(loadingToast);
+      toast.success(`${userName} deleted successfully!`, {
+        icon: '🗑️',
+        duration: 3000,
+        style: {
+          background: '#10B981',
+          color: '#fff',
+        }
+      });
+      fetchUsers();
+    } else {
+      toast.dismiss(loadingToast);
+      toast.error(res.message || "Failed to delete user", {
+        icon: '❌',
+        duration: 4000,
+      });
+    }
+  } catch (error) {
+    toast.dismiss(loadingToast);
+    
+    // Backend থেকে error message পাওয়া গেলে সেটা দেখাবে
+    if (error.response?.data?.message) {
+      toast.error(error.response.data.message, {
+        icon: '🚫',
+        duration: 5000,
+      });
+    } else if (error.message.includes('403')) {
+      toast.error("You don't have permission to delete this user!", {
+        icon: '🚫',
+        duration: 5000,
+      });
+    } else {
       toast.error("Error deleting user: " + error.message, {
         icon: '❌',
         duration: 5000,
       });
     }
-  };
+  }
+}; 
+
+
 
   // ================= RESET PASSWORD FUNCTIONS =================
 
@@ -2744,18 +2775,18 @@ const handleSubmit = async (e) => {
                                             {user.firstName} {user.lastName}
                                           </a>
                                          <div className="text-xs text-gray-500 truncate flex items-center">
-        <Mail size={10} className="mr-1" />
-        <a 
-          href={`/view?userId=${user._id}&section=contact`}
-          className="truncate hover:text-purple-600 hover:underline"
-          onClick={(e) => {
-            e.preventDefault();
-            router.push(`/view?userId=${user._id}&section=contact`);
-          }}
-        >
-          {user.email}
-        </a>
-      </div>
+                                          <Mail size={10} className="mr-1" />
+                                          <a 
+                                            href={`/view?userId=${user._id}&section=contact`}
+                                            className="truncate hover:text-purple-600 hover:underline"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              router.push(`/view?userId=${user._id}&section=contact`);
+                                            }}
+                                          >
+                                            {user.email}
+                                          </a>
+                                        </div>
                                     </div>
                                   </div>
                                 </td>
@@ -2780,44 +2811,45 @@ const handleSubmit = async (e) => {
                                   </div>
                                 </td>
                                 <td className="p-3">
-                                  <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
-                                    <button
-                                      onClick={() => handleView(user)}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                      title="View Details"
-                                    >
-                                      <Eye size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleEdit(user)}
-                                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                      title="Edit User"
-                                    >
-                                      <Edit size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleOpenShiftManagement(user)}
-                                      className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                                      title="Manage Shift"
-                                    >
-                                      <Clock size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleViewShiftHistory(user)}
-                                      className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                                      title="Shift History"
-                                    >
-                                      <History size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleOpenResetPasswordPage(user)}
-                                      className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                                      title="Reset Password"
-                                    >
-                                      <Lock size={14} />
-                                    </button>
-                                  </div>
-                                </td>
+  <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+    {/* <button
+      onClick={() => handleView(user)}
+      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+      title="View Details"
+    >
+      <Eye size={14} />
+    </button> */}
+    <button
+      onClick={() => handleEdit(user)}
+      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+      title="Edit User"
+    >
+      <Edit size={14} />
+    </button>
+    <button
+      onClick={() => handleOpenShiftManagement(user)}
+      className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+      title="Manage Shift"
+    >
+      <Clock size={14} />
+    </button> 
+    <button
+      onClick={() => handleOpenResetPasswordPage(user)}
+      className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+      title="Reset Password"
+    >
+      <Lock size={14} />
+    </button>
+    {/* DELETE BUTTON - সবাই দেখবে */}
+    <button
+      onClick={() => handleDelete(user)}
+      className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+      title="Delete User"
+    >
+      <Trash2 size={14} />
+    </button>
+  </div>
+</td>
                               </tr>
                             );
                           })

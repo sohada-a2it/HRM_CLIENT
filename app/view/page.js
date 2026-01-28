@@ -3,44 +3,49 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { 
-  ArrowLeft, 
-  Mail, 
-  Phone, 
-  Building, 
-  CreditCard, 
-  Calendar,
-  UserCog,
-  Shield,
-  Users,
-  Edit,
-  Lock,
-  CheckCircle,
-  XCircle,
-  MapPin,
-  Briefcase,
-  Clock,
+import {
+  ArrowLeft,
   User,
-  ChevronRight,
-  ShieldCheck,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar,
+  Building,
+  Briefcase,
+  CreditCard,
   DollarSign,
   Hash,
-  BadgeCheck,
-  Activity,
-  AlertCircle,
-  Banknote,
+  Shield,
+  Users,
+  CheckCircle,
+  XCircle,
+  Clock,
   FileText,
-  Percent,
+  Banknote,
   Home,
   Stethoscope,
   Car,
   Package,
   Scale,
-  Receipt
+  Percent,
+  AlertCircle,
+  Edit,
+  Lock,
+  Globe,
+  Activity,
+  BadgeCheck,
+  ShieldCheck,
+  Receipt,
+  Eye,
+  EyeOff,
+  Download,
+  Printer,
+  Copy,
+  Loader2
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
-// API function with correct base URL
+// API functions
 const getUserById = async (userId) => {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://a2itserver.onrender.com/api/v1';
@@ -50,10 +55,7 @@ const getUserById = async (userId) => {
       throw new Error('No authentication token found');
     }
 
-    const endpoint = `${API_BASE}/profile/${userId}`;
-    console.log('Fetching user by ID:', endpoint);
-
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${API_BASE}/profile/${userId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -61,67 +63,27 @@ const getUserById = async (userId) => {
       }
     });
 
-    if (response.status === 401) {
-      localStorage.removeItem('adminToken');
-      localStorage.removeItem('employeeToken');
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-      throw new Error('Session expired. Please login again.');
-    }
-
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to fetch user data');
+      throw new Error('Failed to fetch user data');
     }
 
-    const data = await response.json();
-    return data;
+    return await response.json();
   } catch (error) {
-    console.error('Get user by ID error:', error);
+    console.error('Get user error:', error);
     throw error;
   }
 };
 
-// Main Content Component
+// Main Component
 function UserViewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // Query parameters থেকে ডাটা নিন
   const userId = searchParams.get('userId');
-  const viewMode = searchParams.get('mode') || 'view';
   const redirect = searchParams.get('redirect') || 'users';
-  
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
 
-  const fetchUser = async () => {
-    try {
-      setLoading(true);
-      
-      if (!userId) {
-        toast.error("No user ID provided");
-        router.push('/admin/users');
-        return;
-      }
-      
-      const data = await getUserById(userId);
-      
-      if (data.success && data.user) {
-        setUser(data.user);
-      } else {
-        toast.error(data.message || "User not found");
-        router.push(`/admin/users?error=user_not_found`);
-      }
-    } catch (error) {
-      console.error("Failed to fetch user:", error);
-      toast.error("Failed to load user data");
-      router.push(`/admin/users?error=fetch_failed`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [showBankDetails, setShowBankDetails] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -129,8 +91,25 @@ function UserViewContent() {
     }
   }, [userId]);
 
+  const fetchUser = async () => {
+    try {
+      setLoading(true);
+      const data = await getUserById(userId);
+      
+      if (data.success && data.user) {
+        setUser(data.user);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+      toast.error('Failed to load user data');
+      router.back();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
+    if (!dateString) return "Not set";
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -143,21 +122,17 @@ function UserViewContent() {
   };
 
   const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return "N/A";
-    return new Intl.NumberFormat('en-US').format(amount);
+    if (amount === undefined || amount === null) return "0.00";
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   };
 
-  const getUserInitials = () => {
-    if (!user) return "U";
-    return `${user.firstName?.charAt(0) || ''}${user.lastName?.charAt(0) || ''}`.toUpperCase();
-  };
-
-  // Edit বাটনের জন্য ফাংশন
   const handleEdit = () => {
-    router.push(`/admin/users/edit?userId=${userId}&redirect=view`);
+    router.push(`/edit?userId=${userId}&redirect=view`);
   };
 
-  // Back বাটনের জন্য ফাংশন
   const handleBack = () => {
     if (redirect === 'dashboard') {
       router.push('/admin/dashboard');
@@ -166,673 +141,68 @@ function UserViewContent() {
     }
   };
 
-  // Reset Password ফাংশন
   const handleResetPassword = () => {
     if (user) {
       router.push(`/admin/reset-password?userId=${userId}&userEmail=${user.email}&userName=${user.firstName}+${user.lastName}`);
     }
   };
 
-  // Render functions
-  const renderAdminSpecificFields = () => {
-    if (user.role !== 'admin' && user.role !== 'superAdmin') return null;
+  const handlePrint = () => {
+    window.print();
+  };
 
+  const handleExport = () => {
+    // Implement export functionality
+    toast.success('Export feature coming soon!');
+  };
+
+  const handleCopyUserId = () => {
+    if (userId) {
+      navigator.clipboard.writeText(userId);
+      toast.success('User ID copied to clipboard!');
+    }
+  };
+
+  const getStatusBadge = (status, isActive) => {
+    const isActiveStatus = isActive && status === 'active';
+    
     return (
-      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border border-indigo-100">
-        <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-            <Shield className="text-indigo-600" size={22} />
-          </div>
-          Administrator Information
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Company Info */}
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Company Name</p>
-            <div className="flex items-center gap-2">
-              <Building className="text-gray-400" size={16} />
-              <p className="text-lg font-semibold text-gray-900">
-                {user.companyName || "Not specified"}
-              </p>
-            </div>
-          </div>
-          
-          {/* Admin Level */}
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Admin Level</p>
-            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-              user.adminLevel === 'super' ? 'bg-purple-50 text-purple-800' :
-              user.adminLevel === 'admin' ? 'bg-blue-50 text-blue-800' :
-              user.adminLevel === 'manager' ? 'bg-green-50 text-green-800' :
-              user.adminLevel === 'moderator' ? 'bg-yellow-50 text-yellow-800' :
-              'bg-gray-50 text-gray-800'
-            }`}>
-              <ShieldCheck className={
-                user.adminLevel === 'super' ? 'text-purple-600' :
-                user.adminLevel === 'admin' ? 'text-blue-600' :
-                user.adminLevel === 'manager' ? 'text-green-600' :
-                user.adminLevel === 'moderator' ? 'text-yellow-600' :
-                'text-gray-600'
-              } size={18} />
-              <p className="font-semibold capitalize">{user.adminLevel || 'admin'}</p>
-            </div>
-          </div>
-          
-          {/* Admin Position */}
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Admin Position</p>
-            <div className="flex items-center gap-2">
-              <BadgeCheck className="text-gray-400" size={16} />
-              <p className="text-lg font-semibold text-gray-900">
-                {user.adminPosition || "Administrator"}
-              </p>
-            </div>
-          </div>
-          
-          {/* Super Admin Status */}
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Super Admin</p>
-            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-              user.isSuperAdmin ? 'bg-red-50 text-red-800' : 'bg-gray-50 text-gray-800'
-            }`}>
-              <ShieldCheck className={user.isSuperAdmin ? 'text-red-600' : 'text-gray-600'} size={18} />
-              <p className="font-semibold">{user.isSuperAdmin ? "Yes" : "No"}</p>
-            </div>
-          </div>
-          
-          {/* Permissions */}
-          <div className="md:col-span-2">
-            <p className="text-sm text-gray-500 mb-2">Permissions</p>
-            <div className="flex flex-wrap gap-2">
-              {user.permissions?.length > 0 ? (
-                user.permissions.map((perm, index) => (
-                  <span key={index} className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full font-medium">
-                    {perm}
-                  </span>
-                ))
-              ) : (
-                <span className="text-gray-500">No specific permissions</span>
-              )}
-            </div>
-          </div>
-          
-          {/* Management Permissions */}
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Can Manage Users</p>
-            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-              user.canManageUsers ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-800'
-            }`}>
-              <Users className={user.canManageUsers ? 'text-green-600' : 'text-gray-600'} size={18} />
-              <p className="font-semibold">{user.canManageUsers ? "Yes" : "No"}</p>
-            </div>
-          </div>
-          
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Can Manage Payroll</p>
-            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-              user.canManagePayroll ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-800'
-            }`}>
-              <CreditCard className={user.canManagePayroll ? 'text-green-600' : 'text-gray-600'} size={18} />
-              <p className="font-semibold">{user.canManagePayroll ? "Yes" : "No"}</p>
-            </div>
-          </div>
-        </div>
+      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+        isActiveStatus ? 'bg-green-100 text-green-800' :
+        status === 'inactive' ? 'bg-red-100 text-red-800' :
+        status === 'suspended' ? 'bg-yellow-100 text-yellow-800' :
+        'bg-gray-100 text-gray-800'
+      }`}>
+        {isActiveStatus ? (
+          <CheckCircle size={14} />
+        ) : status === 'suspended' ? (
+          <AlertCircle size={14} />
+        ) : (
+          <XCircle size={14} />
+        )}
+        {isActiveStatus ? 'Active' : status?.charAt(0).toUpperCase() + status?.slice(1) || 'Unknown'}
       </div>
     );
   };
 
-  const renderEmployeeSpecificFields = () => {
-    if (user.role !== 'employee') return null;
-
+  const getRoleBadge = (role) => {
+    const colors = {
+      employee: 'bg-blue-100 text-blue-800',
+      admin: 'bg-purple-100 text-purple-800',
+      moderator: 'bg-orange-100 text-orange-800',
+      superAdmin: 'bg-red-100 text-red-800'
+    };
+    
     return (
-      <>
-        {/* Employee Information Card */}
-        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 mb-6 border border-blue-100">
-          <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-              <Briefcase className="text-blue-600" size={22} />
-            </div>
-            Employee Information
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Employee ID */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Employee ID</p>
-              <div className="flex items-center gap-2">
-                <Hash className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.employeeId || "Not assigned"}
-                </p>
-              </div>
-            </div>
-            
-            {/* Attendance ID */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Attendance ID</p>
-              <div className="flex items-center gap-2">
-                <Clock className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.attendanceId || "Not assigned"}
-                </p>
-              </div>
-            </div>
-            
-            {/* Contract Type */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Contract Type</p>
-              <div className="flex items-center gap-2">
-                <FileText className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900 capitalize">
-                  {user.contractType || "Permanent"}
-                </p>
-              </div>
-            </div>
-            
-            {/* Shift Timing */}
-            <div className="md:col-span-2">
-              <p className="text-sm text-gray-500 mb-1">Shift Timing</p>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    {user.shiftTiming?.start || "09:00"} - {user.shiftTiming?.end || "18:00"}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Manager */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Manager</p>
-              <div className="flex items-center gap-2">
-                <UserCog className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.managerId ? "Assigned" : "Not assigned"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Salary Structure Card */}
-        {user.salaryStructure && (
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 mb-6 border border-green-100">
-            <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                <Receipt className="text-green-600" size={22} />
-              </div>
-              Salary Structure
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Basic Salary */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Basic Salary</p>
-                <div className="flex items-center gap-2">
-                  <Banknote className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    ৳{formatCurrency(user.salaryStructure?.basicSalary)}
-                  </p>
-                </div>
-              </div>
-              
-              {/* House Rent */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">House Rent</p>
-                <div className="flex items-center gap-2">
-                  <Home className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    ৳{formatCurrency(user.salaryStructure?.houseRent)}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Medical Allowance */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Medical Allowance</p>
-                <div className="flex items-center gap-2">
-                  <Stethoscope className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    ৳{formatCurrency(user.salaryStructure?.medicalAllowance)}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Conveyance */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Conveyance</p>
-                <div className="flex items-center gap-2">
-                  <Car className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    ৳{formatCurrency(user.salaryStructure?.conveyance)}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Other Allowances */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Other Allowances</p>
-                <div className="flex items-center gap-2">
-                  <Package className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    ৳{formatCurrency(user.salaryStructure?.otherAllowances)}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Gross Salary */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Gross Salary</p>
-                <div className="flex items-center gap-2">
-                  <CreditCard className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-green-700">
-                    ৳{formatCurrency(user.salaryStructure?.grossSalary)}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Provident Fund */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Provident Fund</p>
-                <div className="flex items-center gap-2">
-                  <Scale className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    ৳{formatCurrency(user.salaryStructure?.providentFund)}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Tax */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Tax</p>
-                <div className="flex items-center gap-2">
-                  <Percent className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    ৳{formatCurrency(user.salaryStructure?.tax)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${colors[role] || 'bg-gray-100 text-gray-800'}`}>
+        {role === 'admin' || role === 'superAdmin' ? (
+          <Shield size={14} />
+        ) : role === 'moderator' ? (
+          <ShieldCheck size={14} />
+        ) : (
+          <Users size={14} />
         )}
-
-        {/* Bank Details Card */}
-        {user.bankDetails && (
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 mb-6 border border-amber-100">
-            <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                <Banknote className="text-amber-600" size={22} />
-              </div>
-              Bank Details
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Bank Name */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Bank Name</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.bankDetails?.bankName || "Not provided"}
-                </p>
-              </div>
-              
-              {/* Account Number */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Account Number</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.bankDetails?.accountNumber || "Not provided"}
-                </p>
-              </div>
-              
-              {/* Account Holder Name */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Account Holder</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.bankDetails?.accountHolderName || "Not provided"}
-                </p>
-              </div>
-              
-              {/* Branch Name */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Branch Name</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.bankDetails?.branchName || "Not provided"}
-                </p>
-              </div>
-              
-              {/* Routing Number */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Routing Number</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.bankDetails?.routingNumber || "Not provided"}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Salary Information Card */}
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 mb-6 border border-green-100">
-          <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-              <CreditCard className="text-green-600" size={22} />
-            </div>
-            Salary Information
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Salary Type */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Salary Type</p>
-              <div className="flex items-center gap-2">
-                <CreditCard className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900 capitalize">{user.salaryType}</p>
-              </div>
-            </div>
-            
-            {/* Rate */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Rate</p>
-              <div className="flex items-center gap-2">
-                <DollarSign className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900">
-                  ৳{formatCurrency(user.rate)} {user.salaryType ? `/${user.salaryType}` : ''}
-                </p>
-              </div>
-            </div>
-            
-            {/* Basic Salary */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Basic Salary</p>
-              <div className="flex items-center gap-2">
-                <DollarSign className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900">
-                  ৳{formatCurrency(user.basicSalary || user.salary)}
-                </p>
-              </div>
-            </div>
-            
-            {/* Salary */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Total Salary</p>
-              <div className="flex items-center gap-2">
-                <DollarSign className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-green-700">
-                  ৳{formatCurrency(user.salary)}
-                </p>
-              </div>
-            </div>
-            
-            {/* Salary Rule */}
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Salary Rule</p>
-              <div className="flex items-center gap-2">
-                <Scale className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.salaryRule ? "Assigned" : "Not assigned"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  };
-
-  const renderCommonFields = () => {
-    return (
-      <>
-        {/* Personal Information Card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <User className="text-purple-600" size={22} />
-            </div>
-            Personal Information
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Full Name</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.firstName} {user.lastName}
-                </p>
-              </div>
-              
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Email Address</p>
-                <div className="flex items-center gap-2">
-                  <Mail className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">{user.email}</p>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Phone Number</p>
-                <div className="flex items-center gap-2">
-                  <Phone className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    {user.phone || "Not provided"}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Address</p>
-                <div className="flex items-start gap-2">
-                  <MapPin className="text-gray-400 mt-1" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    {user.address || "Not provided"}
-                  </p>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Joining Date</p>
-                <div className="flex items-center gap-2">
-                  <Calendar className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    {formatDate(user.joiningDate)}
-                  </p>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Picture</p>
-                <div className="flex items-center gap-2">
-                  {user.picture ? (
-                    <img 
-                      src={user.picture} 
-                      alt="Profile" 
-                      className="w-12 h-12 rounded-full object-cover"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.style.display = 'none';
-                        const parent = e.target.parentElement;
-                        parent.innerHTML = `
-                          <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
-                            ${getUserInitials()}
-                          </div>
-                        `;
-                      }}
-                    />
-                  ) : (
-                    <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
-                      {getUserInitials()}
-                    </div>
-                  )}
-                  <p className="text-gray-600">
-                    {user.picture ? "Profile picture uploaded" : "No profile picture"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Professional Information Card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Briefcase className="text-blue-600" size={22} />
-            </div>
-            Professional Information
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Department</p>
-                <div className="flex items-center gap-2">
-                  <Building className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    {user.department || "Not assigned"}
-                  </p>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Designation</p>
-                <div className="flex items-center gap-2">
-                  <Briefcase className="text-gray-400" size={16} />
-                  <p className="text-lg font-semibold text-gray-900">
-                    {user.designation || "Not assigned"}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Role</p>
-                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                  user.role === 'admin' 
-                    ? 'bg-purple-50 text-purple-800' 
-                    : user.role === 'superAdmin'
-                    ? 'bg-red-50 text-red-800'
-                    : 'bg-blue-50 text-blue-800'
-                }`}>
-                  {user.role === 'admin' || user.role === 'superAdmin' ? (
-                    <Shield className="text-purple-600" size={18} />
-                  ) : (
-                    <Users className="text-blue-600" size={18} />
-                  )}
-                  <p className="font-semibold capitalize">{user.role}</p>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Is Active</p>
-                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                  user.isActive ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-                }`}>
-                  {user.isActive ? (
-                    <CheckCircle className="text-green-600" size={18} />
-                  ) : (
-                    <XCircle className="text-red-600" size={18} />
-                  )}
-                  <p className="font-semibold">{user.isActive ? "Active" : "Inactive"}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  };
-
-  const renderAccountInformation = () => {
-    return (
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-            <Activity className="text-gray-600" size={22} />
-          </div>
-          Account Information
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Account Status</p>
-              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                user.status === 'active' ? 'bg-green-50 text-green-800' :
-                user.status === 'inactive' ? 'bg-red-50 text-red-800' :
-                user.status === 'suspended' ? 'bg-yellow-50 text-yellow-800' :
-                'bg-gray-50 text-gray-800'
-              }`}>
-                {user.status === 'active' ? (
-                  <CheckCircle className="text-green-600" size={18} />
-                ) : user.status === 'suspended' ? (
-                  <AlertCircle className="text-yellow-600" size={18} />
-                ) : (
-                  <XCircle className="text-red-600" size={18} />
-                )}
-                <p className="font-semibold capitalize">{user.status || 'active'}</p>
-              </div>
-            </div>
-            
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Is Deleted</p>
-              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                user.isDeleted ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'
-              }`}>
-                {user.isDeleted ? (
-                  <XCircle className="text-red-600" size={18} />
-                ) : (
-                  <CheckCircle className="text-green-600" size={18} />
-                )}
-                <p className="font-semibold">{user.isDeleted ? "Yes" : "No"}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Login Count</p>
-              <div className="flex items-center gap-2">
-                <Clock className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.loginCount || 0} times
-                </p>
-              </div>
-            </div>
-            
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Last Login</p>
-              <div className="flex items-center gap-2">
-                <Clock className="text-gray-400" size={16} />
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : "Never logged in"}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Account Created</p>
-            <div className="flex items-center gap-2">
-              <Calendar className="text-gray-400" size={16} />
-              <p className="text-lg font-semibold text-gray-900">
-                {formatDate(user.createdAt)}
-              </p>
-            </div>
-          </div>
-          
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Last Updated</p>
-            <div className="flex items-center gap-2">
-              <Calendar className="text-gray-400" size={16} />
-              <p className="text-lg font-semibold text-gray-900">
-                {formatDate(user.updatedAt)}
-              </p>
-            </div>
-          </div>
-        </div>
+        {role?.charAt(0).toUpperCase() + role?.slice(1) || 'Unknown'}
       </div>
     );
   };
@@ -841,8 +211,8 @@ function UserViewContent() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading user profile...</p>
+          <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
+          <p className="mt-4 text-gray-600">Loading user data...</p>
         </div>
       </div>
     );
@@ -852,16 +222,13 @@ function UserViewContent() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <XCircle className="text-red-600" size={32} />
-          </div>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">User Not Found</h3>
-          <p className="text-gray-600 mb-4">The user you're looking for doesn't exist.</p>
+          <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
+          <h3 className="mt-4 text-lg font-semibold">User not found</h3>
           <button
-            onClick={handleBack}
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            onClick={() => router.push('/admin/users')}
+            className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg"
           >
-            Go Back
+            Back to Users
           </button>
         </div>
       </div>
@@ -869,10 +236,10 @@ function UserViewContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <button
             onClick={handleBack}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
@@ -883,19 +250,18 @@ function UserViewContent() {
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                 User Profile Details
               </h1>
-              <p className="text-gray-600 mt-2">
-                Viewing complete profile of {user.firstName} {user.lastName}
-                {viewMode === 'edit' && ' (Edit Mode)'}
+              <p className="text-gray-600 mt-1">
+                Viewing profile of {user.firstName} {user.lastName}
               </p>
             </div>
             
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleEdit}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition-all flex items-center gap-2"
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
               >
                 <Edit size={16} />
                 Edit Profile
@@ -903,261 +269,732 @@ function UserViewContent() {
               
               <button
                 onClick={handleResetPassword}
-                className="px-4 py-2 border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors flex items-center gap-2"
+                className="px-4 py-2 border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50 flex items-center gap-2"
               >
                 <Lock size={16} />
                 Reset Password
               </button>
+              
+              <button
+                onClick={handleExport}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Download size={16} />
+                Export
+              </button>
+              
+              <button
+                onClick={handlePrint}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+              
+              <button
+                onClick={handleCopyUserId}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Copy size={16} />
+                Copy ID
+              </button>
             </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="mt-6 border-b border-gray-200">
-            <nav className="flex space-x-8">
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'overview'
-                    ? 'border-purple-600 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setActiveTab('professional')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'professional'
-                    ? 'border-purple-600 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Professional
-              </button>
-              {user.role === 'employee' && (
-                <button
-                  onClick={() => setActiveTab('salary')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'salary'
-                      ? 'border-purple-600 text-purple-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Salary & Bank
-                </button>
-              )}
-              <button
-                onClick={() => setActiveTab('account')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'account'
-                    ? 'border-purple-600 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Account
-              </button>
-            </nav>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Profile Card */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden sticky top-6">
-              {/* Profile Header */}
-              <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6">
-                <div className="flex flex-col items-center">
-                  {/* Profile Picture */}
-                  <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg bg-gradient-to-r from-purple-500 to-pink-500 mb-4">
-                    {user.picture ? (
-                      <img
-                        src={user.picture}
-                        alt={user.firstName}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.style.display = 'none';
-                          e.target.parentElement.innerHTML = `
-                            <div class="w-full h-full rounded-full flex items-center justify-center text-white font-bold text-3xl">
-                              ${getUserInitials()}
-                            </div>
-                          `;
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full rounded-full flex items-center justify-center">
-                        <span className="text-white text-3xl font-bold">
-                          {getUserInitials()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <h2 className="text-xl font-bold text-white text-center">
-                    {user.firstName} {user.lastName}
-                  </h2>
-                  <p className="text-purple-100 mt-1 text-center">{user.email}</p>
-                  <div className="mt-3 flex gap-2">
-                    <span className={`px-3 py-1 text-white rounded-full text-sm font-medium ${
-                      user.role === 'admin' 
-                        ? "bg-gradient-to-r from-indigo-500 to-purple-500" 
-                        : user.role === 'superAdmin'
-                        ? "bg-gradient-to-r from-red-500 to-pink-500"
-                        : "bg-gradient-to-r from-blue-500 to-cyan-500"
-                    }`}>
-                      {user.role?.toUpperCase()}
-                    </span>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      user.status === 'active' 
-                        ? "bg-green-100 text-green-800" 
-                        : user.status === 'suspended'
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
-                    }`}>
-                      {user.status?.toUpperCase()}
-                    </span>
-                  </div>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 sticky top-6">
+              {/* Profile Picture and Basic Info */}
+              <div className="text-center mb-6">
+                <div className="w-32 h-32 mx-auto mb-4 rounded-full overflow-hidden border-4 border-purple-100">
+                  {user.picture ? (
+                    <img
+                      src={user.picture}
+                      alt={`${user.firstName} ${user.lastName}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-4xl font-bold">
+                      {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                    </div>
+                  )}
+                </div>
+                
+                <h2 className="text-xl font-bold text-gray-900">
+                  {user.firstName} {user.lastName}
+                </h2>
+                <p className="text-gray-600 mt-1">{user.email}</p>
+                
+                <div className="flex flex-wrap gap-2 justify-center mt-4">
+                  {getRoleBadge(user.role)}
+                  {getStatusBadge(user.status, user.isActive)}
                 </div>
               </div>
 
-              {/* Profile Stats */}
-              <div className="p-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <ShieldCheck className="text-purple-600" size={20} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Account Status</p>
-                        <p className={`text-sm font-semibold ${
-                          user.status === "active" ? "text-green-600" : 
-                          user.status === "suspended" ? "text-yellow-600" : "text-red-600"
-                        }`}>
-                          {user.status?.toUpperCase() || "ACTIVE"}
-                        </p>
-                      </div>
+              {/* Quick Stats */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Hash className="text-purple-600" size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Employee ID</p>
+                      <p className="font-semibold text-gray-900">
+                        {user.employeeId || "Not assigned"}
+                      </p>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Briefcase className="text-blue-600" size={20} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Department</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {user.department || "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <Building className="text-green-600" size={20} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Designation</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {user.designation || "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {user.role === 'employee' && (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
-                          <Hash className="text-cyan-600" size={20} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Employee ID</p>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {user.employeeId || "N/A"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {user.role === 'admin' && user.adminLevel && (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                          <ShieldCheck className="text-indigo-600" size={20} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Admin Level</p>
-                          <p className="text-sm font-semibold text-indigo-600 capitalize">
-                            {user.adminLevel}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
-                {/* Quick Actions */}
-                <div className="mt-6 space-y-3">
-                  <button
-                    onClick={handleEdit}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Edit className="text-gray-600" size={20} />
-                      <span className="font-medium text-gray-700">Edit Profile</span>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Briefcase className="text-blue-600" size={20} />
                     </div>
-                    <ChevronRight className="text-gray-400" size={16} />
-                  </button>
-
-                  <button
-                    onClick={handleResetPassword}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Lock className="text-gray-600" size={20} />
-                      <span className="font-medium text-gray-700">Reset Password</span>
+                    <div>
+                      <p className="text-sm text-gray-500">Department</p>
+                      <p className="font-semibold text-gray-900">
+                        {user.department || "Not assigned"}
+                      </p>
                     </div>
-                    <ChevronRight className="text-gray-400" size={16} />
-                  </button>
+                  </div>
                 </div>
+
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <Calendar className="text-green-600" size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Joining Date</p>
+                      <p className="font-semibold text-gray-900">
+                        {formatDate(user.joiningDate)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {user.salary && (
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                        <DollarSign className="text-amber-600" size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Salary</p>
+                        <p className="font-semibold text-gray-900">
+                          ৳{formatCurrency(user.salary)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Right Column - Content */}
-          <div className="lg:col-span-2">
-            {activeTab === 'overview' && (
-              <>
-                {renderCommonFields()}
-                {renderAdminSpecificFields()}
-                {renderEmployeeSpecificFields()}
-                {renderAccountInformation()}
-              </>
+          {/* Right Column - Details */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Basic Information Card */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <User className="text-purple-600" size={20} />
+                Basic Information
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    First Name
+                  </label>
+                  <p className="text-gray-900 font-semibold">{user.firstName || "-"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Last Name
+                  </label>
+                  <p className="text-gray-900 font-semibold">{user.lastName || "-"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Email
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Mail className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">{user.email || "-"}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Phone Number
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Phone className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">{user.phone || "-"}</p>
+                  </div>
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Address
+                  </label>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="text-gray-400 mt-1" size={16} />
+                    <p className="text-gray-900 font-semibold">{user.address || "-"}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Profile Picture URL
+                  </label>
+                  <p className="text-gray-900 font-semibold truncate">
+                    {user.picture ? (
+                      <a href={user.picture} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                        View Picture
+                      </a>
+                    ) : "-"}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Joining Date
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">{formatDate(user.joiningDate)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Professional Information Card */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Briefcase className="text-blue-600" size={20} />
+                Professional Information
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Role
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {getRoleBadge(user.role)}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Department
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Building className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">{user.department || "-"}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Designation
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">{user.designation || "-"}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Employee ID
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Hash className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">{user.employeeId || "-"}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Work Location Type
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Globe className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold capitalize">{user.workLocationType || "onsite"}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Work Arrangement
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold capitalize">{user.workArrangement || "full-time"}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Status
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(user.status, user.isActive)}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Account Active
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {user.isActive ? (
+                      <CheckCircle className="text-green-600" size={16} />
+                    ) : (
+                      <XCircle className="text-red-600" size={16} />
+                    )}
+                    <p className="text-gray-900 font-semibold">
+                      {user.isActive ? "Active" : "Inactive"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Work Type Information */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Clock className="text-green-600" size={20} />
+                Work Type Information
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Contract Type
+                  </label>
+                  <p className="text-gray-900 font-semibold capitalize">{user.contractType || "permanent"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Attendance ID
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Hash className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">{user.attendanceId || "-"}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Default Shift Start
+                  </label>
+                  <p className="text-gray-900 font-semibold">{user.shiftTiming?.defaultShift?.start || "09:00"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Default Shift End
+                  </label>
+                  <p className="text-gray-900 font-semibold">{user.shiftTiming?.defaultShift?.end || "18:00"}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Salary Information Card */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <CreditCard className="text-green-600" size={20} />
+                Salary Information
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Salary Type
+                  </label>
+                  <p className="text-gray-900 font-semibold capitalize">{user.salaryType || "monthly"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Rate
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">৳{formatCurrency(user.rate || 0)}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Basic Salary
+                  </label>
+                  <p className="text-gray-900 font-semibold">৳{formatCurrency(user.basicSalary || 0)}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Total Salary
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold text-green-600">
+                      ৳{formatCurrency(user.salary || 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Salary Structure Card */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <FileText className="text-orange-600" size={20} />
+                Salary Structure Details
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Basic Salary
+                  </label>
+                  <p className="text-gray-900 font-semibold">
+                    ৳{formatCurrency(user.salaryStructure?.basicSalary || user.basicSalary || 0)}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    House Rent
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Home className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">
+                      ৳{formatCurrency(user.salaryStructure?.houseRent || 0)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Medical Allowance
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Stethoscope className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">
+                      ৳{formatCurrency(user.salaryStructure?.medicalAllowance || 0)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Conveyance
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Car className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">
+                      ৳{formatCurrency(user.salaryStructure?.conveyance || 0)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Other Allowances
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Package className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">
+                      ৳{formatCurrency(user.salaryStructure?.otherAllowances || 0)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Gross Salary
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold text-green-600">
+                      ৳{formatCurrency(user.salaryStructure?.grossSalary || user.salary || 0)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Provident Fund
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Scale className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">
+                      ৳{formatCurrency(user.salaryStructure?.providentFund || 0)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    Tax
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Percent className="text-gray-400" size={16} />
+                    <p className="text-gray-900 font-semibold">
+                      ৳{formatCurrency(user.salaryStructure?.tax || 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bank Details Card */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Banknote className="text-amber-600" size={20} />
+                  Bank Details
+                </h2>
+                <button
+                  onClick={() => setShowBankDetails(!showBankDetails)}
+                  className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700"
+                >
+                  {showBankDetails ? (
+                    <>
+                      <EyeOff size={16} />
+                      Hide Details
+                    </>
+                  ) : (
+                    <>
+                      <Eye size={16} />
+                      Show Details
+                    </>
+                  )}
+                </button>
+              </div>
+              
+              {showBankDetails ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Bank Name
+                    </label>
+                    <p className="text-gray-900 font-semibold">
+                      {user.bankDetails?.bankName || "-"}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Account Number
+                    </label>
+                    <p className="text-gray-900 font-semibold">
+                      {user.bankDetails?.accountNumber || "-"}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Account Holder Name
+                    </label>
+                    <p className="text-gray-900 font-semibold">
+                      {user.bankDetails?.accountHolderName || "-"}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Branch Name
+                    </label>
+                    <p className="text-gray-900 font-semibold">
+                      {user.bankDetails?.branchName || "-"}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Routing Number
+                    </label>
+                    <p className="text-gray-900 font-semibold">
+                      {user.bankDetails?.routingNumber || "-"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Banknote className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500">Bank details are hidden for security</p>
+                  <button
+                    onClick={() => setShowBankDetails(true)}
+                    className="mt-2 text-purple-600 hover:text-purple-700 font-medium"
+                  >
+                    Click to reveal bank details
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Role Specific Sections */}
+            {user.role === 'admin' && (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Shield className="text-purple-600" size={20} />
+                  Admin Specific Information
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Company Name
+                    </label>
+                    <p className="text-gray-900 font-semibold">{user.companyName || "-"}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Admin Position
+                    </label>
+                    <p className="text-gray-900 font-semibold">{user.adminPosition || "-"}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Admin Level
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className={
+                        user.adminLevel === 'super' ? 'text-red-600' :
+                        user.adminLevel === 'admin' ? 'text-purple-600' :
+                        'text-gray-600'
+                      } size={16} />
+                      <p className="text-gray-900 font-semibold capitalize">{user.adminLevel || "admin"}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded flex items-center justify-center ${
+                        user.isSuperAdmin ? 'bg-red-100' : 'bg-gray-100'
+                      }`}>
+                        {user.isSuperAdmin ? (
+                          <CheckCircle className="text-red-600" size={14} />
+                        ) : (
+                          <XCircle className="text-gray-400" size={14} />
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">Super Admin</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded flex items-center justify-center ${
+                        user.canManageUsers ? 'bg-green-100' : 'bg-gray-100'
+                      }`}>
+                        {user.canManageUsers ? (
+                          <CheckCircle className="text-green-600" size={14} />
+                        ) : (
+                          <XCircle className="text-gray-400" size={14} />
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">Can Manage Users</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded flex items-center justify-center ${
+                        user.canManagePayroll ? 'bg-green-100' : 'bg-gray-100'
+                      }`}>
+                        {user.canManagePayroll ? (
+                          <CheckCircle className="text-green-600" size={14} />
+                        ) : (
+                          <XCircle className="text-gray-400" size={14} />
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">Can Manage Payroll</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
-            {activeTab === 'professional' && (
-              <>
-                {renderCommonFields()}
-                {renderAdminSpecificFields()}
-                {renderEmployeeSpecificFields()}
-              </>
-            )}
-
-            {activeTab === 'salary' && (
-              <>
-                {user.role === 'employee' && renderEmployeeSpecificFields()}
-              </>
-            )}
-
-            {activeTab === 'account' && (
-              <>
-                {renderAccountInformation()}
-              </>
+            {user.role === 'moderator' && (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Users className="text-blue-600" size={20} />
+                  Moderator Specific Information
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Moderator Level
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className={
+                        user.moderatorLevel === 'senior' ? 'text-red-600' :
+                        user.moderatorLevel === 'junior' ? 'text-orange-600' :
+                        'text-yellow-600'
+                      } size={16} />
+                      <p className="text-gray-900 font-semibold capitalize">{user.moderatorLevel || "junior"}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-gray-500 mb-1">
+                      Permissions
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded flex items-center justify-center ${
+                          user.canModerateUsers ? 'bg-green-100' : 'bg-gray-100'
+                        }`}>
+                          {user.canModerateUsers ? (
+                            <CheckCircle className="text-green-600" size={14} />
+                          ) : (
+                            <XCircle className="text-gray-400" size={14} />
+                          )}
+                        </div>
+                        <span className="text-sm text-gray-700">Can Moderate Users</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded flex items-center justify-center ${
+                          user.canViewReports ? 'bg-green-100' : 'bg-gray-100'
+                        }`}>
+                          {user.canViewReports ? (
+                            <CheckCircle className="text-green-600" size={14} />
+                          ) : (
+                            <XCircle className="text-gray-400" size={14} />
+                          )}
+                        </div>
+                        <span className="text-sm text-gray-700">Can View Reports</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded flex items-center justify-center ${
+                          user.canManageReports ? 'bg-green-100' : 'bg-gray-100'
+                        }`}>
+                          {user.canManageReports ? (
+                            <CheckCircle className="text-green-600" size={14} />
+                          ) : (
+                            <XCircle className="text-gray-400" size={14} />
+                          )}
+                        </div>
+                        <span className="text-sm text-gray-700">Can Manage Reports</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -1171,15 +1008,15 @@ function LoadingSpinner() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
-        <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-gray-600">Loading user profile...</p>
+        <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
+        <p className="mt-4 text-gray-600">Loading...</p>
       </div>
     </div>
   );
 }
 
 // Main Export with Suspense
-export default function AdminUserDetailPage() {
+export default function AdminUserViewPage() {
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <UserViewContent />

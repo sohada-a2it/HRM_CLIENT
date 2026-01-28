@@ -86,14 +86,48 @@ export default function PayrollPage() {
     myPayrolls: false,
     allView: false
   });
-  
+  const [employeeMealData, setEmployeeMealData] = useState({});
+// State variables
+const [mealSystemData, setMealSystemData] = useState({
+  hasMonthlySubscription: false,  // সঠিকভাবে false set করুন
+  dailyMealDays: 0,
+  monthlyFoodCost: 0,
+  activeSubscribers: 0,
+  deductionPerEmployee: 0,
+  averageDailyCost: 0
+});
+// Show create modal function এ যোগ করুন
+const handleOpenCreateModal = () => {
+  // Reset meal data when opening modal
+  setEmployeeMealData({});
+  setCreateForm({
+    employeeId: "",
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    monthlySalary: "",
+    overtime: "0",
+    bonus: "0",
+    allowance: "0",
+    notes: "",
+    dailyMealRate: "0",
+    manualMealAmount: "0"
+  });
+  setShowCreateModal(true);
+};
   const [apiConnected, setApiConnected] = useState(false);
   const [isEmployeeView, setIsEmployeeView] = useState(false);
   const [userRole, setUserRole] = useState('');
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState('');
   const [userData, setUserData] = useState(null);
-  
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+const [previewData, setPreviewData] = useState(null);
+const [isPreviewing, setIsPreviewing] = useState(false);
+  // নতুন state variables
+const [employeeDetailsModal, setEmployeeDetailsModal] = useState(false);
+const [selectedEmployeePayroll, setSelectedEmployeePayroll] = useState(null);
+const [employeePayrollDetails, setEmployeePayrollDetails] = useState(null);
+const [acceptingPayroll, setAcceptingPayroll] = useState(false);
   // NEW STATE: Employee acceptance status
   const [employeeAcceptedStatus, setEmployeeAcceptedStatus] = useState({});
   
@@ -137,7 +171,9 @@ export default function PayrollPage() {
     overtime: "0",
     bonus: "0",
     allowance: "0",
-    notes: ""
+    notes: "",
+     dailyMealRate: "0", // নতুন field
+  manualMealAmount: "0" // নতুন field
   });
   
   const [calculateForm, setCalculateForm] = useState({
@@ -250,7 +286,939 @@ export default function PayrollPage() {
       };
     }
   };
+// loadEmployeeMealData ফাংশনে console log যোগ করুন
+const loadEmployeeMealData = async (employeeId, month, year) => {
+  try {
+    if (!employeeId || !month || !year) return;
+    
+    console.log('🔍 Loading meal data for:', { 
+      employeeId, 
+      month: parseInt(month), 
+      year: parseInt(year) 
+    });
+    
+    // API call
+    const response = await apiRequest('GET', `/meal-data/${employeeId}?month=${month}&year=${year}`);
+    
+    console.log('✅ Meal API Response status:', response?.status);
+    console.log('✅ Meal API Response data:', response?.data);
+    
+    if (response && response.status === 'success') {
+      console.log('📊 Raw meal data from API:', response.data);
+      
+      // Boolean conversion with strict checking
+      let hasSubscription = false;
+      
+      if (response.data.hasSubscription === true || response.data.hasSubscription === 'true') {
+        hasSubscription = true;
+      } else if (response.data.hasSubscription === 1) {
+        hasSubscription = true;
+      } else if (response.data.hasSubscription === '1') {
+        hasSubscription = true;
+      }
+      
+      console.log('📊 Final hasSubscription (boolean):', hasSubscription);
+      
+      const mealData = {
+        hasMonthlySubscription: hasSubscription,
+        dailyMealDays: Number(response.data.dailyMealDays) || 0,
+        monthlyFoodCost: Number(response.data.totalMonthlyFoodCost) || 0,
+        activeSubscribers: Number(response.data.activeSubscribers) || 0,
+        deductionPerEmployee: Number(response.data.deductionPerEmployee) || 0,
+        averageDailyCost: Number(response.data.averageDailyCost) || 0
+      };
+      
+      console.log('📊 Final mealData for employee:', mealData);
+      
+      // প্রতিটি employee এর জন্য আলাদা meal data সেট করুন
+      setEmployeeMealData(prev => ({
+        ...prev,
+        [employeeId]: mealData
+      }));
+      
+      // যদি subscription থাকে, daily meal rate clear করুন
+      if (hasSubscription) {
+        setCreateForm(prev => ({
+          ...prev,
+          dailyMealRate: "0",
+          manualMealAmount: "0"
+        }));
+        toast.success(`✅ Monthly subscription loaded: ${formatCurrency(response.data.deductionPerEmployee)} will be auto-deducted`, {
+          duration: 3000,
+          icon: '💰'
+        });
+      } else if (response.data.dailyMealDays > 0) {
+        toast.info(`📅 Daily meals found: ${response.data.dailyMealDays} days`, {
+          duration: 2000
+        });
+      }
+    } else {
+      console.log('⚠️ No meal data found or API error:', response?.message);
+      // Reset meal data for this employee
+      setEmployeeMealData(prev => ({
+        ...prev,
+        [employeeId]: {
+          hasMonthlySubscription: false,
+          dailyMealDays: 0,
+          monthlyFoodCost: 0,
+          activeSubscribers: 0,
+          deductionPerEmployee: 0,
+          averageDailyCost: 0
+        }
+      }));
+    }
+  } catch (error) {
+    console.error('❌ Error loading meal data:', error);
+    console.error('❌ Error details:', error.message);
+    // Reset on error
+    setEmployeeMealData(prev => ({
+      ...prev,
+      [employeeId]: {
+        hasMonthlySubscription: false,
+        dailyMealDays: 0,
+        monthlyFoodCost: 0,
+        activeSubscribers: 0,
+        deductionPerEmployee: 0,
+        averageDailyCost: 0
+      }
+    }));
+  }
+};
+// নতুন ফাংশন: Payroll preview দেখার জন্য
+// নতুন handlePreviewPayroll function
+const handlePreviewPayroll = async (e) => {
+  e.preventDefault();
+  
+  if (userRole !== 'admin') {
+    toast.error("Only admin can preview payroll");
+    return;
+  }
+  
+  // Validate required fields
+  if (!createForm.employeeId || !createForm.month || !createForm.year) {
+    toast.error('Please select employee, month and year');
+    return;
+  }
+  
+  setIsPreviewing(true);
+  
+  try {
+    const employee = employees.find(emp => emp._id === createForm.employeeId);
+    if (!employee) {
+      toast.error('Selected employee not found');
+      return;
+    }
+    
+    const salaryData = employeeSalaries[createForm.employeeId] || {};
+    const monthlySalary = parseInt(createForm.monthlySalary) || salaryData.salary || 30000;
+    
+    // যদি monthlySalary না থাকে তবে error show করুন
+    if (!monthlySalary || monthlySalary <= 0) {
+      toast.error('Please enter monthly salary');
+      setIsPreviewing(false);
+      return;
+    }
+    
+    const previewPayload = {
+      employeeId: createForm.employeeId,
+      month: parseInt(createForm.month),
+      year: parseInt(createForm.year),
+      monthlySalary: monthlySalary,
+      overtime: parseInt(createForm.overtime) || 0,
+      bonus: parseInt(createForm.bonus) || 0,
+      allowance: parseInt(createForm.allowance) || 0,
+      dailyMealRate: parseFloat(createForm.dailyMealRate) || 0,
+      manualMealAmount: parseFloat(createForm.manualMealAmount) || 0,
+      notes: createForm.notes || `Payroll preview for ${getMonthName(createForm.month)} ${createForm.year}`
+    };
+    
+    console.log('Preview payload:', previewPayload);
+    
+    const response = await apiRequest('POST', '/preview', previewPayload);
+    
+    if (response && response.status === 'success') {
+      setPreviewData({
+        ...response.data,
+        employee: {
+          name: getEmployeeName(employee),
+          employeeId: employee.employeeId || 'N/A',
+          department: employee.department || 'General'
+        },
+        period: {
+          month: createForm.month,
+          year: createForm.year,
+          monthName: getMonthName(createForm.month)
+        },
+        salary: {
+          monthly: monthlySalary,
+          dailyRate: Math.round(monthlySalary / 23)
+        }
+      });
+      
+      setShowPreviewModal(true);
+      
+      toast.success('Payroll calculation preview generated', {
+        icon: '📊',
+        duration: 3000,
+      });
+    } else {
+      throw new Error(response?.message || 'Preview failed');
+    }
+    
+  } catch (error) {
+    console.error('Preview payroll error:', error);
+    toast.error(error.message || 'Failed to generate preview');
+  } finally {
+    setIsPreviewing(false);
+  }
+};
+// viewEmployeePayrollDetails function-এ
+const viewEmployeePayrollDetails = async (payrollId) => {
+  console.log('🚀 Opening payroll details for ID:', payrollId);
+  
+  try {
+    setLoading(prev => ({ ...prev, action: true }));
+    
+    // Find payroll in local state
+    const payroll = payrolls.find(p => p._id === payrollId);
+    
+    if (!payroll) {
+      toast.error('Payroll not found in local data');
+      return;
+    }
+    
+    console.log('Found payroll:', payroll);
+    
+    // Create details object from local data
+    const payrollDetails = {
+      payrollId: payroll._id,
+      employee: {
+        name: payroll.employeeName || getEmployeeName(payroll),
+        employeeId: payroll.employeeId || 'N/A',
+        department: payroll.department || 'General',
+        designation: payroll.designation || 'Employee'
+      },
+      salary: {
+        monthly: payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0,
+        daily: Math.round((payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0) / 23)
+      },
+      earnings: {
+        basicPay: payroll.earnings?.basicPay || 0,
+        overtime: payroll.earnings?.overtime?.amount || 0,
+        bonus: payroll.earnings?.bonus?.amount || 0,
+        allowance: payroll.earnings?.allowance?.amount || 0,
+        total: payroll.summary?.grossEarnings || 0
+      },
+      deductions: {
+        late: payroll.deductions?.lateDeduction || 0,
+        absent: payroll.deductions?.absentDeduction || 0,
+        leave: payroll.deductions?.leaveDeduction || 0,
+        halfDay: payroll.deductions?.halfDayDeduction || 0,
+        allowanceDeduction: payroll.deductions?.allowanceDeduction || 0,
+        total: payroll.deductions?.total || 0
+      },
+      attendance: {
+        totalDays: payroll.attendance?.totalWorkingDays || 23,
+        presentDays: payroll.attendance?.presentDays || 0,
+        absentDays: payroll.attendance?.absentDays || 0,
+        attendancePercentage: payroll.attendance?.attendancePercentage || 0
+      },
+      summary: {
+        netPayable: payroll.summary?.netPayable || 0,
+        grossEarnings: payroll.summary?.grossEarnings || 0,
+        totalDeductions: payroll.deductions?.total || 0
+      },
+      status: {
+        current: payroll.status || 'Pending',
+        employeeAccepted: payroll.employeeAccepted?.accepted || false,
+        acceptedAt: payroll.employeeAccepted?.acceptedAt
+      },
+      period: {
+        formattedPeriod: `${getMonthName(payroll.month)} ${payroll.year}`
+      },
+      // ✅ Onsite benefits data
+      onsiteBenefits: payroll.onsiteBenefitsDetails ? {
+        serviceCharge: payroll.onsiteBenefitsDetails.serviceCharge || 0,
+        teaAllowance: payroll.onsiteBenefitsDetails.teaAllowance || 0,
+        presentDays: payroll.onsiteBenefitsDetails.presentDays || 0,
+        netEffect: payroll.onsiteBenefitsDetails.netEffect || 0,
+        calculationNote: payroll.onsiteBenefitsDetails.calculationNote || ''
+      } : null,
+      // ✅ Meal deduction data
+      mealDeduction: payroll.mealSystemData?.mealDeduction ? {
+        type: payroll.mealSystemData.mealDeduction.type || 'none',
+        amount: payroll.mealSystemData.mealDeduction.amount || 0,
+        calculationNote: payroll.mealSystemData.mealDeduction.calculationNote || '',
+        details: payroll.mealSystemData.mealDeduction.details || {}
+      } : null,
+      // ✅ Food cost details
+      foodCostDetails: payroll.foodCostDetails ? {
+        included: payroll.foodCostDetails.included || false,
+        totalMealCost: payroll.foodCostDetails.totalMealCost || 0,
+        fixedDeduction: payroll.foodCostDetails.fixedDeduction || 0,
+        calculationNote: payroll.foodCostDetails.calculationNote || ''
+      } : null
+    };
+    
+    console.log('✅ Payroll details created:', payrollDetails);
+    
+    // Set state and open modal
+    setEmployeePayrollDetails(payrollDetails);
+    setEmployeeDetailsModal(true);
+    
+    console.log('🎯 Modal opened successfully');
+    
+  } catch (error) {
+    console.error('🚨 Error loading payroll details:', error);
+    toast.error('Failed to load payroll details');
+  } finally {
+    setLoading(prev => ({ ...prev, action: false }));
+  }
+};
+const renderEmployeeDetailsModal = () => {
+  if (!employeeDetailsModal || !employeePayrollDetails) return null;
+  
+  const { 
+    employee, 
+    salary, 
+    earnings, 
+    deductions, 
+    attendance, 
+    summary, 
+    status, 
+    period,
+    onsiteBenefits,
+    mealDeduction, // ✅ নতুন field add করুন
+    foodCostDetails // ✅ Food cost details field add করুন
+  } = employeePayrollDetails;
+  
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Payroll Details</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {period.formattedPeriod} • {employee.name}
+                {onsiteBenefits?.netEffect && (
+                  <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                    Onsite Employee
+                  </span>
+                )}
+                {mealDeduction?.amount > 0 && (
+                  <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full">
+                    Meal Deduction Applied
+                  </span>
+                )}
+                {foodCostDetails?.included && (
+                  <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                    Food Cost Included
+                  </span>
+                )}
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                setEmployeeDetailsModal(false);
+                setEmployeePayrollDetails(null);
+              }} 
+              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
 
+        <div className="p-6">
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
+              <h3 className="text-sm font-medium text-blue-700 mb-2">Employee Info</h3>
+              <div className="space-y-1">
+                <p className="text-sm">
+                  <span className="text-gray-600">Name:</span> {employee.name}
+                </p>
+                <p className="text-sm">
+                  <span className="text-gray-600">ID:</span> {employee.employeeId}
+                </p>
+                <p className="text-sm">
+                  <span className="text-gray-600">Department:</span> {employee.department}
+                </p>
+                <p className="text-sm">
+                  <span className="text-gray-600">Work Type:</span> 
+                  <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                    {onsiteBenefits ? 'Onsite' : 'Office'}
+                  </span>
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+              <h3 className="text-sm font-medium text-green-700 mb-2">Salary Summary</h3>
+              <div className="space-y-1">
+                <p className="text-sm">
+                  <span className="text-gray-600">Monthly:</span> {formatCurrency(salary.monthly)}
+                </p>
+                <p className="text-sm">
+                  <span className="text-gray-600">Daily:</span> {formatCurrency(salary.daily)}
+                </p>
+                <p className="text-sm">
+                  <span className="text-gray-600">Net Payable:</span> 
+                  <span className="font-bold text-green-600 ml-2">
+                    {formatCurrency(summary.netPayable)}
+                  </span>
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+              <h3 className="text-sm font-medium text-purple-700 mb-2">Status</h3>
+              <div className="space-y-1">
+                <p className="text-sm">
+                  <span className="text-gray-600">Current:</span> 
+                  <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                    status.current === 'Paid' || status.employeeAccepted 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {status.current}
+                  </span>
+                </p>
+                <p className="text-sm">
+                  <span className="text-gray-600">Employee Accepted:</span> 
+                  <span className={`ml-2 ${status.employeeAccepted ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {status.employeeAccepted ? '✓ Yes' : '✗ No'}
+                  </span>
+                </p>
+                {status.acceptedAt && (
+                  <p className="text-sm">
+                    <span className="text-gray-600">Accepted on:</span> 
+                    <span className="ml-2">{formatDate(status.acceptedAt)}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ✅ Food Cost Details Section (যদি থাকে) */}
+          {foodCostDetails && foodCostDetails.included && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+              <h3 className="text-sm font-medium text-green-700 mb-3 flex items-center gap-2">
+                <DollarSign size={16} /> Food Cost Details
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-3 bg-white rounded-lg border border-green-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Total Meal Cost</span>
+                    <span className="font-bold text-green-600">
+                      {formatCurrency(foodCostDetails.totalMealCost || 0)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Monthly food expenses
+                  </p>
+                </div>
+                
+                <div className="p-3 bg-white rounded-lg border border-green-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Fixed Deduction</span>
+                    <span className="font-bold text-red-600">
+                      -{formatCurrency(foodCostDetails.fixedDeduction || 0)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Employee contribution
+                  </p>
+                </div>
+                
+                <div className="p-3 bg-white rounded-lg border border-green-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Calculation</span>
+                    <span className="text-xs font-medium text-gray-700">
+                      {foodCostDetails.calculationNote || 'Standard rate'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ✅ Meal Deduction Section (যদি থাকে) */}
+          {mealDeduction && mealDeduction.amount > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-xl border border-red-200">
+              <h3 className="text-sm font-medium text-red-700 mb-3 flex items-center gap-2">
+                <AlertTriangle size={16} /> Meal Deduction
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-3 bg-white rounded-lg border border-red-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Type</span>
+                    <span className="font-bold text-red-600 capitalize">
+                      {mealDeduction.type?.replace('_', ' ') || 'Meal'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {mealDeduction.type === 'monthly_subscription' ? 'Monthly Subscription' : 'Daily Meal'}
+                  </p>
+                </div>
+                
+                <div className="p-3 bg-white rounded-lg border border-red-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Amount</span>
+                    <span className="font-bold text-red-600">
+                      -{formatCurrency(mealDeduction.amount || 0)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Fixed deduction
+                  </p>
+                </div>
+                
+                <div className="p-3 bg-white rounded-lg border border-red-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600 mr-2">Calculation:</span>
+                    <span className="text-xs font-medium text-gray-700">
+                      {mealDeduction.calculationNote || 'Not specified'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {mealDeduction.details && (
+                <div className="mt-4 pt-4 border-t border-red-200">
+                  <h4 className="text-xs font-medium text-red-600 mb-2">Details:</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                    {mealDeduction.details.totalMonthlyFoodCost > 0 && (
+                      <div>
+                        <span className="text-gray-600">Food Cost: </span>
+                        <span>{formatCurrency(mealDeduction.details.totalMonthlyFoodCost)}</span>
+                      </div>
+                    )}
+                    {mealDeduction.details.activeSubscribers > 0 && (
+                      <div>
+                        <span className="text-gray-600">Subscribers: </span>
+                        <span>{mealDeduction.details.activeSubscribers}</span>
+                      </div>
+                    )}
+                    {mealDeduction.details.foodCostDays > 0 && (
+                      <div>
+                        <span className="text-gray-600">Food Days: </span>
+                        <span>{mealDeduction.details.foodCostDays}</span>
+                      </div>
+                    )}
+                    {mealDeduction.details.averageDailyCost > 0 && (
+                      <div>
+                        <span className="text-gray-600">Avg Daily: </span>
+                        <span>{formatCurrency(mealDeduction.details.averageDailyCost)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Onsite Benefits Section */}
+          {onsiteBenefits && onsiteBenefits.serviceCharge > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+              <h3 className="text-sm font-medium text-amber-700 mb-3 flex items-center gap-2">
+                <Briefcase size={16} /> Onsite Employee Benefits
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-3 bg-white rounded-lg border border-amber-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Tea Allowance</span>
+                    <span className="font-bold text-green-600">
+                      +{formatCurrency(onsiteBenefits.teaAllowance || 0)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {onsiteBenefits.presentDays || 0} days × 10 BDT
+                  </p>
+                </div>
+                
+                <div className="p-3 bg-white rounded-lg border border-amber-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Service Charge</span>
+                    <span className="font-bold text-red-600">
+                      -{formatCurrency(onsiteBenefits.serviceCharge || 0)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Fixed monthly deduction
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-amber-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Net Onsite Effect</span>
+                  <span className={`text-lg font-bold ${
+                    onsiteBenefits.netEffect >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {onsiteBenefits.netEffect >= 0 ? '+' : ''}{formatCurrency(onsiteBenefits.netEffect || 0)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {onsiteBenefits.presentDays || 0} present days eligible for tea allowance
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Earnings & Deductions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <h3 className="text-sm font-medium text-green-700 mb-3 flex items-center gap-2">
+                <TrendingUp size={16} /> Earnings
+              </h3>
+              <div className="space-y-2 p-4 bg-white border border-gray-200 rounded-xl">
+                {[
+                  { label: 'Basic Pay', value: earnings.basicPay },
+                  { label: 'Overtime', value: earnings.overtime },
+                  { label: 'Bonus', value: earnings.bonus },
+                  { label: 'Allowance', value: earnings.allowance },
+                  onsiteBenefits && onsiteBenefits.teaAllowance > 0 ? 
+                    { 
+                      label: 'Onsite Tea Allowance', 
+                      value: onsiteBenefits.teaAllowance,
+                      isOnsite: true 
+                    } : null
+                ].filter(Boolean).map((item, index) => (
+                  <div key={index} className="flex justify-between items-center">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm text-gray-600">{item.label}</span>
+                      {item.isOnsite && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-1 rounded">Onsite</span>
+                      )}
+                    </div>
+                    <span className="font-medium">{formatCurrency(item.value)}</span>
+                  </div>
+                ))}
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Total Earnings</span>
+                    <span className="font-bold text-green-600">
+                      {formatCurrency(earnings.total)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-red-700 mb-3 flex items-center gap-2">
+                <AlertCircle size={16} /> Deductions
+              </h3>
+              <div className="space-y-2 p-4 bg-white border border-gray-200 rounded-xl">
+                {[
+                  { label: 'Late', value: deductions.late },
+                  { label: 'Absent', value: deductions.absent },
+                  { label: 'Leave', value: deductions.leave },
+                  { label: 'Half Day', value: deductions.halfDay },
+                  mealDeduction && mealDeduction.amount > 0 ? 
+                    { 
+                      label: `Meal Deduction (${mealDeduction.type?.replace('_', ' ')})`, 
+                      value: mealDeduction.amount,
+                      isMeal: true 
+                    } : null,
+                  deductions.allowanceDeduction > 0 ? 
+                    { 
+                      label: 'Allowance Adjustment', 
+                      value: deductions.allowanceDeduction,
+                      isAllowance: true 
+                    } : null,
+                  onsiteBenefits && onsiteBenefits.serviceCharge > 0 ? 
+                    { 
+                      label: 'Onsite Service Charge', 
+                      value: onsiteBenefits.serviceCharge,
+                      isOnsite: true 
+                    } : null,
+                  foodCostDetails && foodCostDetails.fixedDeduction > 0 ?
+                    {
+                      label: 'Food Cost Contribution',
+                      value: foodCostDetails.fixedDeduction,
+                      isFood: true
+                    } : null
+                ].filter(Boolean).map((item, index) => (
+                  <div key={index} className="flex justify-between items-center">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm text-gray-600">{item.label}</span>
+                      {item.isMeal && (
+                        <span className="text-xs bg-red-100 text-red-700 px-1 rounded">Meal</span>
+                      )}
+                      {item.isAllowance && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-1 rounded">Allowance</span>
+                      )}
+                      {item.isOnsite && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-1 rounded">Onsite</span>
+                      )}
+                      {item.isFood && (
+                        <span className="text-xs bg-green-100 text-green-700 px-1 rounded">Food</span>
+                      )}
+                    </div>
+                    <span className="font-medium">{formatCurrency(item.value)}</span>
+                  </div>
+                ))}
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Total Deductions</span>
+                    <span className="font-bold text-red-600">
+                      {formatCurrency(deductions.total)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Attendance & Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <h3 className="text-sm font-medium text-blue-700 mb-3 flex items-center gap-2">
+                <CalendarDays size={16} /> Attendance
+              </h3>
+              <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { label: 'Total Days', value: attendance.totalDays, color: 'text-gray-900' },
+                    { label: 'Present Days', value: attendance.presentDays, color: 'text-green-600' },
+                    { label: 'Absent Days', value: attendance.absentDays, color: 'text-red-600' },
+                    { label: 'Attendance %', value: `${attendance.attendancePercentage}%`, color: 'text-blue-600' }
+                  ].map((item, index) => (
+                    <div key={index} className="text-center p-3 bg-white rounded-lg border">
+                      <span className="text-xs text-gray-600">{item.label}</span>
+                      <p className={`text-lg font-bold ${item.color}`}>{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+                {onsiteBenefits && (
+                  <div className="mt-3 pt-3 border-t border-gray-300 text-center">
+                    <p className="text-xs text-amber-600">
+                      Eligible for tea allowance: {onsiteBenefits.presentDays || 0} days
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
+                <Calculator size={16} /> Calculation Summary
+              </h3>
+              <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Gross Earnings</span>
+                    <span className="font-medium">{formatCurrency(summary.grossEarnings)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Deductions</span>
+                    <span className="font-medium text-red-600">{formatCurrency(summary.totalDeductions)}</span>
+                  </div>
+                  
+                  {/* Meal Deduction Breakdown (যদি থাকে) */}
+                  {mealDeduction && (
+                    <div className="border-t pt-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Meal Deduction</span>
+                        <span className="text-red-500">-{formatCurrency(mealDeduction.amount)}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 pl-1">
+                        {mealDeduction.calculationNote || 'Standard meal deduction applied'}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Food Cost Breakdown (যদি থাকে) */}
+                  {foodCostDetails && foodCostDetails.included && (
+                    <div className="border-t pt-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Food Cost Deduction</span>
+                        <span className="text-red-500">-{formatCurrency(foodCostDetails.fixedDeduction)}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 pl-1">
+                        {foodCostDetails.calculationNote || 'Monthly food cost contribution'}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Onsite Benefits Breakdown (যদি থাকে) */}
+                  {onsiteBenefits && (
+                    <div className="border-t pt-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Onsite Tea Allowance</span>
+                        <span className="text-green-500">+{formatCurrency(onsiteBenefits.teaAllowance)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Onsite Service Charge</span>
+                        <span className="text-red-500">-{formatCurrency(onsiteBenefits.serviceCharge)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-medium pt-1">
+                        <span className="text-gray-600">Onsite Net Effect</span>
+                        <span className={`${onsiteBenefits.netEffect >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {onsiteBenefits.netEffect >= 0 ? '+' : ''}{formatCurrency(onsiteBenefits.netEffect)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="border-t pt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-gray-900">Net Payable</span>
+                      <span className="text-2xl font-bold text-purple-600">
+                        {formatCurrency(summary.netPayable)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      23 days fixed calculation basis
+                      {onsiteBenefits && ' + Onsite benefits applied'}
+                      {mealDeduction && ' + Meal deduction applied'}
+                      {foodCostDetails?.included && ' + Food cost included'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Acceptance Section for Pending Payrolls */}
+          {status.current === 'Pending' && !status.employeeAccepted && (
+            <div className="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl border border-yellow-200 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-yellow-700 mb-1">Pending Acceptance</h4>
+                  <p className="text-sm text-yellow-600">
+                    Please review and accept this payroll to mark it as paid
+                  </p>
+                  {onsiteBenefits && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Note: Onsite benefits calculation included
+                    </p>
+                  )}
+                  {mealDeduction && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Note: Meal deduction of {formatCurrency(mealDeduction.amount)} applied
+                    </p>
+                  )}
+                  {foodCostDetails?.included && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Note: Food cost contribution included
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleEmployeeAccept(employeePayrollDetails.payrollId)}
+                  disabled={acceptingPayroll}
+                  className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
+                    acceptingPayroll 
+                      ? 'bg-gray-300 text-gray-600' 
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
+                >
+                  {acceptingPayroll ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Accepting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      Accept Payroll
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Close Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                setEmployeeDetailsModal(false);
+                setEmployeePayrollDetails(null);
+              }}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+// নতুন ফাংশন: Employee acceptance (improved version)
+const handleEmployeeAccept = async (payrollId) => {
+  if (userRole !== 'employee') {
+    toast.error("Only employees can accept payrolls");
+    return;
+  }
+  
+  setAcceptingPayroll(true);
+  
+  try {
+    // API call to accept payroll
+    const response = await apiRequest('PUT', `/payroll/${payrollId}/employee-accept`, {});
+    
+    if (response && response.status === 'success') {
+      // Update local state immediately
+      const updatedPayrolls = payrolls.map(p => {
+        if (p._id === payrollId) {
+          return {
+            ...p,
+            status: 'Paid', // এটা important
+            employeeAccepted: {
+              accepted: true,
+              acceptedAt: new Date().toISOString(),
+              acceptedBy: userId
+            },
+            payment: {
+              ...p.payment,
+              paymentDate: new Date().toISOString(),
+              paymentMethod: 'Employee Accepted',
+              transactionId: `EMP_ACCEPT_${Date.now()}_${userId}`
+            }
+          };
+        }
+        return p;
+      });
+      
+      setPayrolls(updatedPayrolls);
+      calculateStats(updatedPayrolls);
+      
+      // Save to localStorage
+      saveEmployeeAcceptedStatus(payrollId, 'accepted');
+      
+      toast.success(response.message || 'Payroll accepted successfully!', {
+        icon: '✅',
+        duration: 4000,
+      });
+      
+      // If details modal is open, update it too
+      if (employeePayrollDetails?.payrollId === payrollId) {
+        setEmployeePayrollDetails(prev => ({
+          ...prev,
+          status: {
+            current: 'Paid',
+            employeeAccepted: true
+          }
+        }));
+      }
+      
+    } else {
+      toast.error(response?.message || 'Failed to accept payroll');
+    }
+  } catch (error) {
+    console.error('Accept payroll error:', error);
+    toast.error(error.message || 'Failed to accept payroll');
+  } finally {
+    setAcceptingPayroll(false);
+  }
+};
   // ==================== AUTHENTICATION ====================
   const getUserType = () => {
     if (typeof window !== "undefined") {
@@ -417,95 +1385,7 @@ const saveEmployeeAcceptedStatus = (payrollId, status) => {
     console.error('Error saving employee acceptance status:', error);
   }
 };
-
-// NEW FUNCTION: Handle employee acceptance (with server API)
-// NEW FUNCTION: Handle employee acceptance (with server API)
-const handleEmployeeAccept = async (payrollId) => {
-  if (userRole !== 'employee') {
-    toast.error("Only employees can accept payrolls");
-    return;
-  }
-  
-  setLoading(prev => ({ ...prev, accept: true }));
-  
-  try {
-    // First, save locally immediately for better UX
-    saveEmployeeAcceptedStatus(payrollId, 'accepted');
-    
-    // Update local state immediately
-    const updatedPayrolls = payrolls.map(p => 
-      p._id === payrollId ? { 
-        ...p, 
-        status: 'Paid',
-        employeeAccepted: {
-          accepted: true,
-          acceptedAt: new Date().toISOString()
-        },
-        payment: {
-          ...p.payment,
-          paymentDate: new Date().toISOString(),
-          paymentMethod: 'Employee Accepted'
-        }
-      } : p
-    );
-    
-    setPayrolls(updatedPayrolls);
-    calculateStats(updatedPayrolls);
-    
-    // Try server API
-    try {
-      const response = await apiRequest('PUT', `/payroll/${payrollId}/employee-accept`, {});
-      
-      if (response && response.status === 'success') {
-        toast.success('Payroll accepted successfully! Status updated to "Paid".', {
-          icon: '✅',
-          duration: 4000,
-        });
-        
-        // Update with server response
-        if (response.data) {
-          const serverUpdatedPayrolls = payrolls.map(p => 
-            p._id === payrollId ? { 
-              ...p, 
-              ...response.data,
-              status: 'Paid', // Ensure status is Paid
-              employeeAccepted: {
-                accepted: true,
-                acceptedAt: response.data.employeeAccepted?.acceptedAt || new Date().toISOString()
-              }
-            } : p
-          );
-          
-          setPayrolls(serverUpdatedPayrolls);
-        }
-        
-      } else {
-        // If server fails, still keep local acceptance
-        toast.success('Payroll accepted locally!', {
-          icon: '✅',
-          duration: 4000,
-        });
-      }
-      
-    } catch (serverError) {
-      console.error('Server acceptance error:', serverError);
-      // Still show success message for local acceptance
-      toast.success('Payroll accepted locally! Admin will see status after refresh.', {
-        icon: '✅',
-        duration: 4000,
-      });
-    }
-    
-    // Broadcast to admin
-    broadcastToAdmin(payrollId);
-    
-  } catch (error) {
-    console.error('Accept payroll error:', error);
-    toast.error('Failed to accept payroll. Please try again.');
-  } finally {
-    setLoading(prev => ({ ...prev, accept: false }));
-  }
-};
+ 
 
 // Load payrolls function আপডেট করুন:
 const loadAllPayrolls = async () => {
@@ -948,84 +1828,442 @@ const refreshAdminPayrolls = async () => {
       averageSalary: totalProcessed > 0 ? totalPayroll / totalProcessed : 0
     });
   };
+// Preview Modal render function
+const renderPreviewModal = () => {
+  if (!previewData) return null;
+  
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Payroll Calculation Details</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {previewData.employee?.name} • {previewData.period?.monthName} {previewData.period?.year}
+                {previewData.payrollId && ` • Payroll ID: ${previewData.payrollId}`}
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                setShowPreviewModal(false);
+                setPreviewData(null);
+              }} 
+              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
 
-  // ==================== PAYROLL OPERATIONS ====================
-  const handleCreatePayroll = async (e) => {
-    e.preventDefault();
-    
-    if (userRole !== 'admin') {
-      toast.error("Only admin can create payrolls");
+        <div className="p-6">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
+              <div className="text-sm text-blue-600 font-medium">Monthly Salary</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {formatCurrency(previewData.salary?.monthly)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Daily: {formatCurrency(previewData.salary?.dailyRate)}
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+              <div className="text-sm text-green-600 font-medium">Attendance</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {previewData.attendance?.presentDays}/{previewData.attendance?.totalWorkingDays}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {Math.round((previewData.attendance?.presentDays / previewData.attendance?.totalWorkingDays) * 100)}% Present
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+              <div className="text-sm text-purple-600 font-medium">Total Deductions</div>
+              <div className="text-2xl font-bold text-red-600">
+                {formatCurrency(previewData.deductions?.total)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {previewData.deductions?.capped && 'Capped at monthly salary'}
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
+              <div className="text-sm text-orange-600 font-medium">Net Payable</div>
+              <div className="text-2xl font-bold text-green-600">
+                {formatCurrency(previewData.finalSummary?.netPayable || previewData.summary?.netPayable)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {previewData.finalSummary?.status || 'Calculated'}
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Earnings Breakdown */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                Earnings Breakdown
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { label: 'Basic Pay', value: previewData.earnings?.basicPay, color: 'text-green-600' },
+                  { label: 'Overtime', value: previewData.earnings?.overtime, color: 'text-green-500' },
+                  { label: 'Bonus', value: previewData.earnings?.bonus, color: 'text-green-400' },
+                  { label: 'Allowance', value: previewData.earnings?.allowance, color: 'text-green-300' }
+                ].map((item, index) => (
+                  item.value > 0 && (
+                    <div key={index} className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">{item.label}</span>
+                      <span className={`font-medium ${item.color}`}>
+                        {formatCurrency(item.value)}
+                      </span>
+                    </div>
+                  )
+                ))}
+                <div className="border-t pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Total Earnings</span>
+                    <span className="text-lg font-bold text-green-600">
+                      {formatCurrency(previewData.earnings?.total)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Onsite Benefits */}
+              {previewData.onsiteBenefits?.included && (
+                <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-100">
+                  <h4 className="text-sm font-medium text-blue-700 mb-2">Onsite Benefits</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Tea Allowance</span>
+                      <span className="font-medium text-green-600">
+                        +{formatCurrency(previewData.onsiteBenefits.teaAllowance)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Service Charge</span>
+                      <span className="font-medium text-red-600">
+                        -{formatCurrency(previewData.onsiteBenefits.serviceCharge)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm font-medium border-t pt-2">
+                      <span className="text-gray-700">Net Effect</span>
+                      <span className={previewData.onsiteBenefits.netEffect >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {previewData.onsiteBenefits.netEffect >= 0 ? '+' : ''}{formatCurrency(previewData.onsiteBenefits.netEffect)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Deductions Breakdown */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                Deductions Breakdown
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { label: 'Late Deduction', value: previewData.deductions?.late, color: 'text-red-500' },
+                  { label: 'Absent Deduction', value: previewData.deductions?.absent, color: 'text-red-600' },
+                  { label: 'Leave Deduction', value: previewData.deductions?.leave, color: 'text-red-700' },
+                  { label: 'Half Day Deduction', value: previewData.deductions?.halfDay, color: 'text-red-800' }
+                ].map((item, index) => (
+                  item.value > 0 && (
+                    <div key={index} className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">{item.label}</span>
+                      <span className={`font-medium ${item.color}`}>
+                        {formatCurrency(item.value)}
+                      </span>
+                    </div>
+                  )
+                ))}
+                
+                {/* Meal Deduction */}
+                {previewData.mealDeduction?.amount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">
+                      Meal Deduction ({previewData.mealDeduction.type})
+                    </span>
+                    <span className="font-medium text-red-600">
+                      -{formatCurrency(previewData.mealDeduction.amount)}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="border-t pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Total Deductions</span>
+                    <span className="text-lg font-bold text-red-600">
+                      {formatCurrency(previewData.deductions?.total)}
+                    </span>
+                  </div>
+                  {previewData.deductions?.capped && (
+                    <div className="text-xs text-yellow-600 mt-1">
+                      ⚠️ Deductions capped at monthly salary
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Calculation Notes */}
+              <div className="mt-4 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Calculation Rules</h4>
+                <ul className="text-xs text-gray-600 space-y-1">
+                  <li className="flex items-start gap-2">
+                    <div className="w-1 h-1 bg-gray-400 rounded-full mt-1.5"></div>
+                    {previewData.calculationNotes?.basis}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="w-1 h-1 bg-gray-400 rounded-full mt-1.5"></div>
+                    {previewData.calculationNotes?.deductionRules}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="w-1 h-1 bg-gray-400 rounded-full mt-1.5"></div>
+                    {previewData.calculationNotes?.holidayRule}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Attendance Details */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Attendance Details</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Total Working Days', value: previewData.attendance?.totalWorkingDays, bg: 'bg-gray-100' },
+                { label: 'Present Days', value: previewData.attendance?.presentDays, bg: 'bg-green-100' },
+                { label: 'Absent Days', value: previewData.attendance?.absentDays, bg: 'bg-red-100' },
+                { label: 'Leave Days', value: previewData.attendance?.leaveDays, bg: 'bg-yellow-100' },
+                { label: 'Late Days', value: previewData.attendance?.lateDays, bg: 'bg-orange-100' },
+                { label: 'Half Days', value: previewData.attendance?.halfDays, bg: 'bg-blue-100' },
+                { label: 'Holidays', value: previewData.attendance?.holidays, bg: 'bg-purple-100' },
+                { label: 'Weekly Offs', value: previewData.attendance?.weeklyOffs, bg: 'bg-pink-100' }
+              ].map((item, index) => (
+                <div key={index} className={`p-3 rounded-lg ${item.bg}`}>
+                  <div className="text-xs text-gray-600">{item.label}</div>
+                  <div className="text-lg font-bold text-gray-900">{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Final Summary */}
+          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-lg font-semibold text-green-700">Final Calculation</h4>
+                <p className="text-sm text-green-600">
+                  {previewData.employee?.name} • {previewData.period?.monthName} {previewData.period?.year}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-green-600">
+                  {formatCurrency(previewData.finalSummary?.netPayable || previewData.summary?.netPayable)}
+                </div>
+                <div className="text-sm text-green-500">Net Payable Amount</div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              <div className="text-center p-3 bg-white rounded-lg">
+                <div className="text-sm text-gray-600">Gross Earnings</div>
+                <div className="text-xl font-bold text-green-600">
+                  {formatCurrency(previewData.finalSummary?.grossEarnings || previewData.summary?.grossEarnings)}
+                </div>
+              </div>
+              <div className="text-center p-3 bg-white rounded-lg">
+                <div className="text-sm text-gray-600">Total Deductions</div>
+                <div className="text-xl font-bold text-red-600">
+                  {formatCurrency(previewData.finalSummary?.totalDeductions || previewData.summary?.totalDeductions)}
+                </div>
+              </div>
+              <div className="text-center p-3 bg-white rounded-lg">
+                <div className="text-sm text-gray-600">Payable Days</div>
+                <div className="text-xl font-bold text-blue-600">
+                  {previewData.attendance?.presentDays}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Warnings */}
+          {previewData.warnings && previewData.warnings.length > 0 && (
+            <div className="mt-4 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl border border-yellow-200">
+              <h4 className="text-sm font-medium text-yellow-700 mb-2">Important Notes</h4>
+              <ul className="text-sm text-yellow-600 space-y-1">
+                {previewData.warnings.map((warning, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <div className="w-1 h-1 bg-yellow-500 rounded-full mt-1.5"></div>
+                    {warning}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-6 border-t border-gray-100">
+            <button
+              onClick={() => {
+                setShowPreviewModal(false);
+                setPreviewData(null);
+              }}
+              className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+            >
+              Close
+            </button>
+            {!previewData.payrollId && (
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  handleCreatePayroll(new Event('submit'));
+                }}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <Check size={18} />
+                Create Payroll
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}; 
+  // ==================== PAYROLL OPERATIONS ==================== 
+const handleCreatePayroll = async (e) => {
+  e.preventDefault();
+  
+  if (userRole !== 'admin') {
+    toast.error("Only admin can create payrolls");
+    return;
+  }
+  
+  setLoading(prev => ({ ...prev, create: true }));
+  
+  try {
+    const employee = employees.find(emp => emp._id === createForm.employeeId);
+    if (!employee) {
+      toast.error('Selected employee not found');
+      setLoading(prev => ({ ...prev, create: false }));
       return;
     }
     
-    setLoading(prev => ({ ...prev, create: true }));
+    const salaryData = employeeSalaries[createForm.employeeId] || {};
+    const monthlySalary = salaryData.salary || parseInt(createForm.monthlySalary) || 30000;
     
-    try {
-      const employee = employees.find(emp => emp._id === createForm.employeeId);
-      if (!employee) {
-        toast.error('Selected employee not found');
-        setLoading(prev => ({ ...prev, create: false }));
-        return;
-      }
-      
-      const salaryData = employeeSalaries[createForm.employeeId] || {};
-      const monthlySalary = salaryData.salary || parseInt(createForm.monthlySalary) || 30000;
-      
-      const payrollData = {
-        employeeId: createForm.employeeId,
-        month: parseInt(createForm.month),
-        year: parseInt(createForm.year),
-        monthlySalary: monthlySalary,
-        overtime: parseInt(createForm.overtime) || 0,
-        bonus: parseInt(createForm.bonus) || 0,
-        allowance: parseInt(createForm.allowance) || 0,
-        notes: createForm.notes || `Payroll for ${monthNames[createForm.month - 1]} ${createForm.year}`
-      };
-      
-      console.log('Creating payroll with data:', payrollData);
-      
-      const response = await apiRequest('POST', '/payroll/create', payrollData);
-      
-      if (response && response.status === 'success') {
-        toast.success(response.message || 'Payroll created successfully!', {
-          icon: '✅',
-          duration: 3000,
-        });
-        
-        await loadPayrolls();
-        
-        setCreateForm({
-          employeeId: "",
-          month: new Date().getMonth() + 1,
-          year: new Date().getFullYear(),
-          monthlySalary: "",
-          overtime: "0",
-          bonus: "0",
-          allowance: "0",
-          notes: ""
-        });
-        
-        setShowCreateModal(false);
-        
-      } else {
-        const errorMsg = response?.message || 'Failed to create payroll';
-        
-        if (errorMsg.includes('Payroll already exists')) {
-          toast.error('❌ Payroll already exists for this employee and month!');
-        } else if (errorMsg.includes('Net payable amount is 0')) {
-          toast.error('❌ Cannot create payroll. Net payable amount would be 0 BDT.');
-        } else {
-          toast.error(`❌ ${errorMsg}`);
-        }
-      }
-      
-    } catch (error) {
-      console.error('Create payroll error:', error);
-      toast.error('Failed to create payroll. Please try again.');
-    } finally {
-      setLoading(prev => ({ ...prev, create: false }));
+    // Meal deduction calculation
+    let mealDeduction = 0;
+    let mealDeductionType = 'none';
+    let mealCalculationNote = '';
+    
+    if (mealSystemData.hasMonthlySubscription) {
+      // Monthly subscription auto calculation
+      mealDeduction = mealSystemData.deductionPerEmployee;
+      mealDeductionType = 'monthly_subscription';
+      mealCalculationNote = `Monthly subscription: ${formatCurrency(mealSystemData.monthlyFoodCost)} ÷ ${mealSystemData.activeSubscribers} = ${formatCurrency(mealDeduction)}`;
+    } else if (parseFloat(createForm.manualMealAmount) > 0) {
+      // Manual total amount
+      mealDeduction = parseFloat(createForm.manualMealAmount);
+      mealDeductionType = 'manual_amount';
+      mealCalculationNote = `Manual meal deduction: ${formatCurrency(mealDeduction)}`;
+    } else if (parseFloat(createForm.dailyMealRate) > 0 && mealSystemData.dailyMealDays > 0) {
+      // Daily meal calculation
+      mealDeduction = parseFloat(createForm.dailyMealRate) * mealSystemData.dailyMealDays;
+      mealDeductionType = 'daily_meal';
+      mealCalculationNote = `Daily meals: ${mealSystemData.dailyMealDays} days × ${formatCurrency(parseFloat(createForm.dailyMealRate))} = ${formatCurrency(mealDeduction)}`;
     }
-  };
+    
+    const payrollData = {
+      employeeId: createForm.employeeId,
+      month: parseInt(createForm.month),
+      year: parseInt(createForm.year),
+      monthlySalary: monthlySalary,
+      overtime: parseInt(createForm.overtime) || 0,
+      bonus: parseInt(createForm.bonus) || 0,
+      allowance: parseInt(createForm.allowance) || 0,
+      dailyMealRate: parseFloat(createForm.dailyMealRate) || 0,
+      manualMealAmount: parseFloat(createForm.manualMealAmount) || 0,
+      mealDeduction: mealDeduction,
+      mealDeductionType: mealDeductionType,
+      mealCalculationNote: mealCalculationNote,
+      notes: createForm.notes || `Payroll for ${monthNames[createForm.month - 1]} ${createForm.year}`
+    };
+    
+    console.log('Creating payroll with data:', payrollData);
+    
+    const response = await apiRequest('POST', '/payroll/create', payrollData);
+    
+    if (response && response.status === 'success') {
+      // ✅ নতুন: Create করার পর calculation details দেখান
+      if (response.data?.fullCalculation) {
+        setPreviewData({
+          ...response.data.fullCalculation,
+          finalSummary: {
+            grossEarnings: response.data.breakdown.earnings,
+            totalDeductions: response.data.breakdown.deductions.total,
+            netPayable: response.data.netPayable,
+            status: 'CREATED SUCCESSFULLY'
+          },
+          mealDeduction: response.data.mealSystem,
+          onsiteBenefits: response.data.onsiteBenefits,
+          payrollId: response.data.payrollId
+        });
+        setShowPreviewModal(true);
+      }
+      
+      toast.success(response.message || 'Payroll created successfully!', {
+        icon: '✅',
+        duration: 3000,
+      });
+      
+      await loadPayrolls();
+      
+      setCreateForm({
+        employeeId: "",
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+        monthlySalary: "",
+        overtime: "0",
+        bonus: "0",
+        allowance: "0",
+        notes: ""
+      });
+      
+      setShowCreateModal(false);
+      
+    } else {
+      const errorMsg = response?.message || 'Failed to create payroll';
+      
+      if (errorMsg.includes('Payroll already exists')) {
+        toast.error('❌ Payroll already exists for this employee and month!');
+      } else if (errorMsg.includes('Net payable amount is 0')) {
+        // যদি net payable zero হয়, তাও calculation দেখান
+        if (response.calculationPreview) {
+          setPreviewData(response.calculationPreview);
+          setShowPreviewModal(true);
+        }
+        toast.error('❌ Cannot create payroll. Net payable amount would be 0 BDT.');
+      } else {
+        toast.error(`❌ ${errorMsg}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Create payroll error:', error);
+    toast.error('Failed to create payroll. Please try again.');
+  } finally {
+    setLoading(prev => ({ ...prev, create: false }));
+  }
+};
 
   const handleCalculatePayroll = async (e) => {
     e.preventDefault();
@@ -1368,90 +2606,268 @@ const refreshAdminPayrolls = async () => {
         </div>
 
         <form onSubmit={handleCreatePayroll} className="p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee *</label>
-            <select
-              value={createForm.employeeId}
-              onChange={(e) => setCreateForm({ ...createForm, employeeId: e.target.value })}
-              required
-              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-            >
-              <option value="">Choose an employee</option>
-              {employees.map((emp) => {
-                const salaryData = employeeSalaries[emp._id] || {};
-                return (
-                  <option key={emp._id} value={emp._id}>
-                    {getEmployeeName(emp)} • {formatCurrency(salaryData.salary || 30000)}/month
-                  </option>
-                );
-              })}
-            </select>
+             <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee *</label>
+          <select
+            value={createForm.employeeId}
+            onChange={(e) => {
+              setCreateForm({ ...createForm, employeeId: e.target.value });
+              // Load meal data when employee is selected
+              if (e.target.value && createForm.month && createForm.year) {
+                loadEmployeeMealData(e.target.value, createForm.month, createForm.year);
+              }
+            }}
+            required
+            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+          >
+            <option value="">Choose an employee</option>
+            {employees.map((emp) => {
+              const salaryData = employeeSalaries[emp._id] || {};
+              return (
+                <option key={emp._id} value={emp._id}>
+                  {getEmployeeName(emp)} • {formatCurrency(salaryData.salary || 30000)}/month
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        {/* 2. Month and Year Selection */}
+        {createForm.employeeId && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
+              <select
+                value={createForm.month}
+                onChange={(e) => {
+                  setCreateForm({ ...createForm, month: e.target.value });
+                  if (createForm.employeeId && e.target.value && createForm.year) {
+                    loadEmployeeMealData(createForm.employeeId, e.target.value, createForm.year);
+                  }
+                }}
+                required
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              >
+                <option value="">Select Month</option>
+                {monthNames.map((month, index) => (
+                  <option key={index} value={index + 1}>{month}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
+              <select
+                value={createForm.year}
+                onChange={(e) => {
+                  setCreateForm({ ...createForm, year: e.target.value });
+                  if (createForm.employeeId && createForm.month && e.target.value) {
+                    loadEmployeeMealData(createForm.employeeId, createForm.month, e.target.value);
+                  }
+                }}
+                required
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              >
+                <option value="">Select Year</option>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - 2 + i;
+                  return <option key={year} value={year}>{year}</option>;
+                })}
+              </select>
+            </div>
           </div>
-
-          {createForm.employeeId && (
-            <div className="grid grid-cols-2 gap-4">
+        )}
+        {/* Create Modal এর মধ্যে monthly salary field এর পরে যোগ করুন: */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Monthly Salary (৳) *
+    <span className="text-xs text-gray-500 ml-2">
+      Required for calculation
+    </span>
+  </label>
+  <input
+    type="number"
+    value={createForm.monthlySalary}
+    onChange={(e) => setCreateForm({ ...createForm, monthlySalary: e.target.value })}
+    placeholder="Enter monthly salary"
+    min="0"
+    required
+    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+  />
+  {createForm.employeeId && employeeSalaries[createForm.employeeId] && (
+    <p className="text-xs text-blue-500 mt-2">
+      Employee's stored salary: {formatCurrency(employeeSalaries[createForm.employeeId].salary)}
+      <button
+        type="button"
+        onClick={() => setCreateForm(prev => ({
+          ...prev,
+          monthlySalary: employeeSalaries[createForm.employeeId].salary.toString()
+        }))}
+        className="ml-2 text-blue-600 hover:underline"
+      >
+        (Use this)
+      </button>
+    </p>
+  )}
+</div>
+{/* 5. Meal System Information */} 
+{createForm.employeeId && createForm.month && createForm.year && (
+  <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+    <h4 className="text-sm font-medium text-green-700 mb-2 flex items-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+      Meal System
+    </h4>
+    
+    <div className="space-y-3">
+      {/* Monthly Subscription Status - CORRECTED CONDITION */}
+      {mealSystemData.hasMonthlySubscription === true ? (
+        <div className="p-3 bg-white rounded-lg border border-green-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle size={16} className="text-green-500" />
+              <span className="text-sm font-medium text-green-700">Monthly Subscription Active</span>
+            </div>
+            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+              Auto Loaded
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-gray-600">Total Food Cost:</span>
+              <p className="font-medium">{formatCurrency(mealSystemData.monthlyFoodCost)}</p>
+            </div>
+            <div>
+              <span className="text-gray-600">Active Subscribers:</span>
+              <p className="font-medium">{mealSystemData.activeSubscribers}</p>
+            </div>
+            <div>
+              <span className="text-gray-600">Average Daily Cost:</span>
+              <p className="font-medium">{formatCurrency(mealSystemData.averageDailyCost)}</p>
+            </div>
+            <div>
+              <span className="text-gray-600">Deduction/Employee:</span>
+              <p className="font-bold text-green-600">{formatCurrency(mealSystemData.deductionPerEmployee)}</p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Calculation: {formatCurrency(mealSystemData.monthlyFoodCost)} ÷ {mealSystemData.activeSubscribers} = {formatCurrency(mealSystemData.deductionPerEmployee)}
+          </p>
+          
+          {/* SHOW THE FIXED DEDUCTION AMOUNT */}
+          <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-green-700">Monthly Deduction (Auto-applied):</span>
+              <span className="text-lg font-bold text-green-600">
+                {formatCurrency(mealSystemData.deductionPerEmployee)}
+              </span>
+            </div>
+            <p className="text-xs text-green-600 mt-1">
+              This amount will be automatically deducted from the payroll
+            </p>
+          </div>
+        </div>
+      ) : (
+        /* যদি monthly subscription না থাকে */
+        <div className="space-y-3">
+          {/* Daily Meal Days (Auto Loaded) */}
+          <div className="p-3 bg-white rounded-lg border">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
-                <select
-                  value={createForm.month}
-                  onChange={(e) => setCreateForm({ ...createForm, month: e.target.value })}
-                  required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                >
-                  <option value="">Select Month</option>
-                  {monthNames.map((month, index) => (
-                    <option key={index} value={index + 1}>{month}</option>
-                  ))}
-                </select>
+                <span className="text-sm font-medium text-gray-700">Daily Meals Taken</span>
+                <p className="text-xs text-gray-500">Auto loaded from meal records</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
-                <select
-                  value={createForm.year}
-                  onChange={(e) => setCreateForm({ ...createForm, year: e.target.value })}
-                  required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                >
-                  <option value="">Select Year</option>
-                  {Array.from({ length: 5 }, (_, i) => {
-                    const year = new Date().getFullYear() - 2 + i;
-                    return <option key={year} value={year}>{year}</option>;
-                  })}
-                </select>
+              <div className="text-right">
+                <p className="text-lg font-bold text-blue-600">{mealSystemData.dailyMealDays} days</p>
+                <p className="text-xs text-gray-500">
+                  in {monthNames[createForm.month - 1]} {createForm.year}
+                </p>
               </div>
             </div>
-          )}
-
-          {createForm.employeeId && createForm.month && createForm.year && (
-            <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-              <h4 className="text-sm font-medium text-blue-700 mb-2">Payroll Information</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-3 bg-white rounded-lg border">
-                  <span className="text-xs text-gray-600">Monthly Salary</span>
-                  <p className="text-lg font-bold text-blue-600">
-                    {formatCurrency(employeeSalaries[createForm.employeeId]?.salary || 30000)}
-                  </p>
-                </div>
-                <div className="text-center p-3 bg-white rounded-lg border">
-                  <span className="text-xs text-gray-600">Month</span>
-                  <p className="text-lg font-bold text-gray-900">
-                    {monthNames[parseInt(createForm.month) - 1]}
-                  </p>
-                </div>
-                <div className="text-center p-3 bg-white rounded-lg border">
-                  <span className="text-xs text-gray-600">Year</span>
-                  <p className="text-lg font-bold text-gray-900">{createForm.year}</p>
-                </div>
-                <div className="text-center p-3 bg-white rounded-lg border">
-                  <span className="text-xs text-gray-600">Daily Rate</span>
-                  <p className="text-sm font-medium text-gray-900">
-                    {formatCurrency(Math.round((employeeSalaries[createForm.employeeId]?.salary || 30000) / 23))}
-                  </p>
-                </div>
-              </div>
+          </div>
+          
+          {/* Daily Meal Rate Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Daily Meal Rate (৳) *
+              <span className="text-xs text-gray-500 ml-2">
+                {mealSystemData.dailyMealDays > 0 && 
+                  `Total: ৳${(parseFloat(createForm.dailyMealRate) || 0) * mealSystemData.dailyMealDays} 
+                  (${mealSystemData.dailyMealDays} × ৳${createForm.dailyMealRate || 0})`
+                }
+              </span>
+            </label>
+            <input
+              type="number"
+              value={createForm.dailyMealRate}
+              onChange={(e) => setCreateForm({ ...createForm, dailyMealRate: e.target.value })}
+              placeholder="Enter daily meal rate"
+              min="0"
+              step="10"
+              required={!mealSystemData.hasMonthlySubscription}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
+            />
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[50, 80, 100, 120, 150].map(rate => (
+                <button
+                  type="button"
+                  key={rate}
+                  onClick={() => setCreateForm({ ...createForm, dailyMealRate: rate.toString() })}
+                  className={`px-3 py-1 text-sm rounded-lg ${createForm.dailyMealRate == rate ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  ৳{rate}
+                </button>
+              ))}
             </div>
-          )}
-
+          </div>
+          
+          {/* OR Manual Amount Input (Alternative) */}
+          <div className="p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle size={16} className="text-yellow-600" />
+              <span className="text-sm font-medium text-yellow-700">Alternative: Enter Total Amount</span>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Total Meal Deduction (৳)
+                <span className="text-xs text-gray-500 ml-2">
+                  If you want to enter total amount directly
+                </span>
+              </label>
+              <input
+                type="number"
+                value={createForm.manualMealAmount}
+                onChange={(e) => setCreateForm({ ...createForm, manualMealAmount: e.target.value })}
+                placeholder="Enter total meal deduction amount"
+                min="0"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all duration-300"
+              />
+            </div>
+          </div>
+          
+          {/* Meal Deduction Summary */}
+          <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-purple-700">Total Meal Deduction</span>
+              <span className="text-lg font-bold text-purple-600">
+                {createForm.manualMealAmount > 0 
+                  ? formatCurrency(parseFloat(createForm.manualMealAmount))
+                  : formatCurrency((parseFloat(createForm.dailyMealRate) || 0) * mealSystemData.dailyMealDays)
+                }
+              </span>
+            </div>
+            <p className="text-xs text-purple-500 mt-1">
+              {createForm.manualMealAmount > 0
+                ? `Manual amount entered`
+                : `${mealSystemData.dailyMealDays} days × ৳${createForm.dailyMealRate || 0}`
+              }
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Overtime (৳)</label>
@@ -1505,33 +2921,53 @@ const refreshAdminPayrolls = async () => {
             />
           </div>
 
-          <div className="flex gap-3 pt-6 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => setShowCreateModal(false)}
-              disabled={loading.create}
-              className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading.create}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading.create ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Plus size={18} />
-                  Create Payroll
-                </>
-              )}
-            </button>
-          </div>
+                  <div className="flex gap-3 pt-6 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(false)}
+            disabled={loading.create || isPreviewing}
+            className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+          >
+            Cancel
+          </button>
+          
+          <button
+            type="button"
+            onClick={handlePreviewPayroll}
+            disabled={loading.create || isPreviewing || !createForm.employeeId || !createForm.month || !createForm.year}
+            className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isPreviewing ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Calculating...
+              </>
+            ) : (
+              <>
+                <Calculator size={18} />
+                Preview Calculation
+              </>
+            )}
+          </button>
+          
+          <button
+  type="submit"
+  disabled={loading.create || isPreviewing || !createForm.employeeId || !createForm.month || !createForm.year || !createForm.monthlySalary}
+  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+>
+  {loading.create ? (
+    <>
+      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+      Creating...
+    </>
+  ) : (
+    <>
+      <Plus size={18} />
+      Create Payroll
+    </>
+  )}
+</button>
+        </div>
         </form>
       </div>
     </div>
@@ -2413,10 +3849,12 @@ const refreshAdminPayrolls = async () => {
               <div className="overflow-x-auto rounded-xl border border-gray-200 mb-6">
                 <table className="w-full">
                   <thead className="bg-gray-50">
-                    <tr>
-                      <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Employee
-                      </th>
+                        {userRole === 'admin' && (
+      <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        Employee Accepted
+      </th>
+    )}
+                    <tr> 
                       <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Period
                       </th>
@@ -2774,7 +4212,8 @@ const refreshAdminPayrolls = async () => {
       {showDeleteModal && renderDeleteModal()}
       {showExportModal && renderExportModal()}
       {showAllPayrollsModal && renderAllPayrollsModal()}
-      
+      {employeeDetailsModal && renderEmployeeDetailsModal()}
+      {showPreviewModal && renderPreviewModal()}
       {/* Main Page */}
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 p-4 md:p-6">
         {/* Header */}
@@ -3147,57 +4586,151 @@ const refreshAdminPayrolls = async () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {filteredPayrolls.map((payroll) => (
-                    <tr key={payroll._id} className="hover:bg-gray-50 transition-colors duration-150 group">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-lg flex items-center justify-center">
-                            <User className="text-blue-600" size={18} />
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                              {payroll.employeeName || getEmployeeName(payroll)}
-                            </div>
-                            <div className="text-sm text-gray-500">{payroll.department}</div>
-                            <div className="text-xs text-gray-400">{payroll.employeeId}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="text-sm text-gray-900 font-medium">
-                          {getMonthName(payroll.month)} {payroll.year}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {payroll.periodStart ? formatDate(payroll.periodStart) : 'N/A'} - {payroll.periodEnd ? formatDate(payroll.periodEnd) : 'N/A'}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="font-bold text-gray-900">
-                          {formatCurrency(payroll.summary?.netPayable || 0)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Basic: {formatCurrency(payroll.earnings?.basicPay || 0)}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex flex-col gap-1">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1 w-fit ${getStatusColor(payroll.status).bg} ${getStatusColor(payroll.status).text}`}>
-                            {getStatusColor(payroll.status).icon}
-                            {payroll.status}
-                          </span>
-                          {payroll.employeeAccepted && (
-                            <div className="text-xs text-green-600 font-medium">
-                              ✓ Accepted by employee
-                            </div>
-                          )}
-                          {payroll.payment?.paymentDate && (
-                            <div className="text-xs text-gray-500">
-                              Paid: {formatDate(payroll.payment.paymentDate)}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      {userRole === 'admin' && (
+  {filteredPayrolls.map((payroll) => (
+    <tr key={payroll._id} className="hover:bg-gray-50 transition-colors duration-150 group">
+      {/* Employee Info */}
+      <td className="py-4 px-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-lg flex items-center justify-center">
+            <User className="text-blue-600" size={18} />
+          </div>
+          <div>
+            <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+              {payroll.employeeName || getEmployeeName(payroll)}
+              
+            </div>
+            <div className="text-sm text-gray-500">{payroll.department}</div>
+            <div className="text-xs text-gray-400">{payroll.employeeId}</div>
+          </div>
+        </div>
+      </td>
+      
+      {/* Period */}
+      <td className="py-4 px-6">
+        <div className="text-sm text-gray-900 font-medium">
+          {getMonthName(payroll.month)} {payroll.year}
+        </div>
+        <div className="text-xs text-gray-500">
+          {payroll.periodStart ? formatDate(payroll.periodStart) : 'N/A'} - {payroll.periodEnd ? formatDate(payroll.periodEnd) : 'N/A'}
+        </div>
+      </td>
+      
+      {/* Amount */}
+          <td className="py-4 px-6">
+      <div className="font-bold text-gray-900">
+        {formatCurrency(payroll.summary?.netPayable || 0)}
+      </div>
+      <div className="text-xs text-gray-500 space-y-1">
+        <div>Basic: {formatCurrency(payroll.earnings?.basicPay || 0)}</div>
+        {payroll.mealSystemData?.mealDeduction?.amount > 0 && (
+          <div className="text-red-500">
+            Meal: -{formatCurrency(payroll.mealSystemData.mealDeduction.amount)}
+          </div>
+        )}
+        {payroll.onsiteBenefitsDetails?.netEffect > 0 && (
+          <div className="text-amber-600">
+            Onsite: +{formatCurrency(payroll.onsiteBenefitsDetails.netEffect)}
+          </div>
+        )}
+        {payroll.deductions?.total > 0 && payroll.deductions.total !== payroll.mealSystemData?.mealDeduction?.amount && (
+          <div className="text-red-400">
+            Other Deductions: -{formatCurrency(payroll.deductions.total - (payroll.mealSystemData?.mealDeduction?.amount || 0))}
+          </div>
+        )}
+      </div>
+    </td>
+      
+      {/* Status - আলাদা column */}
+      <td className="py-4 px-6">
+        <div className="flex flex-col gap-1">
+          {/* Main Status */}
+          <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${
+            payroll.employeeAccepted?.accepted 
+              ? 'bg-green-100 text-green-800' 
+              : payroll.status === 'Paid'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            {payroll.employeeAccepted?.accepted ? (
+              <>
+                <CheckCircle size={12} />
+                Accepted
+              </>
+            ) : payroll.status === 'Paid' ? (
+              <>
+                <CheckCircle size={12} />
+                Paid
+              </>
+            ) : (
+              <>
+                <Clock size={12} />
+                Pending
+              </>
+            )}
+          </span>
+          
+          {/* Acceptance Date */}
+          {payroll.employeeAccepted?.accepted && (
+            <div className="text-xs text-green-600">
+              ✓ Accepted on {formatDate(payroll.employeeAccepted.acceptedAt)}
+            </div>
+          )}
+        </div>
+      </td>
+      
+      {/* Actions - শুধু Employee View এর জন্য */}
+      {isEmployeeView && (
+  <td className="py-4 px-6">
+    <div className="flex gap-2 flex-wrap">
+      {/* View Details Button */}
+      <button
+        onClick={() => viewEmployeePayrollDetails(payroll._id)}
+        className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm transition-colors flex items-center gap-1"
+      >
+        <Eye size={14} />
+        View Details
+      </button>
+      
+      {/* Accept Button - Only for pending payrolls */}
+      {payroll.status === 'Pending' && !payroll.employeeAccepted?.accepted && (
+        <button
+          onClick={() => handleEmployeeAccept(payroll._id)}
+          disabled={acceptingPayroll}
+          className={`px-3 py-1 rounded-lg text-sm transition-colors flex items-center gap-1 ${
+            acceptingPayroll 
+              ? 'bg-gray-300 text-gray-600 cursor-not-allowed' 
+              : 'bg-green-100 text-green-700 hover:bg-green-200'
+          }`}
+        >
+          {acceptingPayroll ? (
+            <>
+              <div className="w-3 h-3 border border-green-600 border-t-transparent rounded-full animate-spin"></div>
+              Accepting...
+            </>
+          ) : (
+            <>
+              <CheckCircle size={14} />
+              Accept Payroll
+            </>
+          )}
+        </button>
+      )}
+      
+      {/* Accepted Status */}
+      {payroll.employeeAccepted?.accepted && (
+        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-sm flex items-center gap-1">
+          <CheckCircle size={14} />
+          Accepted
+        </span>
+      )}
+    </div>
+  </td>
+)}
+      
+      {/* Admin Actions (if needed) */}
+      {!isEmployeeView && userRole === 'admin' && (
+        <td className="py-4 px-6">
+                                {userRole === 'admin' && (
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-1">
                             <button
@@ -3250,40 +4783,12 @@ const refreshAdminPayrolls = async () => {
                           </div>
                         </td>
                       )}
-                      {/* Employee View Actions */} 
-{isEmployeeView && payroll.status === 'Pending' && (
-  <td className="py-4 px-6">
-    <div className="flex items-center gap-2">
-      <button
-        onClick={() => handleEmployeeAccept(payroll._id)}
-        disabled={loading.accept}
-        className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50"
-      >
-        {loading.accept ? (
-          <>
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            Accepting...
-          </>
-        ) : (
-          <>
-            <CheckCircle size={16} />
-            Accept Payroll
-          </>
-        )}
-      </button>
-    </div>
-  </td>
-)}
-{isEmployeeView && payroll.status === 'Paid' && payroll.employeeAccepted?.accepted && (
-  <td className="py-4 px-6">
-    <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
-      ✓ Accepted on {formatDate(payroll.employeeAccepted.acceptedAt)}
-    </span>
-  </td>
-)}
-                    </tr>
-                  ))}
-                </tbody>
+        </td>
+      )}
+    </tr>
+
+  ))}
+</tbody>
               </table>
             </div>
           )}
