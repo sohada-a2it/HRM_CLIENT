@@ -460,7 +460,7 @@ export default function MiscellaneousExpensesPage() {
   ];
 
   // Backend API URL
-  const API_URL = "https://a2itserver.onrender.com/api/v1";
+  const API_URL = "https://a2it-hrm-server.onrender.com/api/v1";
 
   // Payment methods - Backend এর enum এর সাথে match
   const paymentMethods = [

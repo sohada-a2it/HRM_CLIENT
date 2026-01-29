@@ -82,7 +82,12 @@ export default function MealManagementPage() {
   const [isEmployee, setIsEmployee] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
   const [isEligible, setIsEligible] = useState(false);
-  
+  const [showEditModal, setShowEditModal] = useState(false);
+const [editForm, setEditForm] = useState({
+  preference: "",
+  autoRenew: false,
+  note: ""
+});
   // Tabs
   const [activeTab, setActiveTab] = useState("dashboard");
   
@@ -170,7 +175,68 @@ export default function MealManagementPage() {
     note: "",
     mealDays: 0
   });
-  
+  // Handle approve/reject meal 
+const handleApproveRejectMeal = async (mealId, action) => {
+  try {
+    setUpdating(true);
+    
+    const endpoint = action === 'approved' ? '/admin/meal/approve' : '/admin/meal/reject';
+    
+    const data = await apiCall(endpoint, 'PUT', {
+      mealId,
+      note: `${action} by ${user?.firstName} ${user?.lastName}`
+    });
+    
+    if (data) {
+      toast.success(`Meal ${action} successfully!`);
+      fetchAllMeals();
+      fetchDashboardStats();
+    }
+  } catch (error) {
+    console.error(`Error ${action}ing meal:`, error);
+    toast.error(error.message || `Failed to ${action} meal`);
+  } finally {
+    setUpdating(false);
+  }
+};
+
+// Handle update subscription
+const handleUpdateSubscription = async () => {
+  try {
+    if (!selectedSubscription) return;
+    
+    const data = await apiCall(`/admin/subscription/update/${selectedSubscription._id}`, 'PUT', {
+      preference: editForm.preference || selectedSubscription.preference,
+      autoRenew: editForm.autoRenew !== undefined ? editForm.autoRenew : selectedSubscription.autoRenew,
+      note: editForm.note || ''
+    });
+    
+    if (data) {
+      toast.success("Subscription updated successfully!");
+      setShowEditModal(false);
+      setEditForm({
+        preference: "",
+        autoRenew: false,
+        note: ""
+      });
+      fetchAllSubscriptions();
+    }
+  } catch (error) {
+    console.error("Error updating subscription:", error);
+    toast.error(error.message || "Failed to update subscription");
+  }
+};
+
+// Add to the edit button click handler
+const handleEditClick = (subscription) => {
+  setSelectedSubscription(subscription);
+  setEditForm({
+    preference: subscription.preference || "",
+    autoRenew: subscription.autoRenew || false,
+    note: ""
+  });
+  setShowEditModal(true);
+};
   // UI states
   const [darkMode, setDarkMode] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -512,30 +578,37 @@ export default function MealManagementPage() {
     }
   };
 
-  // Handle meal request submission
-  const handleSubmitMealRequest = async () => {
-    try {
-      const data = await apiCall('/daily/request', 'POST', {
-        mealPreference: requestForm.mealPreference,
-        date: requestForm.date,
-        note: requestForm.note
-      });
-      
-      if (data) {
-        toast.success("Meal request submitted successfully!");
-        setShowRequestModal(false);
-        setRequestForm({
-          mealPreference: "office",
-          note: "",
-          date: new Date().toISOString().split('T')[0]
-        });
-        fetchMyMeals();
-        if (isAdmin || isModerator) fetchAllMeals();
-      }
-    } catch (error) {
-      console.error("Error submitting request:", error);
+  // Handle meal request submission 
+const handleSubmitMealRequest = async () => {
+  try {
+    // Check if user has active subscription
+    if (mySubscription?.hasSubscription && mySubscription.data?.status === 'active') {
+      toast.error("You already have an active subscription. Please cancel it first or use your subscription meals.");
+      return;
     }
-  };
+    
+    const data = await apiCall('/daily/request', 'POST', {
+      mealPreference: requestForm.mealPreference,
+      date: requestForm.date,
+      note: requestForm.note
+    });
+    
+    if (data) {
+      toast.success("Meal request submitted successfully!");
+      setShowRequestModal(false);
+      setRequestForm({
+        mealPreference: "office",
+        note: "",
+        date: new Date().toISOString().split('T')[0]
+      });
+      fetchMyMeals();
+      if (isAdmin || isModerator) fetchAllMeals();
+    }
+  } catch (error) {
+    console.error("Error submitting request:", error);
+    toast.error(error.message || "Failed to submit meal request");
+  }
+};
 
   // Handle subscription setup
   const handleSetupSubscription = async () => {
@@ -729,7 +802,116 @@ export default function MealManagementPage() {
       console.error("Error cancelling meal request:", error);
     }
   };
+// Add Edit Modal UI after other modals
+{showEditModal && selectedSubscription && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md my-4">
+      <div className="p-6 border-b border-purple-100 dark:border-gray-700">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+            Edit Subscription
+          </h3>
+          <button
+            onClick={() => setShowEditModal(false)}
+            className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <X className="text-gray-400" size={20} />
+          </button>
+        </div>
+      </div>
 
+      <div className="p-6">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Meal Preference
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setEditForm({...editForm, preference: 'office'})}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  editForm.preference === 'office'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                }`}
+              >
+                <div className="flex flex-col items-center">
+                  <Coffee className={`mb-2 ${
+                    editForm.preference === 'office' ? 'text-purple-600' : 'text-gray-400'
+                  }`} size={24} />
+                  <span className="font-medium">Office Meal</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setEditForm({...editForm, preference: 'outside'})}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  editForm.preference === 'outside'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                }`}
+              >
+                <div className="flex flex-col items-center">
+                  <Pizza className={`mb-2 ${
+                    editForm.preference === 'outside' ? 'text-purple-600' : 'text-gray-400'
+                  }`} size={24} />
+                  <span className="font-medium">Outside Food</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Auto Renew</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Automatically renew subscription</p>
+              </div>
+              <button
+                onClick={() => setEditForm({...editForm, autoRenew: !editForm.autoRenew})}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                  editForm.autoRenew ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  editForm.autoRenew ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Update Note (Optional)
+            </label>
+            <textarea
+              value={editForm.note}
+              onChange={(e) => setEditForm({...editForm, note: e.target.value})}
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Add update note..."
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={() => setShowEditModal(false)}
+            className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleUpdateSubscription}
+            className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all font-medium"
+          >
+            Update Subscription
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
   // Initialize
   useEffect(() => {
     fetchUserProfile();
@@ -1974,15 +2156,12 @@ export default function MealManagementPage() {
                                     </>
                                   )}
                                   <button
-                                    onClick={() => {
-                                      setSelectedSubscription(subscription);
-                                      // You can add an edit modal here
-                                    }}
-                                    className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                    title="Edit"
-                                  >
-                                    <Edit className="text-blue-500" size={14} />
-                                  </button>
+                                  onClick={() => handleEditClick(subscription)}
+                                  className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit className="text-blue-500" size={14} />
+                                </button>
                                   {(subscription.status === 'active' || subscription.status === 'pending') && (
                                     <button
                                       onClick={() => {
@@ -2186,28 +2365,23 @@ export default function MealManagementPage() {
                               </td>
                               <td className="py-4 px-6">
                                 <div className="flex items-center gap-2">
-                                  {meal.status === 'pending' && (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          // Add approve meal functionality
-                                          toast.success("Approve meal functionality to be implemented");
-                                        }}
-                                        className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
-                                      >
-                                        Approve
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          // Add reject meal functionality
-                                          toast.success("Reject meal functionality to be implemented");
-                                        }}
-                                        className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
-                                      >
-                                        Reject
-                                      </button>
-                                    </>
-                                  )}
+                                  {/* In All Meals Tab - Actions buttons */}
+                                {meal.status === 'pending' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleApproveRejectMeal(meal._id, 'approved')}
+                                      className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={() => handleApproveRejectMeal(meal._id, 'rejected')}
+                                      className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
+                                    >
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
                                   {(meal.status === 'pending' || meal.status === 'approved') && (
                                     <button
                                       onClick={() => {

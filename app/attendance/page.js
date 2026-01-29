@@ -156,7 +156,8 @@ export default function AttendanceSystem() {
   const [userRole, setUserRole] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userData, setUserData] = useState(null);
-  
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState(null); 
   // Date range state - ডিফল্টভাবে LAST 30 DAYS রাখা
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -387,7 +388,42 @@ export default function AttendanceSystem() {
       });
     }
   };
+  // ডিলিট অ্যাটেনডেন্স ফাংশন
+const handleDeleteAttendance = async () => {
+  if (!recordToDelete) return;
   
+  setLoading(true);
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo || !isAdmin) {
+      toast.error("Admin access required");
+      return;
+    }
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/delete/${recordToDelete._id}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${tokenInfo.token}`,
+        "Content-Type": "application/json"
+      }
+    });
+    
+    if (response.ok) {
+      toast.success("Attendance record deleted successfully!");
+      setShowDeleteConfirmation(false);
+      setRecordToDelete(null);
+      await fetchAttendanceData();
+    } else {
+      const error = await response.json();
+      toast.error(error.message || "Failed to delete record");
+    }
+  } catch (error) {
+    console.error("Delete attendance error:", error);
+    toast.error("Failed to delete attendance record");
+  } finally {
+    setLoading(false);
+  }
+};
   const getUserDetailedLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -561,103 +597,111 @@ export default function AttendanceSystem() {
   // ===================== DATA FETCHING =====================
   
   const initializeData = async () => {
-    setLoading(true);
-    try {
-      const tokenInfo = getToken();
-      if (!tokenInfo) {
-        router.push("/");
-        return;
-      }
-      
-      // Fetch user profile
-      const endpoint = tokenInfo.type === "admin" 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/getAdminProfile`
-        : `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
-      
-      const response = await fetch(endpoint, {
-        headers: { 
-          Authorization: `Bearer ${tokenInfo.token}`,
-          "Content-Type": "application/json"
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const userData = data.user || data;
-        
-        setUserRole(tokenInfo.type);
-        setIsAdmin(tokenInfo.type === "admin");
-        setUserData(userData);
-        
-        // ফিল্টার স্টেট আপডেট
-        setFilters(prev => ({
-          ...prev,
-          showAll: tokenInfo.type === "admin" ? false : true
-        }));
-        
-        // Fetch today's status and shift timing for employees
-        if (tokenInfo.type === "employee") {
-          await fetchTodayStatus();
-          await fetchShiftTiming();
-        }
-        
-        // Fetch attendance data
-        await fetchAttendanceData();
-        
-        // Fetch analytics if needed
-        if (viewMode === 'analytics') {
-          await fetchAnalytics();
-        }
-      }
-    } catch (error) {
-      console.error("Initialize data error:", error);
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo) {
+      router.push("/");
+      return;
     }
-  };
+    
+    // Fetch user profile
+    const endpoint = tokenInfo.type === "admin" 
+      ? `${process.env.NEXT_PUBLIC_API_URL}/admin/getAdminProfile`
+      : `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
+    
+    const response = await fetch(endpoint, {
+      headers: { 
+        Authorization: `Bearer ${tokenInfo.token}`,
+        "Content-Type": "application/json"
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const userData = data.user || data;
+      
+      setUserRole(tokenInfo.type);
+      setIsAdmin(tokenInfo.type === "admin");
+      setUserData(userData);
+      
+      // If admin, load employees immediately
+      if (tokenInfo.type === "admin") {
+        await fetchEmployees();
+      }
+      
+      // Fetch today's status and shift timing for employees
+      if (tokenInfo.type === "employee") {
+        await fetchTodayStatus();
+        await fetchShiftTiming();
+      }
+      
+      // Fetch attendance data
+      await fetchAttendanceData();
+      
+    } else {
+      const error = await response.json();
+      toast.error(error.message || "Failed to load profile");
+      router.push("/");
+    }
+  } catch (error) {
+    console.error("Initialize data error:", error);
+    toast.error("Failed to load data");
+    router.push("/");
+  } finally {
+    setLoading(false);
+  }
+};
   
   const fetchTodayStatus = async () => {
-    try {
-      const tokenInfo = getToken();
-      if (!tokenInfo || tokenInfo.type !== "employee") return;
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo || tokenInfo.type !== "employee") return;
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/today-status`, {
+      headers: { 
+        Authorization: `Bearer ${tokenInfo.token}`,
+        "Content-Type": "application/json"
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Today Status Data:", data);
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/today-status`, {
-        headers: { 
-          Authorization: `Bearer ${tokenInfo.token}`,
-          "Content-Type": "application/json"
-        }
+      // Check if today is marked as absent
+      const today = new Date().toISOString().split('T')[0];
+      const isMarkedAbsent = data.attendance?.status === "Absent";
+      const isAutoMarkedAbsent = data.attendance?.markedAbsent === true;
+      
+      setTodayStatus({
+        clockedIn: data.clockedIn || false,
+        clockedOut: data.clockedOut || false,
+        clockInTime: data.attendance?.clockIn || null,
+        clockOutTime: data.attendance?.clockOut || null,
+        status: data.attendance?.status || "Not Clocked",
+        date: new Date().toDateString(),
+        shiftDetails: data.shiftDetails,
+        dayStatus: data.dayStatus,
+        isWorkingDay: data.dayStatus?.isWorkingDay || true,
+        isMarkedAbsent: isMarkedAbsent || isAutoMarkedAbsent,
+        markedAbsent: isAutoMarkedAbsent,
+        autoMarkedAbsentReason: data.attendance?.autoMarkedAbsentReason || null
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Today Status Data:", data);
-        
-        setTodayStatus({
-          clockedIn: data.clockedIn || false,
-          clockedOut: data.clockedOut || false,
-          clockInTime: data.attendance?.clockIn || null,
-          clockOutTime: data.attendance?.clockOut || null,
-          status: data.attendance?.status || "Not Clocked",
-          date: new Date().toDateString(),
-          shiftDetails: data.shiftDetails,
-          dayStatus: data.dayStatus,
-          isWorkingDay: data.dayStatus?.isWorkingDay || true
-        });
-        
-        if (data.attendance) {
-          setClockDetails(data.attendance);
-        }
-        
-        // Calculate auto clock out timer
-        if (data.clockedIn && !data.clockedOut && data.shiftDetails) {
-          calculateAutoClockOutTimer();
-        }
+      if (data.attendance) {
+        setClockDetails(data.attendance);
       }
-    } catch (error) {
-      console.error("Failed to fetch today's status:", error);
+      
+      // Calculate auto clock out timer
+      if (data.clockedIn && !data.clockedOut && data.shiftDetails) {
+        calculateAutoClockOutTimer();
+      }
     }
-  };
+  } catch (error) {
+    console.error("Failed to fetch today's status:", error);
+  }
+};
   
   const fetchShiftTiming = async () => {
     try {
@@ -684,123 +728,162 @@ export default function AttendanceSystem() {
   
   // ফিক্সড ফেচ অ্যাটেনডেন্স ফাংশন
   const fetchAttendanceData = async () => {
-    try {
-      const tokenInfo = getToken();
-      if (!tokenInfo) return;
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo) return;
 
-      console.log("=== FETCHING ATTENDANCE ===");
-      console.log("Start Date:", dateRange.startDate);
-      console.log("End Date:", dateRange.endDate);
-      console.log("Filters:", filters);
-      console.log("Is Admin:", isAdmin);
-      
-      // Build query parameters
-      const queryParams = new URLSearchParams();
-      
-      // Always send date range
+    console.log("=== FETCHING ATTENDANCE ===");
+    console.log("Start Date:", dateRange.startDate);
+    console.log("End Date:", dateRange.endDate);
+    console.log("Filters:", filters);
+    console.log("Is Admin:", isAdmin);
+    
+    // ✅ Build query parameters
+    const queryParams = new URLSearchParams();
+    
+    // Date range handling
+    if (filters.date) {
+      queryParams.append('date', filters.date);
+    } 
+    else if (filters.month && filters.year) {
+      queryParams.append('month', filters.month);
+      queryParams.append('year', filters.year);
+    }
+    else {
+      // Default to date range
       queryParams.append('startDate', dateRange.startDate);
       queryParams.append('endDate', dateRange.endDate);
-      queryParams.append('page', currentPage.toString());
-      queryParams.append('limit', itemsPerPage.toString());
+    }
+    
+    queryParams.append('page', currentPage.toString());
+    queryParams.append('limit', itemsPerPage.toString());
 
-      // Employee ID logic
-      if (!isAdmin && userData?._id) {
+    // ✅ Employee filtering
+    if (!isAdmin) {
+      // For regular employees, always filter by their own ID
+      if (userData?._id) {
         queryParams.append('employeeId', userData._id);
-        console.log("Employee ID:", userData._id);
       }
+    } 
+    else if (isAdmin && filters.employeeId) {
+      // Admin can filter by specific employee
+      queryParams.append('employeeId', filters.employeeId);
+    }
+    // Admin without employee filter gets all records
 
-      // Admin এর জন্য employeeId ফিল্টার
-      if (isAdmin && filters.employeeId) {
-        queryParams.append('employeeId', filters.employeeId);
-        console.log("Admin filtering by employee:", filters.employeeId);
-      }
+    // Other filters
+    if (filters.status !== 'all') {
+      queryParams.append('status', filters.status);
+    }
+    
+    if (filters.search && filters.search.trim()) {
+      queryParams.append('search', filters.search.trim());
+    }
 
-      // শুধুমাত্র কার্যকরী ফিল্টার যুক্ত করুন
-      if (filters.status !== 'all') queryParams.append('status', filters.status);
-      if (filters.search.trim()) queryParams.append('search', filters.search.trim());
+    const query = queryParams.toString();
+    
+    // Determine endpoint based on role
+    let endpoint;
+    if (isAdmin) {
+      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${query}`;
+    } else {
+      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/records?${query}`;
+    }
+    
+    console.log("📡 API URL:", endpoint.replace(process.env.NEXT_PUBLIC_API_URL, '[API_URL]'));
 
-      // তারিখ ফিল্টার (যদি থাকে) - এটি রেঞ্জকে ওভাররাইড করে
-      if (filters.date) {
-        queryParams.delete('startDate');
-        queryParams.delete('endDate');
-        queryParams.append('date', filters.date);
-        console.log("Date filter applied:", filters.date);
-      }
+    const response = await fetch(endpoint, {
+      headers: { 
+        Authorization: `Bearer ${tokenInfo.token}`,
+        "Content-Type": "application/json"
+      },
+      cache: 'no-cache' // Prevent caching issues
+    });
 
-      // মাস/বছর ফিল্টার (যদি থাকে)
-      if (filters.month && filters.year) {
-        queryParams.delete('startDate');
-        queryParams.delete('endDate');
-        queryParams.append('month', filters.month);
-        queryParams.append('year', filters.year);
-        console.log("Month/Year filter:", filters.month, filters.year);
-      }
-
-      const query = queryParams.toString();
+    console.log("Response Status:", response.status);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("API Response Structure:", Object.keys(data));
       
-      const endpoint = isAdmin 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${query}`
-        : `${process.env.NEXT_PUBLIC_API_URL}/records?${query}`;
+      // ✅ Handle different response structures
+      let records = [];
+      let total = 0;
       
-      console.log("API URL:", endpoint);
-
-      const response = await fetch(endpoint, {
-        headers: { 
-          Authorization: `Bearer ${tokenInfo.token}`,
-          "Content-Type": "application/json"
+      if (Array.isArray(data)) {
+        records = data;
+        total = data.length;
+      } 
+      else if (data.records && Array.isArray(data.records)) {
+        records = data.records;
+        total = data.total || data.records.length;
+      } 
+      else if (data.data?.records && Array.isArray(data.data.records)) {
+        records = data.data.records;
+        total = data.data.total || data.data.records.length;
+      } 
+      else if (data.data && Array.isArray(data.data)) {
+        records = data.data;
+        total = data.total || data.data.length;
+      } 
+      else if (data.attendance && Array.isArray(data.attendance)) {
+        records = data.attendance;
+        total = data.total || data.attendance.length;
+      }
+      else {
+        console.warn("Unexpected data structure, trying to extract records...", data);
+        // Try to find any array in the response
+        for (const key in data) {
+          if (Array.isArray(data[key])) {
+            records = data[key];
+            total = records.length;
+            break;
+          }
         }
-      });
-
-      console.log("Response Status:", response.status);
+      }
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log("API Response:", data);
-        
-        // Handle response
-        let records = [];
-        let total = 0;
-        
-        if (Array.isArray(data)) {
-          records = data;
-          total = data.length;
-        } else if (data.records) {
-          records = data.records;
-          total = data.total || data.records.length;
-        } else if (data.data?.records) {
-          records = data.data.records;
-          total = data.data.total || data.data.records.length;
-        } else if (data.data) {
-          records = data.data;
-          total = data.total || data.data.length;
-        } else {
-          records = data;
-          total = data.length || 0;
-        }
-        
-        console.log(`✅ Fetched ${records.length} records`);
-        
-        // Sort records by date descending
-        records.sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        setAttendance(records);
-        setTotalRecords(total || 0);
-        
-        await fetchSummary();
-      } else {
-        const error = await response.json();
-        console.error("❌ API Error:", error);
-        toast.error(error.message || "Failed to fetch attendance data");
+      console.log(`✅ Fetched ${records.length} records, Total: ${total}`);
+      
+      // Sort records by date descending
+      records.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+      
+      setAttendance(records);
+      setTotalRecords(total);
+      
+      // Fetch summary
+      await fetchSummary();
+      
+    } else {
+      const errorText = await response.text();
+      console.error("❌ API Error Response:", errorText);
+      
+      let errorMessage = "Failed to fetch attendance data";
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Not JSON response
+      }
+      
+      if (errorMessage.includes('No records found') || errorMessage.includes('not found')) {
         setAttendance([]);
         setTotalRecords(0);
+        toast.info("No records found for the selected filters");
+      } else {
+        toast.error(errorMessage);
       }
-    } catch (error) {
-      console.error("❌ Fetch attendance error:", error);
-      toast.error("Network error. Please check console.");
+    }
+  } catch (error) {
+    console.error("❌ Fetch attendance error:", error);
+    toast.error("Network error. Please check your connection.");
+    
+    // Keep existing data on network error
+    if (attendance.length === 0) {
       setAttendance([]);
       setTotalRecords(0);
     }
-  };
+  }
+};
   
   // ফিল্টার রিসেট ফাংশন
   const resetToDefaultRange = () => {
@@ -853,41 +936,65 @@ export default function AttendanceSystem() {
   };
   
   const fetchSummary = async () => {
-    try {
-      const tokenInfo = getToken();
-      if (!tokenInfo) return;
-      
-      const queryParams = new URLSearchParams({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-      });
-      
-      if (isAdmin && filters.employeeId) {
-        queryParams.append('employeeId', filters.employeeId);
-      }
-      
-      const query = queryParams.toString();
-      
-      const endpoint = isAdmin 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/summary?${query}`
-        : `${process.env.NEXT_PUBLIC_API_URL}/summary?${query}`;
-      
-      const response = await fetch(endpoint, {
-        headers: { 
-          Authorization: `Bearer ${tokenInfo.token}`,
-          "Content-Type": "application/json"
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSummary(data.summary || data);
-      }
-    } catch (error) {
-      console.error("Fetch summary error:", error);
-      setSummary(null);
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo) return;
+    
+    const queryParams = new URLSearchParams({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
+    
+    if (isAdmin && filters.employeeId) {
+      queryParams.append('employeeId', filters.employeeId);
     }
-  };
+    
+    const query = queryParams.toString();
+    
+    let endpoint;
+    if (isAdmin) {
+      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/summary?${query}`;
+    } else {
+      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/summary?${query}`;
+    }
+    
+    console.log("📊 Fetching summary from:", endpoint.replace(process.env.NEXT_PUBLIC_API_URL, '[API_URL]'));
+    
+    const response = await fetch(endpoint, {
+      headers: { 
+        Authorization: `Bearer ${tokenInfo.token}`,
+        "Content-Type": "application/json"
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Summary Data:", data);
+      
+      // Handle different response structures
+      if (data.summary) {
+        setSummary(data.summary);
+      } else if (data.data?.summary) {
+        setSummary(data.data.summary);
+      } else if (data.data) {
+        setSummary(data.data);
+      } else {
+        setSummary(data);
+      }
+    } else {
+      console.warn("Failed to fetch summary, using default");
+      setSummary({
+        totalEmployees: employees.length,
+        presentToday: 0,
+        absentToday: 0,
+        pendingClockOut: 0
+      });
+    }
+  } catch (error) {
+    console.error("Fetch summary error:", error);
+    setSummary(null);
+  }
+};
   
   const fetchAnalytics = async () => {
     try {
@@ -921,146 +1028,221 @@ export default function AttendanceSystem() {
   };
   
   const fetchEmployees = async () => {
-    if (!isAdmin) return;
+  if (!isAdmin) return;
+  
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo) return;
     
-    try {
-      const tokenInfo = getToken();
-      if (!tokenInfo) return;
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`, {
-        headers: { 
-          Authorization: `Bearer ${tokenInfo.token}`,
-          "Content-Type": "application/json"
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const employeesArray = Array.isArray(data) ? data : 
-                              data.users || data.data || data.employees || [];
-        
-        const validEmployees = employeesArray
-          .filter(emp => emp && typeof emp === 'object')
-          .map(emp => ({
-            _id: emp._id || emp.id || '',
-            firstName: emp.firstName || emp.first_name || emp.name?.split(' ')[0] || '',
-            lastName: emp.lastName || emp.last_name || emp.name?.split(' ').slice(1).join(' ') || '',
-            email: emp.email || '',
-            employeeId: emp.employeeId || emp.employee_id || emp._id?.slice(-6) || '',
-            department: emp.department || emp.department_name || 'No Department',
-            position: emp.position || emp.job_title || '',
-            status: emp.status || 'active',
-            phone: emp.phone || '',
-            profileImage: emp.profileImage || ''
-          }))
-          .filter(emp => emp._id);
-        
-        setEmployees(validEmployees);
+    console.log("🔍 Fetching employees...");
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`, {
+      headers: { 
+        Authorization: `Bearer ${tokenInfo.token}`,
+        "Content-Type": "application/json"
       }
-    } catch (error) {
-      console.error("Fetch employees error:", error);
+    });
+    
+    console.log("Employees API Response Status:", response.status);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Employees API Response:", data);
+      
+      // ✅ ভিন্ন রেসপন্স স্ট্রাকচার হ্যান্ডল করা
+      let employeesArray = [];
+      
+      if (Array.isArray(data)) {
+        employeesArray = data;
+      } 
+      else if (data.users && Array.isArray(data.users)) {
+        employeesArray = data.users;
+      } 
+      else if (data.data && Array.isArray(data.data)) {
+        employeesArray = data.data;
+      } 
+      else if (data.employees && Array.isArray(data.employees)) {
+        employeesArray = data.employees;
+      }
+      else if (typeof data === 'object' && data !== null) {
+        // যদি অবজেক্ট হয় এবং অ্যারে না হয়
+        employeesArray = Object.values(data);
+      }
+      
+      console.log(`✅ Found ${employeesArray.length} employees`);
+      
+      // ✅ ভ্যালিডেট এবং ফরম্যাট এমপ্লয়ী
+      const validEmployees = employeesArray
+        .filter(emp => emp && typeof emp === 'object')
+        .map(emp => ({
+          _id: emp._id || emp.id || '',
+          firstName: emp.firstName || emp.first_name || emp.name?.split(' ')[0] || 'Unknown',
+          lastName: emp.lastName || emp.last_name || emp.name?.split(' ').slice(1).join(' ') || '',
+          email: emp.email || '',
+          employeeId: emp.employeeId || emp.employee_id || emp._id?.slice(-6) || 'N/A',
+          department: emp.department || emp.department_name || emp.departmentName || 'No Department',
+          position: emp.position || emp.job_title || emp.jobTitle || '',
+          status: emp.status || 'active',
+          phone: emp.phone || emp.mobile || '',
+          profileImage: emp.profileImage || emp.avatar || '',
+          // Additional fields for better filtering
+          fullName: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+          searchableText: `${emp.firstName || ''} ${emp.lastName || ''} ${emp.employeeId || ''} ${emp.department || ''}`.toLowerCase()
+        }))
+        .filter(emp => emp._id); // শুধুমাত্র যাদের _id আছে তাদের নেয়া
+        
+      console.log("✅ Valid employees:", validEmployees.length);
+      
+      setEmployees(validEmployees);
+      
+      // প্রথম এমপ্লয়ী সিলেক্ট করা (যদি ফিল্টারে ইতিমধ্যে সিলেক্ট করা না থাকে)
+      if (validEmployees.length > 0 && !filters.employeeId) {
+        // অটো সিলেক্ট করার দরকার নেই, শুধু সেট করা
+        console.log("📋 Employees loaded successfully");
+      }
+      
+    } else {
+      const error = await response.json();
+      console.error("❌ Employees API Error:", error);
+      toast.error(error.message || "Failed to fetch employees");
       setEmployees([]);
     }
-  };
+  } catch (error) {
+    console.error("❌ Fetch employees error:", error);
+    toast.error("Failed to load employees list");
+    setEmployees([]);
+  }
+};
   
   // ===================== ATTENDANCE ACTIONS =====================
   
-  const handleClockIn = async () => {
-    if (userRole !== "employee") {
-      toast.error("Only employees can clock in");
-      return;
-    }
+const handleClockIn = async () => {
+  if (userRole !== "employee") {
+    toast.error("Only employees can clock in");
+    return;
+  }
 
-    // Check if already clocked in
-    if (todayStatus.clockedIn) {
-      toast.error("Already clocked in today");
-      return;
-    }
+  // Check if already clocked in
+  if (todayStatus.clockedIn) {
+    toast.error("Already clocked in today");
+    return;
+  }
 
-    // Check if it's a working day
-    if (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay) {
-      toast.error(`Cannot clock in on ${todayStatus.dayStatus.status}`);
-      return;
-    }
+  // Check if marked as absent today
+  if (todayStatus.isMarkedAbsent) {
+    toast.error("Cannot clock in - You are marked as absent today");
+    return;
+  }
 
-    // Get real-time device info
-    getDetailedDeviceInfo();
-    getUserDetailedLocation();
-    const ip = await getRealIPAddress();
+  // Check if it's a working day
+  if (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay) {
+    toast.error(`Cannot clock in on ${todayStatus.dayStatus.status}`);
+    return;
+  }
+
+  // ✅ Check if within allowed time (1 hour before shift)
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  
+  if (shiftTiming.start) {
+    const [shiftHour, shiftMinute] = shiftTiming.start.split(':').map(Number);
     
-    setLoading(true);
-    try {
-      const tokenInfo = getToken();
-      if (!tokenInfo) return;
-
-      // Prepare device info for API
-      const deviceInfoForAPI = {
-        type: deviceInfo.type,
-        os: deviceInfo.os,
-        browser: deviceInfo.browser,
-        browserVersion: deviceInfo.browserVersion,
-        screen: deviceInfo.screen,
-        userAgent: deviceInfo.userAgent
-      };
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-in`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${tokenInfo.token}`
-        },
-        body: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          location: userLocation.address,
-          ipAddress: ip,
-          device: deviceInfoForAPI,
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-          city: userLocation.city,
-          country: userLocation.country
-        })
+    // Calculate earliest allowed time (1 hour before shift)
+    const earliestTime = new Date();
+    earliestTime.setHours(shiftHour - 1, shiftMinute, 0, 0);
+    
+    // If current time is before earliest allowed time
+    if (now < earliestTime) {
+      const earliestTimeStr = earliestTime.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Calculate late/early
-        const clockInTime = new Date();
-        const [shiftStartHour, shiftStartMinute] = shiftTiming.start.split(':').map(Number);
-        const shiftStart = new Date(clockInTime);
-        shiftStart.setHours(shiftStartHour, shiftStartMinute, 0, 0);
-        
-        const diffMinutes = Math.round((clockInTime - shiftStart) / (1000 * 60));
-        let message = `Clocked in successfully!`;
-        
-        if (diffMinutes > shiftTiming.lateThreshold) {
-          const lateMinutes = diffMinutes;
-          message += ` ${lateMinutes} minutes late`;
-        } else if (diffMinutes < shiftTiming.earlyThreshold) {
-          const earlyMinutes = Math.abs(diffMinutes);
-          message += ` ${earlyMinutes} minutes early`;
-        }
-        
-        toast.success(message);
-        
-        // Show device and location info
-        toast.success(`📍 Location: ${userLocation.address}`, { duration: 4000 });
-        toast.success(`🖥️ Device: ${deviceInfo.type} | 🌐 Browser: ${deviceInfo.browser}`, { duration: 4000 });
-        
-        // Refresh data
-        await fetchTodayStatus();
-        await fetchAttendanceData();
-      } else {
-        const error = await response.json();
-        toast.error(error.message || "Failed to clock in");
-      }
-    } catch (error) {
-      console.error("Clock in error:", error);
-      toast.error("Clock in failed. Please check your connection.");
-    } finally {
-      setLoading(false);
+      toast.error(`Clock-in allowed only from ${earliestTimeStr} (1 hour before shift)`);
+      return;
     }
-  };
+  }
+
+  // Rest of the existing code...
+  // Get real-time device info
+  getDetailedDeviceInfo();
+  getUserDetailedLocation();
+  const ip = await getRealIPAddress();
+  
+  setLoading(true);
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo) return;
+
+    // Prepare device info for API
+    const deviceInfoForAPI = {
+      type: deviceInfo.type,
+      os: deviceInfo.os,
+      browser: deviceInfo.browser,
+      browserVersion: deviceInfo.browserVersion,
+      screen: deviceInfo.screen,
+      userAgent: deviceInfo.userAgent
+    };
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-in`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${tokenInfo.token}`
+      },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        location: userLocation.address,
+        ipAddress: ip,
+        device: deviceInfoForAPI,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        city: userLocation.city,
+        country: userLocation.country
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      // Calculate late/early
+      const clockInTime = new Date();
+      const [shiftStartHour, shiftStartMinute] = shiftTiming.start.split(':').map(Number);
+      const shiftStart = new Date(clockInTime);
+      shiftStart.setHours(shiftStartHour, shiftStartMinute, 0, 0);
+      
+      const diffMinutes = Math.round((clockInTime - shiftStart) / (1000 * 60));
+      let message = `Clocked in successfully!`;
+      
+      if (diffMinutes > shiftTiming.lateThreshold) {
+        const lateMinutes = diffMinutes;
+        message += ` ${lateMinutes} minutes late`;
+      } else if (diffMinutes < shiftTiming.earlyThreshold) {
+        const earlyMinutes = Math.abs(diffMinutes);
+        message += ` ${earlyMinutes} minutes early`;
+      }
+      
+      toast.success(message);
+      
+      // Show device and location info
+      toast.success(`📍 Location: ${userLocation.address}`, { duration: 4000 });
+      toast.success(`🖥️ Device: ${deviceInfo.type} | 🌐 Browser: ${deviceInfo.browser}`, { duration: 4000 });
+      
+      // Refresh data
+      await fetchTodayStatus();
+      await fetchAttendanceData();
+    } else {
+      const error = await response.json();
+      toast.error(error.message || "Failed to clock in");
+    }
+  } catch (error) {
+    console.error("Clock in error:", error);
+    toast.error("Clock in failed. Please check your connection.");
+  } finally {
+    setLoading(false);
+  }
+};
   
   const handleClockOut = async () => {
     if (userRole !== "employee") {
@@ -1495,10 +1677,10 @@ export default function AttendanceSystem() {
       </div>
       
       {/* Main Content - Fixed Horizontal Scroll Issue */}
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4 md:p-6 overflow-x-hidden">
+      <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl overflow-hidden shadow-sm">
         
         {/* Header */}
-        <div className="mb-8">
+        <div className="p-6 border-b border-purple-100">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -1772,19 +1954,30 @@ export default function AttendanceSystem() {
                 {/* Action Buttons - FIXED: Marked absent হলে clock-in করা যাবে */}
                 <div className="flex flex-col gap-3">
                   <button
-                    onClick={handleClockIn}
-                    disabled={todayStatus.clockedIn || loading || (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)}
-                    className={`px-8 py-4 rounded-xl font-bold flex items-center gap-3 transition-all shadow-lg ${
-                      todayStatus.clockedIn
-                        ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
-                        : (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)
-                        ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl hover:scale-[1.02]'
-                    }`}
-                  >
-                    <LogIn size={24} />
-                    {todayStatus.clockedIn ? "✅ Clocked In" : "⏰ Clock In"}
-                  </button>
+  onClick={handleClockIn}
+  disabled={
+    todayStatus.clockedIn || 
+    loading || 
+    (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay) ||
+    todayStatus.isMarkedAbsent  // Add this line
+  }
+  className={`px-8 py-4 rounded-xl font-bold flex items-center gap-3 transition-all shadow-lg ${
+    todayStatus.clockedIn
+      ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
+      : todayStatus.isMarkedAbsent
+      ? 'bg-gradient-to-r from-red-300 to-rose-300 text-red-500 cursor-not-allowed'
+      : (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)
+      ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
+      : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl hover:scale-[1.02]'
+  }`}
+>
+  <LogIn size={24} />
+  {todayStatus.clockedIn 
+    ? "✅ Clocked In" 
+    : todayStatus.isMarkedAbsent
+    ? "🚫 Marked Absent"
+    : "⏰ Clock In"}
+</button>
                   
                   <button
                     onClick={handleClockOut}
@@ -1807,12 +2000,16 @@ export default function AttendanceSystem() {
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-md ${getStatusColor(todayStatus.status)}`}>
-                    {(() => {
-                      const StatusIcon = getStatusIcon(todayStatus.status);
-                      return <StatusIcon size={16} className="mr-2" />;
-                    })()}
-                    {todayStatus.status === "Not Clocked" ? "🟡 Ready to Clock In" : `📊 Status: ${todayStatus.status}`}
-                  </div>
+  {(() => {
+    const StatusIcon = getStatusIcon(todayStatus.status);
+    return <StatusIcon size={16} className="mr-2" />;
+  })()}
+  {todayStatus.status === "Absent" 
+    ? "🚫 Marked as Absent" 
+    : todayStatus.status === "Not Clocked" 
+    ? "🟡 Ready to Clock In" 
+    : `📊 Status: ${todayStatus.status}`}
+</div>
                   
                   {autoClockOutTimer && todayStatus.clockedIn && !todayStatus.clockedOut && (
                     <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl">
@@ -1993,7 +2190,7 @@ export default function AttendanceSystem() {
             {/* Second Row: Search and Employee Filter (Admin Only) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Search */}
-              <div className="relative">
+              {/* <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500" size={16} />
                 <input
                   type="text"
@@ -2002,13 +2199,13 @@ export default function AttendanceSystem() {
                   placeholder="Search records..."
                   className="w-full pl-10 pr-3 py-2.5 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                 />
-              </div>
+              </div> */}
               
               {/* Admin Only: Employee Selector */}
               {isAdmin && (
                 <div className="md:col-span-2">
                   <div className="flex items-center gap-4">
-                    <select
+                    {/* <select
                       value={filters.employeeId || ''}
                       onChange={(e) => setFilters(prev => ({ 
                         ...prev, 
@@ -2022,10 +2219,10 @@ export default function AttendanceSystem() {
                           {emp.firstName} {emp.lastName} ({emp.employeeId})
                         </option>
                       ))}
-                    </select>
+                    </select> */}
                     
                     {/* Quick Date Filters */}
-                    <div className="flex gap-2">
+                    {/* <div className="flex gap-2">
                       <button
                         onClick={() => {
                           setFilters(prev => ({ 
@@ -2056,47 +2253,119 @@ export default function AttendanceSystem() {
                       >
                         Yesterday
                       </button>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               )}
               
               {/* Employee: Quick Month Selector */}
-              {!isAdmin && (
-                <div className="md:col-span-2 flex gap-2">
-                  <button
-                    onClick={() => {
-                      const today = new Date();
-                      setFilters(prev => ({ 
-                        ...prev, 
-                        month: (today.getMonth() + 1).toString(),
-                        year: today.getFullYear().toString(),
-                        date: ''
-                      }));
-                      setCurrentPage(1);
-                    }}
-                    className="px-4 py-2.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:bg-purple-200 flex-1"
-                  >
-                    This Month
-                  </button>
-                  <button
-                    onClick={() => {
-                      const lastMonth = new Date();
-                      lastMonth.setMonth(lastMonth.getMonth() - 1);
-                      setFilters(prev => ({ 
-                        ...prev, 
-                        month: (lastMonth.getMonth() + 1).toString(),
-                        year: lastMonth.getFullYear().toString(),
-                        date: ''
-                      }));
-                      setCurrentPage(1);
-                    }}
-                    className="px-4 py-2.5 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 rounded-lg hover:bg-blue-200 flex-1"
-                  >
-                    Last Month
-                  </button>
-                </div>
-              )}
+              {isAdmin && (
+  <div className="md:col-span-2">
+    <div className="flex items-center gap-4">
+      <div className="flex-1 relative">
+        <select
+          value={filters.employeeId || ''}
+          onChange={(e) => {
+            console.log("Selected employee ID:", e.target.value);
+            setFilters(prev => ({ 
+              ...prev, 
+              employeeId: e.target.value
+            }));
+            setCurrentPage(1);
+          }}
+          onFocus={() => {
+            // Load employees when dropdown is focused
+            if (employees.length === 0) {
+              fetchEmployees();
+            }
+          }}
+          className="w-full px-4 py-2.5 border border-purple-200 rounded-lg bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 appearance-none"
+        >
+          <option value="">📋 All Employees ({employees.length})</option>
+          {employees.length === 0 ? (
+            <option value="" disabled>Loading employees...</option>
+          ) : (
+            employees.map(emp => (
+              <option 
+                key={emp._id} 
+                value={emp._id}
+                className="py-2"
+              >
+                {emp.firstName} {emp.lastName} ({emp.employeeId}) - {emp.department}
+              </option>
+            ))
+          )}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+      </div>
+      
+      {/* Quick employee refresh button */}
+      <button
+        onClick={() => {
+          fetchEmployees();
+          toast.success("Employees list refreshed!");
+        }}
+        className="p-2.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg hover:from-purple-200 hover:to-pink-200 transition-colors"
+        title="Refresh Employees"
+      >
+        <RefreshCw size={18} />
+      </button>
+      
+      {/* Quick Date Filters */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => {
+            setFilters(prev => ({ 
+              ...prev, 
+              date: new Date().toISOString().split('T')[0],
+              month: '',
+              year: ''
+            }));
+            setCurrentPage(1);
+          }}
+          className="px-3 py-2 bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 rounded-lg hover:bg-amber-200 text-sm whitespace-nowrap"
+        >
+          Today
+        </button>
+        <button
+          onClick={() => {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            setFilters(prev => ({ 
+              ...prev, 
+              date: yesterday.toISOString().split('T')[0],
+              month: '',
+              year: ''
+            }));
+            setCurrentPage(1);
+          }}
+          className="px-3 py-2 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm whitespace-nowrap"
+        >
+          Yesterday
+        </button>
+      </div>
+    </div>
+    
+    {/* Employee quick stats */}
+    {filters.employeeId && employees.length > 0 && (
+      <div className="mt-2 text-xs text-gray-600 flex items-center gap-2">
+        <UserCircle size={12} />
+        <span>
+          Selected: {
+            employees.find(e => e._id === filters.employeeId)?.firstName + ' ' + 
+            employees.find(e => e._id === filters.employeeId)?.lastName
+          }
+        </span>
+        <button
+          onClick={() => setFilters(prev => ({ ...prev, employeeId: '' }))}
+          className="text-red-500 hover:text-red-700 ml-2"
+        >
+          Clear
+        </button>
+      </div>
+    )}
+  </div>
+)}
             </div>
             
             {/* Apply/Clear Buttons */}
@@ -2208,7 +2477,67 @@ export default function AttendanceSystem() {
               </div>
             </div>
           </div>
-          
+          {/* Delete Confirmation Modal */}
+{showDeleteConfirmation && recordToDelete && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-12 h-12 bg-gradient-to-r from-red-100 to-rose-100 rounded-xl flex items-center justify-center">
+          <AlertTriangle className="text-red-600" size={24} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Delete Attendance Record</h2>
+          <p className="text-gray-500 text-sm">This action cannot be undone</p>
+        </div>
+      </div>
+      
+      <div className="p-4 bg-red-50 border border-red-100 rounded-xl mb-6">
+        <div className="text-sm font-medium text-red-800 mb-2">Record Details:</div>
+        <div className="text-sm text-gray-700 space-y-1">
+          <div><span className="font-medium">Date:</span> {formatDateShort(recordToDelete.date)}</div>
+          {recordToDelete.employee && (
+            <div>
+              <span className="font-medium">Employee:</span> {recordToDelete.employee.firstName} {recordToDelete.employee.lastName}
+            </div>
+          )}
+          <div><span className="font-medium">Status:</span> {recordToDelete.status}</div>
+          <div><span className="font-medium">Clock In:</span> {formatTime(recordToDelete.clockIn)}</div>
+          <div><span className="font-medium">Clock Out:</span> {formatTime(recordToDelete.clockOut)}</div>
+        </div>
+      </div>
+      
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => {
+            setShowDeleteConfirmation(false);
+            setRecordToDelete(null);
+          }}
+          className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleDeleteAttendance}
+          disabled={loading}
+          className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm flex items-center gap-2 disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Deleting...
+            </>
+          ) : (
+            <>
+              <X size={18} />
+              Delete Record
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
           {/* Loading State */}
           {loading ? (
             <div className="p-12 text-center">
@@ -2394,23 +2723,29 @@ export default function AttendanceSystem() {
                                 <Eye size={18} />
                               </button>
                               {isAdmin && (
-                                <>
-                                  <button
-                                    onClick={() => setSelectedAttendanceRecord(record)}
-                                    className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors group"
-                                    title="Edit Record"
-                                  >
-                                    <Edit size={18} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleUpdateShift(record.employee?._id, record.shift)}
-                                    className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors group"
-                                    title="Update Shift"
-                                  >
-                                    <Settings size={18} />
-                                  </button>
-                                </>
-                              )}
+  <>
+    {/* Edit button */}
+    <button
+      onClick={() => setSelectedAttendanceRecord(record)}
+      className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors group"
+      title="Edit Record"
+    >
+      <Edit size={18} />
+    </button>
+    
+    {/* Delete button */}
+    <button
+      onClick={() => {
+        setRecordToDelete(record);
+        setShowDeleteConfirmation(true);
+      }}
+      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors group"
+      title="Delete Record"
+    >
+      <X size={18} />
+    </button> 
+  </>
+)}
                             </div>
                           </td>
                         </tr>
@@ -2590,7 +2925,7 @@ export default function AttendanceSystem() {
           ) : (
             /* Analytics View */
             <div className="p-6 overflow-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {/* Status Distribution */}
                 <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>

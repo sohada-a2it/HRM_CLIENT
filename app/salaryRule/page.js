@@ -105,7 +105,7 @@ export default function page() {
   };
 
   // API Base URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://a2itserver.onrender.com/api/v1";
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://a2it-hrm-server.onrender.com/api/v1";
 
   // ✅ Fetch salary rules based on user role
   const fetchSalaryRules = async () => {

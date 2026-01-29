@@ -48,7 +48,7 @@ import { toast } from "react-hot-toast";
 // API functions
 const getUserById = async (userId) => {
   try {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://a2itserver.onrender.com/api/v1';
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://a2it-hrm-server.onrender.com/api/v1';
     const token = localStorage.getItem('adminToken') || localStorage.getItem('employeeToken');
     
     if (!token) {

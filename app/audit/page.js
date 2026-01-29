@@ -225,9 +225,9 @@ export default function page() {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/getAllAudits?${queryParams}`;
       } 
       // User's own logs
-      else if (viewMode === 'my' && userId) {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/audit/my-logs?${queryParams}`;
-      }
+      // else if (viewMode === 'my' && userId) {
+      //   endpoint = `${process.env.NEXT_PUBLIC_API_URL}/my-logs`;
+      // }
       // Admin viewing specific user
       else if (isAdmin && filters.userId) {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/getAllAudits/${filters.userId}?${queryParams}`;

@@ -211,7 +211,7 @@ export default function BillsPage() {
 
   // API base URL
 const API_URL = useMemo(() => 
-  `${process.env.NEXT_PUBLIC_API_URL || 'https://a2itserver.onrender.com/api/v1'}`, 
+  `${process.env.NEXT_PUBLIC_API_URL || 'https://a2it-hrm-server.onrender.com/api/v1'}`, 
 []);
 
   // Month names for display
