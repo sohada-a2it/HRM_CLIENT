@@ -70,7 +70,27 @@ import { Toaster, toast } from "react-hot-toast";
 
 export default function PayrollPage() {
   const router = useRouter();
-  
+  // State এর শুরুতে এই variables গুলো যোগ করুন
+const [showEditModal, setShowEditModal] = useState(false);
+const [editForm, setEditForm] = useState({
+  payrollId: "",
+  monthlySalary: "",
+  overtime: "0",
+  bonus: "0",
+  allowance: "0",
+  dailyMealRate: "0",
+  manualMealAmount: "0",
+  mealDeduction: "0",
+  mealDeductionType: "none",
+  notes: ""
+});
+const [editingPayroll, setEditingPayroll] = useState(null);
+const [allPayrollsAdmin, setAllPayrollsAdmin] = useState([]);
+const [showAdminAllModal, setShowAdminAllModal] = useState(false);
+const [adminViewFilters, setAdminViewFilters] = useState({
+  view: 'detailed', // detailed, summary, grouped
+  sort: 'month_desc'
+});
   // State Management
   const [payrolls, setPayrolls] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -87,19 +107,14 @@ export default function PayrollPage() {
     allView: false
   });
   const [employeeMealData, setEmployeeMealData] = useState({});
+  
 // State variables
-const [mealSystemData, setMealSystemData] = useState({
-  hasMonthlySubscription: false,  // সঠিকভাবে false set করুন
-  dailyMealDays: 0,
-  monthlyFoodCost: 0,
-  activeSubscribers: 0,
-  deductionPerEmployee: 0,
-  averageDailyCost: 0
-});
+const [mealSystemData, setMealSystemData] = useState(null);
 // Show create modal function এ যোগ করুন
 const handleOpenCreateModal = () => {
-  // Reset meal data when opening modal
-  setEmployeeMealData({});
+  // Reset meal data
+  setMealSystemData(null); // বা empty object
+  
   setCreateForm({
     employeeId: "",
     month: new Date().getMonth() + 1,
@@ -112,6 +127,7 @@ const handleOpenCreateModal = () => {
     dailyMealRate: "0",
     manualMealAmount: "0"
   });
+  
   setShowCreateModal(true);
 };
   const [apiConnected, setApiConnected] = useState(false);
@@ -176,12 +192,13 @@ const [acceptingPayroll, setAcceptingPayroll] = useState(false);
   manualMealAmount: "0" // নতুন field
   });
   
-  const [calculateForm, setCalculateForm] = useState({
-    employeeId: "",
-    month: "",
-    year: "",
-    monthlySalary: ""
-  });
+// State এর শুরুতে calculateForm update করুন:
+const [calculateForm, setCalculateForm] = useState({
+  employeeId: "",
+  month: new Date().getMonth() + 1, // Current month
+  year: new Date().getFullYear(), // Current year
+  monthlySalary: ""
+});
   
   const [bulkForm, setBulkForm] = useState({
     month: "",
@@ -205,6 +222,27 @@ const [acceptingPayroll, setAcceptingPayroll] = useState(false);
   // ==================== HELPER FUNCTIONS ====================
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://a2itserver.onrender.com/api/v1';
 
+  // ✅ নতুন ফাংশন: Employee select হলে meal data load করবে
+const handleEmployeeSelect = (e) => {
+  const empId = e.target.value;
+  setCreateForm({ ...createForm, employeeId: empId });
+  
+  if (empId && createForm.month && createForm.year) {
+    loadEmployeeMealData(empId, createForm.month, createForm.year);
+  }
+};
+
+// ✅ useEffect for auto-loading meal data
+useEffect(() => {
+  const loadMealDataIfNeeded = async () => {
+    if (showCreateModal && createForm.employeeId && createForm.month && createForm.year) {
+      console.log('🔄 Auto-loading meal data...');
+      await loadEmployeeMealData(createForm.employeeId, createForm.month, createForm.year);
+    }
+  };
+  
+  loadMealDataIfNeeded();
+}, [showCreateModal, createForm.employeeId, createForm.month, createForm.year]);
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-BD', {
       style: 'currency',
@@ -286,105 +324,872 @@ const [acceptingPayroll, setAcceptingPayroll] = useState(false);
       };
     }
   };
-// loadEmployeeMealData ফাংশনে console log যোগ করুন
+// loadEmployeeMealData ফাংশনে console log যোগ করুন 
 const loadEmployeeMealData = async (employeeId, month, year) => {
   try {
-    if (!employeeId || !month || !year) return;
+    console.log('🔍 Loading meal data for:', { employeeId, month, year });
     
-    console.log('🔍 Loading meal data for:', { 
-      employeeId, 
-      month: parseInt(month), 
-      year: parseInt(year) 
-    });
-    
-    // API call
     const response = await apiRequest('GET', `/meal-data/${employeeId}?month=${month}&year=${year}`);
     
-    console.log('✅ Meal API Response status:', response?.status);
-    console.log('✅ Meal API Response data:', response?.data);
+    console.log('✅ Meal API Response:', response?.data);
     
     if (response && response.status === 'success') {
-      console.log('📊 Raw meal data from API:', response.data);
-      
-      // Boolean conversion with strict checking
-      let hasSubscription = false;
-      
-      if (response.data.hasSubscription === true || response.data.hasSubscription === 'true') {
-        hasSubscription = true;
-      } else if (response.data.hasSubscription === 1) {
-        hasSubscription = true;
-      } else if (response.data.hasSubscription === '1') {
-        hasSubscription = true;
-      }
-      
-      console.log('📊 Final hasSubscription (boolean):', hasSubscription);
-      
+      // ✅ সরাসরি response.data থেকে সব fields নিন
       const mealData = {
-        hasMonthlySubscription: hasSubscription,
-        dailyMealDays: Number(response.data.dailyMealDays) || 0,
-        monthlyFoodCost: Number(response.data.totalMonthlyFoodCost) || 0,
-        activeSubscribers: Number(response.data.activeSubscribers) || 0,
-        deductionPerEmployee: Number(response.data.deductionPerEmployee) || 0,
-        averageDailyCost: Number(response.data.averageDailyCost) || 0
+        hasMonthlySubscription: response.data.hasMonthlySubscription || false,
+        dailyMealDays: response.data.dailyMealDays || 0,
+        monthlyFoodCost: response.data.monthlyFoodCost || 0,
+        activeSubscribers: response.data.activeSubscribers || 0,
+        deductionPerEmployee: response.data.deductionPerEmployee || 0,
+        averageDailyCost: response.data.averageDailyCost || 0,
+        foodCostDays: response.data.foodCostDays || 0,
+        mealDetails: response.data.mealDetails || {}
       };
       
-      console.log('📊 Final mealData for employee:', mealData);
+      console.log('📊 Processed Meal Data for UI:', mealData);
       
-      // প্রতিটি employee এর জন্য আলাদা meal data সেট করুন
-      setEmployeeMealData(prev => ({
-        ...prev,
-        [employeeId]: mealData
-      }));
+      // ✅ State update করুন
+      setMealSystemData(mealData);
       
-      // যদি subscription থাকে, daily meal rate clear করুন
-      if (hasSubscription) {
-        setCreateForm(prev => ({
-          ...prev,
-          dailyMealRate: "0",
-          manualMealAmount: "0"
-        }));
-        toast.success(`✅ Monthly subscription loaded: ${formatCurrency(response.data.deductionPerEmployee)} will be auto-deducted`, {
-          duration: 3000,
-          icon: '💰'
-        });
-      } else if (response.data.dailyMealDays > 0) {
-        toast.info(`📅 Daily meals found: ${response.data.dailyMealDays} days`, {
-          duration: 2000
-        });
+      // Toast message
+      if (mealData.hasMonthlySubscription) {
+        toast.success(`Monthly subscription loaded: ${formatCurrency(mealData.deductionPerEmployee)} will be auto-deducted`);
+      } else if (mealData.dailyMealDays > 0) {
+        toast.info(`Found ${mealData.dailyMealDays} daily meal days for this period`);
       }
+      
+      return mealData; // Return for immediate use
+      
     } else {
-      console.log('⚠️ No meal data found or API error:', response?.message);
-      // Reset meal data for this employee
-      setEmployeeMealData(prev => ({
-        ...prev,
-        [employeeId]: {
-          hasMonthlySubscription: false,
-          dailyMealDays: 0,
-          monthlyFoodCost: 0,
-          activeSubscribers: 0,
-          deductionPerEmployee: 0,
-          averageDailyCost: 0
-        }
-      }));
-    }
-  } catch (error) {
-    console.error('❌ Error loading meal data:', error);
-    console.error('❌ Error details:', error.message);
-    // Reset on error
-    setEmployeeMealData(prev => ({
-      ...prev,
-      [employeeId]: {
+      console.log('⚠️ No meal data found, resetting...');
+      // ✅ Reset properly
+      setMealSystemData({
         hasMonthlySubscription: false,
         dailyMealDays: 0,
         monthlyFoodCost: 0,
         activeSubscribers: 0,
         deductionPerEmployee: 0,
-        averageDailyCost: 0
-      }
-    }));
+        averageDailyCost: 0,
+        foodCostDays: 0,
+        mealDetails: {}
+      });
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Error loading meal data:', error);
+    // ✅ Error case-ও reset করুন
+    setMealSystemData({
+      hasMonthlySubscription: false,
+      dailyMealDays: 0,
+      monthlyFoodCost: 0,
+      activeSubscribers: 0,
+      deductionPerEmployee: 0,
+      averageDailyCost: 0,
+      foodCostDays: 0,
+      mealDetails: {}
+    });
+    return null;
+  }
+}; 
+
+// Admin Edit Modal function
+const renderEditModal = () => {
+  if (!showEditModal || !editingPayroll) return null;
+  
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Edit Payroll</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {editingPayroll.employee?.name || editingPayroll.employeeName} • 
+                {editingPayroll.period?.monthName || getMonthName(editingPayroll.month)} {editingPayroll.year}
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                setShowEditModal(false);
+                setEditingPayroll(null);
+                setEditForm({
+                  payrollId: "",
+                  monthlySalary: "",
+                  overtime: "0",
+                  bonus: "0",
+                  allowance: "0",
+                  dailyMealRate: "0",
+                  manualMealAmount: "0",
+                  mealDeduction: "0",
+                  mealDeductionType: "none",
+                  notes: ""
+                });
+              }} 
+              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <form onSubmit={handleUpdatePayroll}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Basic Information</h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Monthly Salary (৳) *
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.monthlySalary}
+                    onChange={(e) => setEditForm({...editForm, monthlySalary: e.target.value})}
+                    required
+                    min="0"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes
+                  </label>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({...editForm, notes: e.target.value})}
+                    rows="3"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Additional Earnings */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Additional Earnings</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Overtime (৳)</label>
+                    <input
+                      type="number"
+                      value={editForm.overtime}
+                      onChange={(e) => setEditForm({...editForm, overtime: e.target.value})}
+                      min="0"
+                      className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Bonus (৳)</label>
+                    <input
+                      type="number"
+                      value={editForm.bonus}
+                      onChange={(e) => setEditForm({...editForm, bonus: e.target.value})}
+                      min="0"
+                      className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Allowance (৳)</label>
+                    <input
+                      type="number"
+                      value={editForm.allowance}
+                      onChange={(e) => setEditForm({...editForm, allowance: e.target.value})}
+                      min="0"
+                      className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Meal Deduction Section */}
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Meal Deduction</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Deduction Type</label>
+                      <select
+                        value={editForm.mealDeductionType}
+                        onChange={(e) => setEditForm({...editForm, mealDeductionType: e.target.value})}
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      >
+                        <option value="none">No Meal Deduction</option>
+                        <option value="monthly_subscription">Monthly Subscription</option>
+                        <option value="daily_meal">Daily Meal</option>
+                        <option value="manual_amount">Manual Amount</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Meal Deduction Amount (৳)
+                      </label>
+                      <input
+                        type="number"
+                        value={editForm.mealDeduction}
+                        onChange={(e) => setEditForm({...editForm, mealDeduction: e.target.value})}
+                        min="0"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Current Payroll Information (Read-only) */}
+            <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Current Payroll Information</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-3 bg-white rounded-lg">
+                  <div className="text-xs text-gray-500">Basic Salary</div>
+                  <div className="font-bold">{formatCurrency(editingPayroll.currentValues?.monthlySalary || editingPayroll.salary?.monthly || 0)}</div>
+                </div>
+                <div className="p-3 bg-white rounded-lg">
+                  <div className="text-xs text-gray-500">Net Payable</div>
+                  <div className="font-bold text-green-600">
+                    {formatCurrency(editingPayroll.summary?.netPayable || 0)}
+                  </div>
+                </div>
+                <div className="p-3 bg-white rounded-lg">
+                  <div className="text-xs text-gray-500">Present Days</div>
+                  <div className="font-bold">
+                    {editingPayroll.attendance?.presentDays || 0}/{editingPayroll.attendance?.totalWorkingDays || 23}
+                  </div>
+                </div>
+                <div className="p-3 bg-white rounded-lg">
+                  <div className="text-xs text-gray-500">Status</div>
+                  <div className={`font-medium ${
+                    editingPayroll.status?.current === 'Paid' ? 'text-green-600' : 
+                    editingPayroll.status?.current === 'Pending' ? 'text-yellow-600' : 
+                    'text-gray-600'
+                  }`}>
+                    {editingPayroll.status?.current || 'Pending'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Preview Changes Button */}
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={handlePreviewEdit}
+                className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <Calculator size={18} />
+                Preview Changes
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-6 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingPayroll(null);
+                }}
+                className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+              >
+                Cancel
+              </button>
+              
+              <button
+                type="submit"
+                disabled={loading.action}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading.action ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={18} />
+                    Update Payroll
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+// Admin All Payrolls View Modal
+const renderAdminAllModal = () => {
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">All Payrolls - Admin View</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                Total {allPayrollsAdmin.length} payroll records • {employees.length} employees
+                {lastUpdated && ` • Last updated: ${formatDate(lastUpdated)}`}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => loadAdminAllPayrolls()}
+                disabled={loading.allView}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw size={18} className={loading.allView ? "animate-spin" : ""} />
+                Refresh
+              </button>
+              <button
+                onClick={() => setShowAdminAllModal(false)}
+                className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          {/* Filters */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+            <div className="flex flex-wrap gap-3">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search employee, department or ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none w-full"
+                />
+              </div>
+              
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value === "all" ? "all" : Number(e.target.value))}
+                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="all">All Years</option>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - 2 + i;
+                  return <option key={year} value={year}>{year}</option>;
+                })}
+              </select>
+              
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value === "all" ? "all" : Number(e.target.value))}
+                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="all">All Months</option>
+                {monthNames.map((month, index) => (
+                  <option key={index} value={index + 1}>{month}</option>
+                ))}
+              </select>
+              
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="all">All Status</option>
+                {statusOptions.slice(1).map(status => (
+                  <option key={status.value} value={status.value}>{status.label}</option>
+                ))}
+              </select>
+              
+              <select
+                value={adminViewFilters.view}
+                onChange={(e) => setAdminViewFilters({...adminViewFilters, view: e.target.value})}
+                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="detailed">Detailed View</option>
+                <option value="summary">Summary View</option>
+                <option value="grouped">Grouped View</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Summary Cards */}
+          {adminViewFilters.view === 'summary' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
+                <h3 className="text-sm font-medium text-blue-700 mb-2">Total Payable</h3>
+                <div className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(allPayrollsAdmin.reduce((sum, p) => sum + (p.summary?.netPayable || 0), 0))}
+                </div>
+              </div>
+              <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                <h3 className="text-sm font-medium text-green-700 mb-2">Paid Payrolls</h3>
+                <div className="text-2xl font-bold text-gray-900">
+                  {allPayrollsAdmin.filter(p => p.status === 'Paid').length}
+                </div>
+              </div>
+              <div className="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl border border-yellow-100">
+                <h3 className="text-sm font-medium text-yellow-700 mb-2">Pending Approval</h3>
+                <div className="text-2xl font-bold text-gray-900">
+                  {allPayrollsAdmin.filter(p => p.status === 'Pending').length}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Main Table */}
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Employee
+                  </th>
+                  <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Period
+                  </th>
+                  <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Department
+                  </th>
+                  <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount Details
+                  </th>
+                  <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {allPayrollsAdmin.map((payroll) => (
+                  <tr key={payroll._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-4 px-6">
+                      <div>
+                        <div className="font-medium text-gray-900">{payroll.employeeName}</div>
+                        <div className="text-sm text-gray-500">{payroll.designation}</div>
+                        <div className="text-xs text-gray-400">{payroll.employeeId}</div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="text-sm font-medium text-gray-900">
+                        {getMonthName(payroll.month)} {payroll.year}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Days: {payroll.attendance?.presentDays || 0}/{payroll.attendance?.totalWorkingDays || 23}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        {payroll.department}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="space-y-1">
+                        <div className="text-sm">
+                          <span className="text-gray-600">Basic: </span>
+                          <span className="font-medium">{formatCurrency(payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0)}</span>
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-gray-600">Net: </span>
+                          <span className="font-bold text-green-600">{formatCurrency(payroll.summary?.netPayable || 0)}</span>
+                        </div>
+                        {payroll.mealSystemData?.mealDeduction?.amount > 0 && (
+                          <div className="text-xs text-red-500">
+                            Meal: -{formatCurrency(payroll.mealSystemData.mealDeduction.amount)}
+                          </div>
+                        )}
+                        {payroll.onsiteBenefitsDetails?.netEffect && (
+                          <div className="text-xs text-amber-600">
+                            Onsite: {payroll.onsiteBenefitsDetails.netEffect >= 0 ? '+' : ''}{formatCurrency(payroll.onsiteBenefitsDetails.netEffect)}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex flex-col gap-1">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${
+                          payroll.employeeAccepted?.accepted 
+                            ? 'bg-green-100 text-green-800' 
+                            : payroll.status === 'Paid'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {payroll.employeeAccepted?.accepted ? (
+                            <>
+                              <CheckCircle size={12} />
+                              Accepted
+                            </>
+                          ) : payroll.status === 'Paid' ? (
+                            <>
+                              <CheckCircle size={12} />
+                              Paid
+                            </>
+                          ) : (
+                            <>
+                              <Clock size={12} />
+                              {payroll.status}
+                            </>
+                          )}
+                        </span>
+                        
+                        {payroll.employeeAccepted?.accepted && (
+                          <div className="text-xs text-green-600">
+                            ✓ Accepted by employee
+                          </div>
+                        )}
+                        
+                        {payroll.payment?.paymentDate && (
+                          <div className="text-xs text-gray-500">
+                            Paid: {formatDate(payroll.payment.paymentDate)}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            viewEmployeePayrollDetails(payroll._id);
+                            setShowAdminAllModal(false);
+                          }}
+                          className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm transition-colors flex items-center gap-1"
+                          title="View Details"
+                        >
+                          <Eye size={14} />
+                          View
+                        </button>
+                        
+                        {payroll.status !== 'Paid' && !payroll.employeeAccepted?.accepted && (
+                          <button
+                            onClick={() => handleOpenEditModal(payroll)}
+                            className="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm transition-colors flex items-center gap-1"
+                            title="Edit Payroll"
+                          >
+                            <Edit size={14} />
+                            Edit
+                          </button>
+                        )}
+                        
+                        {payroll.status === 'Pending' && (
+                          <button
+                            onClick={() => handleUpdateStatus(payroll._id, 'Paid')}
+                            className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 text-sm transition-colors flex items-center gap-1"
+                            title="Mark as Paid"
+                          >
+                            <CheckCircle size={14} />
+                            Pay
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Summary */}
+          <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-sm text-gray-600">Total Records</div>
+                <div className="text-2xl font-bold text-gray-900">{allPayrollsAdmin.length}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm text-gray-600">Total Payable</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(allPayrollsAdmin.reduce((sum, p) => sum + (p.summary?.netPayable || 0), 0))}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm text-gray-600">Pending</div>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {allPayrollsAdmin.filter(p => p.status === 'Pending').length}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm text-gray-600">Paid/Accepted</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {allPayrollsAdmin.filter(p => p.status === 'Paid' || p.employeeAccepted?.accepted).length}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+// API functions
+// Payroll details view for admin (একই ফরম্যাটে)
+const viewPayrollDetailsAdmin = async (payrollId) => {
+  console.log('🚀 Opening payroll details for ADMIN, ID:', payrollId);
+  
+  try {
+    setLoading(prev => ({ ...prev, action: true }));
+    
+    // Find payroll in local state
+    const payroll = payrolls.find(p => p._id === payrollId);
+    
+    if (!payroll) {
+      toast.error('Payroll not found in local data');
+      return;
+    }
+    
+    console.log('Found payroll for admin:', payroll);
+    
+    // Create details object from local data (employeeDetailsModal এর মতো একই ফরম্যাটে)
+    const payrollDetails = {
+      payrollId: payroll._id,
+      employee: {
+        name: payroll.employeeName || getEmployeeName(payroll),
+        employeeId: payroll.employeeId || 'N/A',
+        department: payroll.department || 'General',
+        designation: payroll.designation || 'Employee'
+      },
+      salary: {
+        monthly: payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0,
+        daily: Math.round((payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0) / 23)
+      },
+      earnings: {
+        basicPay: payroll.earnings?.basicPay || 0,
+        overtime: payroll.earnings?.overtime?.amount || 0,
+        bonus: payroll.earnings?.bonus?.amount || 0,
+        allowance: payroll.earnings?.allowance?.amount || 0,
+        total: payroll.summary?.grossEarnings || 0
+      },
+      deductions: {
+        late: payroll.deductions?.lateDeduction || 0,
+        absent: payroll.deductions?.absentDeduction || 0,
+        leave: payroll.deductions?.leaveDeduction || 0,
+        halfDay: payroll.deductions?.halfDayDeduction || 0,
+        allowanceDeduction: payroll.deductions?.allowanceDeduction || 0,
+        total: payroll.deductions?.total || 0
+      },
+      attendance: {
+        totalDays: payroll.attendance?.totalWorkingDays || 23,
+        presentDays: payroll.attendance?.presentDays || 0,
+        absentDays: payroll.attendance?.absentDays || 0,
+        attendancePercentage: payroll.attendance?.attendancePercentage || 0
+      },
+      summary: {
+        netPayable: payroll.summary?.netPayable || 0,
+        grossEarnings: payroll.summary?.grossEarnings || 0,
+        totalDeductions: payroll.deductions?.total || 0
+      },
+      status: {
+        current: payroll.status || 'Pending',
+        employeeAccepted: payroll.employeeAccepted?.accepted || false,
+        acceptedAt: payroll.employeeAccepted?.acceptedAt
+      },
+      period: {
+        formattedPeriod: `${getMonthName(payroll.month)} ${payroll.year}`
+      },
+      // Onsite benefits data
+      onsiteBenefits: payroll.onsiteBenefitsDetails ? {
+        serviceCharge: payroll.onsiteBenefitsDetails.serviceCharge || 0,
+        teaAllowance: payroll.onsiteBenefitsDetails.teaAllowance || 0,
+        presentDays: payroll.onsiteBenefitsDetails.presentDays || 0,
+        netEffect: payroll.onsiteBenefitsDetails.netEffect || 0,
+        calculationNote: payroll.onsiteBenefitsDetails.calculationNote || ''
+      } : null,
+      // Meal deduction data
+      mealDeduction: payroll.mealSystemData?.mealDeduction ? {
+        type: payroll.mealSystemData.mealDeduction.type || 'none',
+        amount: payroll.mealSystemData.mealDeduction.amount || 0,
+        calculationNote: payroll.mealSystemData.mealDeduction.calculationNote || '',
+        details: payroll.mealSystemData.mealDeduction.details || {}
+      } : null,
+      // Food cost details
+      foodCostDetails: payroll.foodCostDetails ? {
+        included: payroll.foodCostDetails.included || false,
+        totalMealCost: payroll.foodCostDetails.totalMealCost || 0,
+        fixedDeduction: payroll.foodCostDetails.fixedDeduction || 0,
+        calculationNote: payroll.foodCostDetails.calculationNote || ''
+      } : null
+    };
+    
+    console.log('✅ Admin Payroll details created:', payrollDetails);
+    
+    // Set state and open modal (একই modal)
+    setEmployeePayrollDetails(payrollDetails);
+    setEmployeeDetailsModal(true);
+    
+    console.log('🎯 Modal opened successfully for admin');
+    
+  } catch (error) {
+    console.error('🚨 Error loading payroll details for admin:', error);
+    toast.error('Failed to load payroll details');
+  } finally {
+    setLoading(prev => ({ ...prev, action: false }));
   }
 };
-// নতুন ফাংশন: Payroll preview দেখার জন্য
+// Load all payrolls for admin
+const loadAdminAllPayrolls = async () => {
+  try {
+    setLoading(prev => ({ ...prev, allView: true }));
+    
+    const response = await apiRequest('GET', '/payroll/admin/all');
+    
+    if (response && response.status === 'success') {
+      setAllPayrollsAdmin(response.data?.payrolls || []);
+      toast.success(`Loaded ${response.data?.payrolls?.length || 0} payroll records`);
+    } else {
+      setAllPayrollsAdmin([]);
+      toast.error('Failed to load payroll data');
+    }
+  } catch (error) {
+    console.error('Error loading admin all payrolls:', error);
+    setAllPayrollsAdmin([]);
+    toast.error('Error loading payroll data');
+  } finally {
+    setLoading(prev => ({ ...prev, allView: false }));
+  }
+};
+
+// Open edit modal
+const handleOpenEditModal = async (payroll) => {
+  try {
+    setLoading(prev => ({ ...prev, action: true }));
+    
+    // Get payroll details for edit
+    const response = await apiRequest('GET', `/payroll/${payroll._id}/edit`);
+    
+    if (response && response.status === 'success') {
+      setEditingPayroll(response.data);
+      setEditForm({
+        payrollId: response.data.payrollId,
+        monthlySalary: response.data.currentValues?.monthlySalary?.toString() || "",
+        overtime: response.data.currentValues?.overtime?.toString() || "0",
+        bonus: response.data.currentValues?.bonus?.toString() || "0",
+        allowance: response.data.currentValues?.allowance?.toString() || "0",
+        dailyMealRate: response.data.currentValues?.dailyMealRate?.toString() || "0",
+        manualMealAmount: response.data.currentValues?.manualMealAmount?.toString() || "0",
+        mealDeduction: response.data.currentValues?.mealDeduction?.toString() || "0",
+        mealDeductionType: response.data.currentValues?.mealDeductionType || "none",
+        notes: response.data.currentValues?.notes || ""
+      });
+      setShowEditModal(true);
+    } else {
+      toast.error('Failed to load payroll for edit');
+    }
+  } catch (error) {
+    console.error('Error opening edit modal:', error);
+    toast.error('Error loading payroll data');
+  } finally {
+    setLoading(prev => ({ ...prev, action: false }));
+  }
+};
+
+// Update payroll
+const handleUpdatePayroll = async (e) => {
+  e.preventDefault();
+  
+  if (!editingPayroll) return;
+  
+  setLoading(prev => ({ ...prev, action: true }));
+  
+  try {
+    const payload = {
+      monthlySalary: parseInt(editForm.monthlySalary) || editingPayroll.currentValues?.monthlySalary,
+      overtime: parseInt(editForm.overtime) || 0,
+      bonus: parseInt(editForm.bonus) || 0,
+      allowance: parseInt(editForm.allowance) || 0,
+      dailyMealRate: parseFloat(editForm.dailyMealRate) || 0,
+      manualMealAmount: parseFloat(editForm.manualMealAmount) || 0,
+      mealDeduction: parseFloat(editForm.mealDeduction) || 0,
+      mealDeductionType: editForm.mealDeductionType,
+      notes: editForm.notes,
+      recalculate: true
+    };
+    
+    const response = await apiRequest('PUT', `/payroll/${editingPayroll.payrollId}/edit`, payload);
+    
+    if (response && response.status === 'success') {
+      toast.success('Payroll updated successfully!');
+      
+      // Refresh data
+      await loadPayrolls();
+      await loadAdminAllPayrolls();
+      
+      // Close modal
+      setShowEditModal(false);
+      setEditingPayroll(null);
+      setEditForm({
+        payrollId: "",
+        monthlySalary: "",
+        overtime: "0",
+        bonus: "0",
+        allowance: "0",
+        dailyMealRate: "0",
+        manualMealAmount: "0",
+        mealDeduction: "0",
+        mealDeductionType: "none",
+        notes: ""
+      });
+    } else {
+      toast.error(response?.message || 'Failed to update payroll');
+    }
+  } catch (error) {
+    console.error('Error updating payroll:', error);
+    toast.error(error.message || 'Failed to update payroll');
+  } finally {
+    setLoading(prev => ({ ...prev, action: false }));
+  }
+};
+
+// Preview edit changes
+const handlePreviewEdit = async () => {
+  if (!editingPayroll) return;
+  
+  try {
+    // Calculate changes
+    const oldSalary = editingPayroll.currentValues?.monthlySalary || 0;
+    const newSalary = parseInt(editForm.monthlySalary) || oldSalary;
+    
+    const changes = {
+      salaryChange: newSalary - oldSalary,
+      overtimeChange: parseInt(editForm.overtime) - (editingPayroll.currentValues?.overtime || 0),
+      bonusChange: parseInt(editForm.bonus) - (editingPayroll.currentValues?.bonus || 0),
+      allowanceChange: parseInt(editForm.allowance) - (editingPayroll.currentValues?.allowance || 0),
+      mealDeductionChange: parseFloat(editForm.mealDeduction) - (editingPayroll.currentValues?.mealDeduction || 0)
+    };
+    
+    // Show preview
+    const previewData = {
+      oldValues: {
+        monthlySalary: oldSalary,
+        netPayable: editingPayroll.summary?.netPayable || 0
+      },
+      newValues: {
+        monthlySalary: newSalary,
+        estimatedNetPayable: Math.max(0, (newSalary + 
+          parseInt(editForm.overtime) + 
+          parseInt(editForm.bonus) + 
+          parseInt(editForm.allowance)) - 
+          (editingPayroll.deductions?.total || 0) - 
+          parseFloat(editForm.mealDeduction))
+      },
+      changes
+    };
+    
+    // Show preview in modal or alert
+    alert(`Preview Changes:\n
+    Salary: ${formatCurrency(oldSalary)} → ${formatCurrency(newSalary)} (${changes.salaryChange >= 0 ? '+' : ''}${formatCurrency(changes.salaryChange)})
+    Net Payable: ${formatCurrency(previewData.oldValues.netPayable)} → ${formatCurrency(previewData.newValues.estimatedNetPayable)}
+    \nChanges will affect the payroll calculation.`);
+    
+  } catch (error) {
+    console.error('Error previewing edit:', error);
+    toast.error('Error previewing changes');
+  }
+};
+
 // নতুন handlePreviewPayroll function
 const handlePreviewPayroll = async (e) => {
   e.preventDefault();
@@ -2265,127 +3070,229 @@ const handleCreatePayroll = async (e) => {
   }
 };
 
-  const handleCalculatePayroll = async (e) => {
-    e.preventDefault();
-    
-    if (!calculateForm.employeeId || !calculateForm.month || !calculateForm.year) {
-      toast.error('Please select employee, month and year');
-      return;
+const handleCalculatePayroll = async (e) => {
+  e.preventDefault();
+  
+  // Validation
+  if (!calculateForm.employeeId) {
+    toast.error('Please select an employee');
+    return;
+  }
+  
+  if (!calculateForm.month) {
+    toast.error('Please select month');
+    return;
+  }
+  
+  if (!calculateForm.year) {
+    toast.error('Please select year');
+    return;
+  }
+  
+  if (!calculateForm.monthlySalary) {
+    toast.error('Please enter monthly salary');
+    return;
+  }
+  
+  setLoading(prev => ({ ...prev, calculation: true }));
+  
+  try {
+    const employee = employees.find(e => e._id === calculateForm.employeeId);
+    if (!employee) {
+      throw new Error('Employee not found');
     }
     
-    setLoading(prev => ({ ...prev, calculation: true }));
+    // Meal data load (যদি প্রয়োজন হয়)
+    const mealData = await loadEmployeeMealData(
+      calculateForm.employeeId, 
+      calculateForm.month, 
+      calculateForm.year
+    );
     
-    try {
-      const employee = employees.find(e => e._id === calculateForm.employeeId);
-      if (!employee) {
-        throw new Error('Employee not found');
-      }
+    // Meal deduction calculation
+    let mealDeduction = 0;
+    let mealDeductionType = 'none';
+    let mealCalculationNote = '';
+    
+    if (mealData?.hasMonthlySubscription) {
+      mealDeduction = mealData.deductionPerEmployee;
+      mealDeductionType = 'monthly_subscription';
+      mealCalculationNote = `Monthly subscription: ${formatCurrency(mealData.monthlyFoodCost)} ÷ ${mealData.activeSubscribers} = ${formatCurrency(mealDeduction)}`;
+    } else if (mealData?.dailyMealDays > 0) {
+      // Daily meal calculation (default rate 100)
+      mealDeduction = 100 * mealData.dailyMealDays;
+      mealDeductionType = 'daily_meal';
+      mealCalculationNote = `Daily meals: ${mealData.dailyMealDays} days × ${formatCurrency(100)} = ${formatCurrency(mealDeduction)}`;
+    }
+    
+    // ✅ Create Payroll এর মতো একই payload
+    const payload = {
+      employeeId: calculateForm.employeeId,
+      month: parseInt(calculateForm.month),
+      year: parseInt(calculateForm.year),
+      monthlySalary: parseInt(calculateForm.monthlySalary),
+      overtime: 0,
+      bonus: 0,
+      allowance: 0,
+      dailyMealRate: 0,
+      manualMealAmount: 0,
+      mealDeduction,
+      mealDeductionType,
+      mealCalculationNote,
+      notes: `Calculation preview for ${monthNames[calculateForm.month - 1]} ${calculateForm.year}`
+    };
+    
+    console.log('Calculate Payroll Payload:', payload);
+    
+    // ✅ একই API endpoint ব্যবহার করুন
+    const response = await apiRequest('POST', '/payroll/calculate-preview', payload);
+    
+    if (response && response.status === 'success') {
+      const data = response.data;
       
-      const salaryData = employeeSalaries[calculateForm.employeeId] || {};
-      const monthlySalary = salaryData.salary || calculateForm.monthlySalary || 30000;
-      
-      const month = parseInt(calculateForm.month);
-      const year = parseInt(calculateForm.year);
-      
-      const response = await apiRequest('POST', '/payroll/calculate', {
-        employeeId: calculateForm.employeeId,
-        month: month,
-        year: year,
-        monthlySalary: monthlySalary
+      // ✅ Create Payroll এর মতো একই response structure
+      setCalculationResult({
+        employeeDetails: {
+          name: getEmployeeName(employee),
+          employeeId: employee.employeeId || employee._id,
+          department: employee.department || 'General',
+          designation: employee.designation || 'Employee'
+        },
+        month: parseInt(calculateForm.month),
+        year: parseInt(calculateForm.year),
+        monthlySalary: parseInt(calculateForm.monthlySalary),
+        earnings: {
+          basicPay: data.earnings?.basicPay || 0,
+          overtime: data.earnings?.overtime?.amount || 0,
+          bonus: data.earnings?.bonus?.amount || 0,
+          allowance: data.earnings?.allowance?.amount || 0,
+          total: data.summary?.grossEarnings || 0
+        },
+        deductions: {
+          lateDeduction: data.deductions?.lateDeduction || 0,
+          absentDeduction: data.deductions?.absentDeduction || 0,
+          leaveDeduction: data.deductions?.leaveDeduction || 0,
+          halfDayDeduction: data.deductions?.halfDayDeduction || 0,
+          mealDeduction: data.mealSystemData?.mealDeduction?.amount || 0,
+          total: data.deductions?.total || 0
+        },
+        summary: {
+          grossEarnings: data.summary?.grossEarnings || 0,
+          totalDeductions: data.deductions?.total || 0,
+          netPayable: data.summary?.netPayable || 0
+        },
+        attendance: {
+          presentDays: data.attendance?.presentDays || 0,
+          totalWorkingDays: data.attendance?.totalWorkingDays || 23,
+          attendancePercentage: data.attendance?.attendancePercentage || 0
+        },
+        mealSystemData: data.mealSystemData || null,
+        onsiteBenefits: data.onsiteBenefitsDetails || null
       });
       
-      if (response && response.status === 'success') {
-        const calculation = response.data;
-        
-        setCalculationResult({
-          employeeDetails: {
-            name: getEmployeeName(employee),
-            employeeId: employee.employeeId || employee._id,
-            department: calculation.employeeDetails?.department || salaryData.department,
-            designation: calculation.employeeDetails?.designation || salaryData.designation
-          },
-          month: month,
-          year: year,
-          periodStart: new Date(year, month - 1, 1).toISOString().split('T')[0],
-          periodEnd: new Date(year, month, 0).toISOString().split('T')[0],
-          monthlySalary: monthlySalary,
-          basicPay: calculation.calculations?.basicPay || 0,
-          dailyRate: calculation.rates?.dailyRate || 0,
-          hourlyRate: calculation.rates?.hourlyRate || 0,
-          presentDays: calculation.attendance?.presentDays || 0,
-          totalWorkingDays: calculation.attendance?.totalWorkingDays || 23,
-          attendancePercentage: calculation.attendance?.attendancePercentage || 0,
-          earnings: {
-            basicPay: calculation.calculations?.basicPay || 0,
-            overtime: calculation.calculations?.overtime?.amount || 0,
-            bonus: calculation.calculations?.bonus || 0,
-            allowance: calculation.calculations?.allowance || 0,
-            total: calculation.calculations?.totals?.earnings || 0
-          },
-          deductions: {
-            lateDeduction: calculation.calculations?.deductions?.late?.amount || 0,
-            absentDeduction: calculation.calculations?.deductions?.absent?.amount || 0,
-            leaveDeduction: calculation.calculations?.deductions?.leave?.amount || 0,
-            halfDayDeduction: calculation.calculations?.deductions?.halfDay?.amount || 0,
-            total: calculation.calculations?.deductions?.total || 0
-          },
-          summary: {
-            grossEarnings: calculation.calculations?.totals?.earnings || 0,
-            totalDeductions: calculation.calculations?.deductions?.total || 0,
-            netPayable: calculation.calculations?.totals?.netPayable || 0
-          }
-        });
-        
-        toast.success(`Payroll calculated for ${monthNames[month - 1]} ${year}!`);
-      } else {
-        throw new Error(response?.message || 'Calculation failed');
-      }
-      
-    } catch (error) {
-      console.error('Calculate payroll error:', error);
-      toast.error(error.message || 'Failed to calculate payroll');
-    } finally {
-      setLoading(prev => ({ ...prev, calculation: false }));
+      toast.success(`Payroll calculated for ${monthNames[calculateForm.month - 1]} ${calculateForm.year}!`, {
+        icon: '📊',
+        duration: 3000,
+      });
+    } else {
+      throw new Error(response?.message || 'Calculation failed');
     }
-  };
+    
+  } catch (error) {
+    console.error('Calculate payroll error:', error);
+    toast.error(error.message || 'Failed to calculate payroll');
+  } finally {
+    setLoading(prev => ({ ...prev, calculation: false }));
+  }
+};
 
   const handleBulkGenerate = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  if (userRole !== 'admin') {
+    toast.error("Only admin can bulk generate payrolls");
+    return;
+  }
+  
+  setLoading(prev => ({ ...prev, generate: true }));
+  
+  try {
+    const month = parseInt(bulkForm.month);
+    const year = parseInt(bulkForm.year);
     
-    if (userRole !== 'admin') {
-      toast.error("Only admin can bulk generate payrolls");
-      return;
-    }
+    // ✅ Create Payroll এর মতো একই payload structure
+    const payload = {
+      month: month,
+      year: year,
+      // Additional options for bulk generate
+      includeMealDeduction: true,
+      includeOnsiteBenefits: true,
+      autoCalculateAttendance: true
+    };
     
-    setLoading(prev => ({ ...prev, generate: true }));
+    // ✅ একই API endpoint (অথবা bulk-specific endpoint)
+    const response = await apiRequest('POST', '/payroll/bulk-generate', payload);
     
-    try {
-      const month = parseInt(bulkForm.month);
-      const year = parseInt(bulkForm.year);
+    if (response && response.status === 'success') {
+      const summary = response.data?.summary || {};
+      const created = summary.created || 0;
+      const skipped = summary.skipped || 0;
+      const failed = summary.failed || 0;
       
-      const response = await apiRequest('POST', '/payroll/bulk-generate', {
-        month: month,
-        year: year
-      });
+      toast.success(
+        `Created ${created} payrolls for ${monthNames[month - 1]} ${year}` + 
+        (skipped > 0 ? `, ${skipped} skipped` : '') +
+        (failed > 0 ? `, ${failed} failed` : ''),
+        {
+          icon: '✅',
+          duration: 5000,
+        }
+      );
       
-      if (response && response.status === 'success') {
-        toast.success(`Created ${response.data?.summary?.created || 0} payrolls for ${monthNames[month - 1]} ${year}`);
+      // যদি details থাকে তবে show করতে পারেন
+      if (response.data.details) {
+        console.log('Bulk generation details:', response.data.details);
         
-        await loadPayrolls();
+        // Meal deduction summary
+        if (response.data.mealSummary) {
+          toast.info(
+            `Meal deduction applied to ${response.data.mealSummary.withMealDeduction} employees`,
+            { duration: 3000 }
+          );
+        }
         
-        setShowBulkModal(false);
-        setBulkForm({ month: '', year: '' });
-      } else {
-        throw new Error(response?.message || 'Bulk generation failed');
+        // Onsite benefits summary
+        if (response.data.onsiteSummary) {
+          toast.info(
+            `Onsite benefits applied to ${response.data.onsiteSummary.withOnsiteBenefits} employees`,
+            { duration: 3000 }
+          );
+        }
       }
       
-    } catch (error) {
-      console.error('Bulk generate error:', error);
-      toast.error(error.message || 'Bulk generation failed');
-    } finally {
-      setLoading(prev => ({ ...prev, generate: false }));
+      await loadPayrolls();
+      
+      setShowBulkModal(false);
+      setBulkForm({ month: '', year: '' });
+    } else {
+      throw new Error(response?.message || 'Bulk generation failed');
     }
-  };
+    
+  } catch (error) {
+    console.error('Bulk generate error:', error);
+    
+    // Specific error handling
+    if (error.message.includes('already exists')) {
+      toast.error('Some payrolls already exist for this month. Please check existing records.');
+    } else if (error.message.includes('attendance')) {
+      toast.error('Attendance data missing for some employees. Please check attendance records.');
+    } else {
+      toast.error(error.message || 'Bulk generation failed');
+    }
+  } finally {
+    setLoading(prev => ({ ...prev, generate: false }));
+  }
+};
 
   const handleUpdateStatus = async (id, status) => {
     if (userRole !== 'admin') {
@@ -2638,21 +3545,23 @@ const handleCreatePayroll = async (e) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
               <select
-                value={createForm.month}
-                onChange={(e) => {
-                  setCreateForm({ ...createForm, month: e.target.value });
-                  if (createForm.employeeId && e.target.value && createForm.year) {
-                    loadEmployeeMealData(createForm.employeeId, e.target.value, createForm.year);
-                  }
-                }}
-                required
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-              >
-                <option value="">Select Month</option>
-                {monthNames.map((month, index) => (
-                  <option key={index} value={index + 1}>{month}</option>
-                ))}
-              </select>
+  value={createForm.month}
+  onChange={(e) => {
+    const month = e.target.value;
+    setCreateForm({ ...createForm, month });
+    // ✅ Month change করলে meal data reload
+    if (createForm.employeeId && month && createForm.year) {
+      loadEmployeeMealData(createForm.employeeId, month, createForm.year);
+    }
+  }}
+  required
+  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+>
+  <option value="">Select Month</option>
+  {monthNames.map((month, index) => (
+    <option key={index} value={index + 1}>{month}</option>
+  ))}
+</select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
@@ -2709,163 +3618,149 @@ const handleCreatePayroll = async (e) => {
     </p>
   )}
 </div>
-{/* 5. Meal System Information */} 
-{createForm.employeeId && createForm.month && createForm.year && (
+{/* Meal System Information */} 
+{createForm.employeeId && createForm.month && createForm.year && mealSystemData && (
   <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
     <h4 className="text-sm font-medium text-green-700 mb-2 flex items-center gap-2">
       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
-      Meal System
+      Meal System Information
     </h4>
     
-    <div className="space-y-3">
-      {/* Monthly Subscription Status - CORRECTED CONDITION */}
-      {mealSystemData.hasMonthlySubscription === true ? (
-        <div className="p-3 bg-white rounded-lg border border-green-200">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <CheckCircle size={16} className="text-green-500" />
-              <span className="text-sm font-medium text-green-700">Monthly Subscription Active</span>
-            </div>
-            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-              Auto Loaded
-            </span>
+    {/* ✅ Debug info (temporary) */}
+    <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs"> 
+      <p>Monthly Subscription: {mealSystemData.hasMonthlySubscription ? 'Yes' : 'No'}</p>
+      <p>Daily Meal Days: {mealSystemData.dailyMealDays}</p>
+      <p>Monthly Food Cost: {formatCurrency(mealSystemData.monthlyFoodCost)}</p>
+      <p>Deduction Per Employee: {formatCurrency(mealSystemData.deductionPerEmployee)}</p>
+    </div>
+    
+    {mealSystemData.hasMonthlySubscription ? (
+      // ✅ Monthly Subscription UI
+      <div className="p-3 bg-white rounded-lg border border-green-200">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={16} className="text-green-500" />
+            <span className="text-sm font-medium text-green-700">Monthly Subscription Active</span>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-gray-600">Total Food Cost:</span>
-              <p className="font-medium">{formatCurrency(mealSystemData.monthlyFoodCost)}</p>
-            </div>
-            <div>
-              <span className="text-gray-600">Active Subscribers:</span>
-              <p className="font-medium">{mealSystemData.activeSubscribers}</p>
-            </div>
-            <div>
-              <span className="text-gray-600">Average Daily Cost:</span>
-              <p className="font-medium">{formatCurrency(mealSystemData.averageDailyCost)}</p>
-            </div>
-            <div>
-              <span className="text-gray-600">Deduction/Employee:</span>
-              <p className="font-bold text-green-600">{formatCurrency(mealSystemData.deductionPerEmployee)}</p>
-            </div>
+          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+            Auto Loaded
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3 text-sm mt-3">
+          <div className="p-2 bg-gray-50 rounded">
+            <span className="text-gray-600">Total Food Cost:</span>
+            <p className="font-medium">{formatCurrency(mealSystemData.monthlyFoodCost)}</p>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Calculation: {formatCurrency(mealSystemData.monthlyFoodCost)} ÷ {mealSystemData.activeSubscribers} = {formatCurrency(mealSystemData.deductionPerEmployee)}
-          </p>
-          
-          {/* SHOW THE FIXED DEDUCTION AMOUNT */}
-          <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-green-700">Monthly Deduction (Auto-applied):</span>
-              <span className="text-lg font-bold text-green-600">
-                {formatCurrency(mealSystemData.deductionPerEmployee)}
-              </span>
-            </div>
-            <p className="text-xs text-green-600 mt-1">
-              This amount will be automatically deducted from the payroll
-            </p>
+          <div className="p-2 bg-gray-50 rounded">
+            <span className="text-gray-600">Active Subscribers:</span>
+            <p className="font-medium">{mealSystemData.activeSubscribers}</p>
+          </div>
+          <div className="p-2 bg-gray-50 rounded">
+            <span className="text-gray-600">Food Cost Days:</span>
+            <p className="font-medium">{mealSystemData.foodCostDays || 0}</p>
+          </div>
+          <div className="p-2 bg-gray-50 rounded">
+            <span className="text-gray-600">Avg Daily Cost:</span>
+            <p className="font-medium">{formatCurrency(mealSystemData.averageDailyCost)}</p>
           </div>
         </div>
-      ) : (
-        /* যদি monthly subscription না থাকে */
-        <div className="space-y-3">
-          {/* Daily Meal Days (Auto Loaded) */}
-          <div className="p-3 bg-white rounded-lg border">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium text-gray-700">Daily Meals Taken</span>
-                <p className="text-xs text-gray-500">Auto loaded from meal records</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-blue-600">{mealSystemData.dailyMealDays} days</p>
-                <p className="text-xs text-gray-500">
-                  in {monthNames[createForm.month - 1]} {createForm.year}
-                </p>
-              </div>
+        
+        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-green-700">Monthly Deduction:</span>
+            <span className="text-lg font-bold text-green-600">
+              {formatCurrency(mealSystemData.deductionPerEmployee)}
+            </span>
+          </div>
+          <p className="text-xs text-green-600 mt-1">
+            Calculation: {formatCurrency(mealSystemData.monthlyFoodCost)} ÷ {mealSystemData.activeSubscribers} subscribers
+          </p>
+        </div>
+      </div>
+    ) : (
+      // ✅ Daily Meal UI
+      <div className="space-y-3">
+        <div className="p-3 bg-white rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium text-gray-700">Daily Meal Days Found</span>
+              <p className="text-xs text-gray-500">Auto-loaded from system records</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold text-blue-600">{mealSystemData.dailyMealDays || 0} days</p>
+              <p className="text-xs text-gray-500">
+                in {monthNames[createForm.month - 1]} {createForm.year}
+              </p>
             </div>
           </div>
           
-          {/* Daily Meal Rate Input */}
+          {mealSystemData.dailyMealDays > 0 ? (
+            <>
+              <div className="mt-3 pt-3 border-t">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Daily Meal Rate (৳)
+                </label>
+                <input
+                  type="number"
+                  value={createForm.dailyMealRate}
+                  onChange={(e) => setCreateForm({ ...createForm, dailyMealRate: e.target.value })}
+                  placeholder="Enter daily meal rate"
+                  min="0"
+                  step="10"
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {[50, 80, 100, 120, 150].map(rate => (
+                    <button
+                      type="button"
+                      key={rate}
+                      onClick={() => setCreateForm({ ...createForm, dailyMealRate: rate.toString() })}
+                      className={`px-3 py-1 text-sm rounded-lg ${createForm.dailyMealRate == rate ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    >
+                      ৳{rate}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-xs text-blue-700">
+                  Total Meal Deduction: {formatCurrency((parseFloat(createForm.dailyMealRate) || 0) * (mealSystemData.dailyMealDays || 0))}
+                  <br />
+                  ({mealSystemData.dailyMealDays} days × ৳{createForm.dailyMealRate || 0})
+                </p>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-2">No daily meal records found for this period</p>
+          )}
+        </div>
+        
+        {/* Alternative: Manual Amount */}
+        <div className="p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle size={16} className="text-yellow-600" />
+            <span className="text-sm font-medium text-yellow-700">Alternative: Enter Total Amount</span>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Daily Meal Rate (৳) *
-              <span className="text-xs text-gray-500 ml-2">
-                {mealSystemData.dailyMealDays > 0 && 
-                  `Total: ৳${(parseFloat(createForm.dailyMealRate) || 0) * mealSystemData.dailyMealDays} 
-                  (${mealSystemData.dailyMealDays} × ৳${createForm.dailyMealRate || 0})`
-                }
-              </span>
+              Total Meal Deduction (৳)
             </label>
             <input
               type="number"
-              value={createForm.dailyMealRate}
-              onChange={(e) => setCreateForm({ ...createForm, dailyMealRate: e.target.value })}
-              placeholder="Enter daily meal rate"
+              value={createForm.manualMealAmount}
+              onChange={(e) => setCreateForm({ ...createForm, manualMealAmount: e.target.value })}
+              placeholder="Enter total meal deduction amount"
               min="0"
-              step="10"
-              required={!mealSystemData.hasMonthlySubscription}
-              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
+              className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none"
             />
-            <div className="flex flex-wrap gap-2 mt-2">
-              {[50, 80, 100, 120, 150].map(rate => (
-                <button
-                  type="button"
-                  key={rate}
-                  onClick={() => setCreateForm({ ...createForm, dailyMealRate: rate.toString() })}
-                  className={`px-3 py-1 text-sm rounded-lg ${createForm.dailyMealRate == rate ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                >
-                  ৳{rate}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          {/* OR Manual Amount Input (Alternative) */}
-          <div className="p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle size={16} className="text-yellow-600" />
-              <span className="text-sm font-medium text-yellow-700">Alternative: Enter Total Amount</span>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Total Meal Deduction (৳)
-                <span className="text-xs text-gray-500 ml-2">
-                  If you want to enter total amount directly
-                </span>
-              </label>
-              <input
-                type="number"
-                value={createForm.manualMealAmount}
-                onChange={(e) => setCreateForm({ ...createForm, manualMealAmount: e.target.value })}
-                placeholder="Enter total meal deduction amount"
-                min="0"
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all duration-300"
-              />
-            </div>
-          </div>
-          
-          {/* Meal Deduction Summary */}
-          <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-purple-700">Total Meal Deduction</span>
-              <span className="text-lg font-bold text-purple-600">
-                {createForm.manualMealAmount > 0 
-                  ? formatCurrency(parseFloat(createForm.manualMealAmount))
-                  : formatCurrency((parseFloat(createForm.dailyMealRate) || 0) * mealSystemData.dailyMealDays)
-                }
-              </span>
-            </div>
-            <p className="text-xs text-purple-500 mt-1">
-              {createForm.manualMealAmount > 0
-                ? `Manual amount entered`
-                : `${mealSystemData.dailyMealDays} days × ৳${createForm.dailyMealRate || 0}`
-              }
-            </p>
           </div>
         </div>
-      )}
-    </div>
+      </div>
+    )}
   </div>
 )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2973,240 +3868,349 @@ const handleCreatePayroll = async (e) => {
     </div>
   );
 
-  const renderCalculateModal = () => (
-    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Calculate Payroll</h2>
-              <p className="text-gray-500 text-sm mt-1">Preview calculation without saving</p>
-            </div>
-            <button 
-              onClick={() => {
-                setShowCalculateModal(false);
-                setCalculationResult(null);
-              }} 
-              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
-            >
-              <X size={20} />
-            </button>
+const renderCalculateModal = () => (
+  <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="p-6 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Calculate Payroll</h2>
+            <p className="text-gray-500 text-sm mt-1">Preview calculation without saving</p>
           </div>
+          <button 
+            onClick={() => {
+              setShowCalculateModal(false);
+              setCalculationResult(null);
+            }} 
+            className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      </div>
+
+      <form onSubmit={handleCalculatePayroll} className="p-6 space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee *</label>
+          <select
+            value={calculateForm.employeeId}
+            onChange={(e) => {
+              const empId = e.target.value;
+              setCalculateForm({ ...calculateForm, employeeId: empId });
+              
+              // Auto-fill monthly salary when employee is selected
+              if (empId && employeeSalaries[empId]) {
+                setCalculateForm(prev => ({
+                  ...prev,
+                  employeeId: empId,
+                  monthlySalary: employeeSalaries[empId].salary.toString()
+                }));
+              }
+            }}
+            required
+            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+          >
+            <option value="">Choose an employee</option>
+            {employees.map((emp) => {
+              const salaryData = employeeSalaries[emp._id] || {};
+              return (
+                <option key={emp._id} value={emp._id}>
+                  {getEmployeeName(emp)} • {formatCurrency(salaryData.salary || 30000)}/month
+                </option>
+              );
+            })}
+          </select>
         </div>
 
-        <form onSubmit={handleCalculatePayroll} className="p-6 space-y-6">
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Employee *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
             <select
-              value={calculateForm.employeeId}
-              onChange={(e) => setCalculateForm({ ...calculateForm, employeeId: e.target.value })}
+              value={calculateForm.month}
+              onChange={(e) => setCalculateForm({ ...calculateForm, month: e.target.value })}
               required
-              disabled={loading.employees}
-              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             >
-              <option value="">Choose an employee</option>
-              {employees.map((emp) => {
-                const salaryData = employeeSalaries[emp._id] || {};
-                return (
-                  <option key={emp._id} value={emp._id}>
-                    {getEmployeeName(emp)} • {formatCurrency(salaryData.salary || 30000)}/month
-                  </option>
-                );
+              <option value="">Select Month</option>
+              {monthNames.map((month, index) => (
+                <option key={index} value={index + 1}>{month}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
+            <select
+              value={calculateForm.year}
+              onChange={(e) => setCalculateForm({ ...calculateForm, year: e.target.value })}
+              required
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            >
+              <option value="">Select Year</option>
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = new Date().getFullYear() - 2 + i;
+                return <option key={year} value={year}>{year}</option>;
               })}
             </select>
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
-              <select
-                value={calculateForm.month}
-                onChange={(e) => setCalculateForm({ ...calculateForm, month: e.target.value })}
-                required
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              >
-                <option value="">Select Month</option>
-                {monthNames.map((month, index) => (
-                  <option key={index} value={index + 1}>{month}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
-              <select
-                value={calculateForm.year}
-                onChange={(e) => setCalculateForm({ ...calculateForm, year: e.target.value })}
-                required
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              >
-                <option value="">Select Year</option>
-                {Array.from({ length: 5 }, (_, i) => {
-                  const year = new Date().getFullYear() - 2 + i;
-                  return <option key={year} value={year}>{year}</option>;
-                })}
-              </select>
-            </div>
-          </div>
-
-          {calculateForm.employeeId && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Salary (৳)</label>
-              <input
-                type="number"
-                value={calculateForm.monthlySalary || employeeSalaries[calculateForm.employeeId]?.salary || 30000}
-                onChange={(e) => setCalculateForm({ ...calculateForm, monthlySalary: e.target.value })}
-                placeholder="Enter monthly salary"
-                min="0"
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                Default salary: {formatCurrency(employeeSalaries[calculateForm.employeeId]?.salary || 30000)}
+        {calculateForm.employeeId && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Salary (৳) *</label>
+            <input
+              type="number"
+              value={calculateForm.monthlySalary}
+              onChange={(e) => setCalculateForm({ ...calculateForm, monthlySalary: e.target.value })}
+              placeholder="Enter monthly salary"
+              min="0"
+              required
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
+            />
+            {employeeSalaries[calculateForm.employeeId] && (
+              <p className="text-xs text-blue-500 mt-2">
+                Employee's stored salary: {formatCurrency(employeeSalaries[calculateForm.employeeId].salary)}
+                <button
+                  type="button"
+                  onClick={() => setCalculateForm(prev => ({
+                    ...prev,
+                    monthlySalary: employeeSalaries[calculateForm.employeeId].salary.toString()
+                  }))}
+                  className="ml-2 text-blue-600 hover:underline"
+                >
+                  (Use this)
+                </button>
               </p>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-6 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => {
-                setShowCalculateModal(false);
-                setCalculationResult(null);
-              }}
-              disabled={loading.calculation}
-              className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading.calculation}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading.calculation ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Calculating...
-                </>
-              ) : (
-                <>
-                  <Calculator size={18} />
-                  Calculate Now
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-
-        {calculationResult && (
-          <div className="p-6 border-t border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Calculation Result</h3>
-            
-            <div className="space-y-4">
-              <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-                <h4 className="text-sm font-medium text-green-700 mb-2">Employee Details</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-xs text-gray-600">Name</span>
-                    <p className="font-medium">{calculationResult.employeeDetails.name}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-600">Department</span>
-                    <p className="font-medium">{calculationResult.employeeDetails.department}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-600">Month</span>
-                    <p className="font-medium">{monthNames[calculationResult.month - 1]} {calculationResult.year}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-600">Working Days</span>
-                    <p className="font-medium">{calculationResult.presentDays}/{calculationResult.totalWorkingDays}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-                  <h4 className="text-sm font-medium text-blue-700 mb-2">Earnings</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Basic Pay</span>
-                      <span className="font-medium">{formatCurrency(calculationResult.earnings.basicPay)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Overtime</span>
-                      <span className="font-medium">{formatCurrency(calculationResult.earnings.overtime)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Bonus</span>
-                      <span className="font-medium">{formatCurrency(calculationResult.earnings.bonus)}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <span className="text-sm font-medium">Total Earnings</span>
-                      <span className="font-bold text-blue-600">{formatCurrency(calculationResult.earnings.total)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-xl border border-red-100">
-                  <h4 className="text-sm font-medium text-red-700 mb-2">Deductions</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Late</span>
-                      <span className="font-medium">{formatCurrency(calculationResult.deductions.lateDeduction)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Absent</span>
-                      <span className="font-medium">{formatCurrency(calculationResult.deductions.absentDeduction)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Leave</span>
-                      <span className="font-medium">{formatCurrency(calculationResult.deductions.leaveDeduction)}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <span className="text-sm font-medium">Total Deductions</span>
-                      <span className="font-bold text-red-600">{formatCurrency(calculationResult.deductions.total)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-sm font-medium text-purple-700">Net Payable</h4>
-                    <p className="text-xs text-gray-500">After all calculations</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-purple-600">
-                      {formatCurrency(calculationResult.summary.netPayable)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setCreateForm({
-                    employeeId: calculateForm.employeeId,
-                    month: calculateForm.month,
-                    year: calculateForm.year,
-                    monthlySalary: calculateForm.monthlySalary || employeeSalaries[calculateForm.employeeId]?.salary || "30000",
-                    overtime: "0",
-                    bonus: "0",
-                    allowance: "0",
-                    notes: `Calculated payroll for ${monthNames[calculateForm.month - 1]} ${calculateForm.year}`
-                  });
-                  setShowCalculateModal(false);
-                  setShowCreateModal(true);
-                }}
-                className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2"
-              >
-                <FileText size={18} />
-                Create Payroll from Calculation
-              </button>
-            </div>
+            )}
           </div>
         )}
+
+        <div className="flex gap-3 pt-6 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={() => {
+              setShowCalculateModal(false);
+              setCalculationResult(null);
+            }}
+            disabled={loading.calculation}
+            className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+          >
+            Cancel
+          </button> 
+<button
+  onClick={() => {
+    // Check if employees are loaded
+    if (employees.length === 0) {
+      toast.error('Please wait while employees are loading');
+      return;
+    }
+    
+    // Reset form with current month/year
+    setCalculateForm({
+      employeeId: "",
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      monthlySalary: ""
+    });
+    
+    setShowCalculateModal(true);
+  }}
+  disabled={loading.employees} 
+  className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl p-5 hover:opacity-90 flex items-center justify-between group disabled:opacity-50"
+>
+  <div className="text-left">
+    <p className="font-semibold">Calculate</p>
+    <p className="text-sm opacity-90">Preview calculation</p>
+  </div>
+  {loading.employees ? <Loader2 size={24} className="animate-spin" /> : <Calculator size={24} className="group-hover:scale-110 transition-transform duration-300" />}
+</button>
+        </div>
+      </form> 
+ 
+{calculationResult && (
+  <div className="p-6 border-t border-gray-100">
+    <h3 className="text-lg font-semibold text-gray-900 mb-4">Calculation Result</h3>
+    
+    <div className="space-y-4">
+      {/* Employee Details */}
+      <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+        <h4 className="text-sm font-medium text-green-700 mb-2">Employee Details</h4>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <span className="text-xs text-gray-600">Name</span>
+            <p className="font-medium">{calculationResult.employeeDetails.name}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-600">Department</span>
+            <p className="font-medium">{calculationResult.employeeDetails.department}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-600">Month</span>
+            <p className="font-medium">
+              {monthNames[calculationResult.month - 1]} {calculationResult.year}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-600">Working Days</span>
+            <p className="font-medium">
+              {calculationResult.attendance.presentDays}/{calculationResult.attendance.totalWorkingDays}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Meal Deduction Section (যদি থাকে) */}
+      {calculationResult.mealSystemData?.mealDeduction?.amount > 0 && (
+        <div className="p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-xl border border-red-100">
+          <h4 className="text-sm font-medium text-red-700 mb-2">Meal Deduction</h4>
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-sm text-gray-600">
+                {calculationResult.mealSystemData.mealDeduction.type === 'monthly_subscription' 
+                  ? 'Monthly Subscription' 
+                  : 'Daily Meal'}
+              </span>
+              <p className="text-xs text-gray-500">
+                {calculationResult.mealSystemData.mealDeduction.calculationNote}
+              </p>
+            </div>
+            <span className="text-lg font-bold text-red-600">
+              -{formatCurrency(calculationResult.mealSystemData.mealDeduction.amount)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Onsite Benefits (যদি থাকে) */}
+      {calculationResult.onsiteBenefits && (
+        <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-100">
+          <h4 className="text-sm font-medium text-amber-700 mb-2">Onsite Benefits</h4>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Tea Allowance</span>
+              <span className="font-medium text-green-600">
+                +{formatCurrency(calculationResult.onsiteBenefits.teaAllowance || 0)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Service Charge</span>
+              <span className="font-medium text-red-600">
+                -{formatCurrency(calculationResult.onsiteBenefits.serviceCharge || 0)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t pt-2">
+              <span className="text-sm font-medium text-gray-700">Net Effect</span>
+              <span className={`font-bold ${
+                calculationResult.onsiteBenefits.netEffect >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {calculationResult.onsiteBenefits.netEffect >= 0 ? '+' : ''}
+                {formatCurrency(calculationResult.onsiteBenefits.netEffect || 0)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Earnings & Deductions Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
+          <h4 className="text-sm font-medium text-blue-700 mb-2">Earnings</h4>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm">Basic Pay</span>
+              <span className="font-medium">{formatCurrency(calculationResult.earnings.basicPay)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Overtime</span>
+              <span className="font-medium">{formatCurrency(calculationResult.earnings.overtime)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Bonus</span>
+              <span className="font-medium">{formatCurrency(calculationResult.earnings.bonus)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Allowance</span>
+              <span className="font-medium">{formatCurrency(calculationResult.earnings.allowance)}</span>
+            </div>
+            <div className="flex justify-between border-t pt-2">
+              <span className="text-sm font-medium">Total Earnings</span>
+              <span className="font-bold text-blue-600">
+                {formatCurrency(calculationResult.earnings.total)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-xl border border-red-100">
+          <h4 className="text-sm font-medium text-red-700 mb-2">Deductions</h4>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm">Late</span>
+              <span className="font-medium">{formatCurrency(calculationResult.deductions.lateDeduction)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Absent</span>
+              <span className="font-medium">{formatCurrency(calculationResult.deductions.absentDeduction)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Leave</span>
+              <span className="font-medium">{formatCurrency(calculationResult.deductions.leaveDeduction)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Half Day</span>
+              <span className="font-medium">{formatCurrency(calculationResult.deductions.halfDayDeduction)}</span>
+            </div>
+            <div className="flex justify-between border-t pt-2">
+              <span className="text-sm font-medium">Total Deductions</span>
+              <span className="font-bold text-red-600">
+                {formatCurrency(calculationResult.deductions.total)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Final Summary */}
+      <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+        <div className="flex justify-between items-center">
+          <div>
+            <h4 className="text-sm font-medium text-purple-700">Net Payable</h4>
+            <p className="text-xs text-gray-500">After all calculations</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-purple-600">
+              {formatCurrency(calculationResult.summary.netPayable)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Create Payroll Button */}
+      <button
+        onClick={() => {
+          setCreateForm({
+            employeeId: calculateForm.employeeId,
+            month: calculateForm.month,
+            year: calculateForm.year,
+            monthlySalary: calculateForm.monthlySalary || 
+                         employeeSalaries[calculateForm.employeeId]?.salary || "30000",
+            overtime: "0",
+            bonus: "0",
+            allowance: "0",
+            dailyMealRate: "0",
+            manualMealAmount: "0",
+            notes: `Calculated payroll for ${monthNames[calculateForm.month - 1]} ${calculateForm.year}`
+          });
+          setShowCalculateModal(false);
+          setShowCreateModal(true);
+        }}
+        className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2"
+      >
+        <FileText size={18} />
+        Create Payroll from Calculation
+      </button>
+    </div>
+  </div>
+)}
       </div>
     </div>
   );
@@ -3261,28 +4265,50 @@ const handleCreatePayroll = async (e) => {
               </select>
             </div>
           </div>
-
-          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-            <h4 className="text-sm font-medium text-green-700 mb-2">Generation Info</h4>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li className="flex items-center gap-2">
-                <Check size={14} className="text-green-500" />
-                Will create payrolls for {employees.length} active employees
-              </li>
-              <li className="flex items-center gap-2">
-                <Check size={14} className="text-green-500" />
-                Existing payrolls will be skipped
-              </li>
-              <li className="flex items-center gap-2">
-                <Check size={14} className="text-green-500" />
-                Uses 23 days fixed calculation basis
-              </li>
-              <li className="flex items-center gap-2">
-                <Check size={14} className="text-green-500" />
-                Automatic attendance calculation
-              </li>
-            </ul>
-          </div>
+ 
+<div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+  <h4 className="text-sm font-medium text-green-700 mb-2">Generation Info</h4>
+  <ul className="text-sm text-gray-600 space-y-1">
+    <li className="flex items-center gap-2">
+      <Check size={14} className="text-green-500" />
+      Will create payrolls for {employees.length} active employees
+    </li>
+    <li className="flex items-center gap-2">
+      <Check size={14} className="text-green-500" />
+      Uses same calculation as Create Payroll
+    </li>
+    <li className="flex items-center gap-2">
+      <Check size={14} className="text-green-500" />
+      Automatic meal deduction calculation
+    </li>
+    <li className="flex items-center gap-2">
+      <Check size={14} className="text-green-500" />
+      Onsite benefits auto-applied
+    </li>
+    <li className="flex items-center gap-2">
+      <Check size={14} className="text-green-500" />
+      Existing payrolls will be skipped
+    </li>
+    <li className="flex items-center gap-2">
+      <Check size={14} className="text-green-500" />
+      Uses 23 days fixed calculation basis
+    </li>
+  </ul>
+  
+  {/* Additional Info */}
+  <div className="mt-3 pt-3 border-t border-green-200">
+    <div className="text-xs text-gray-500">
+      <p><strong>Calculation Rules:</strong></p>
+      <ul className="mt-1 space-y-1">
+        <li>• Monthly Salary ÷ 23 = Daily Rate</li>
+        <li>• Daily Rate ÷ 8 = Hourly Rate</li>
+        <li>• Meal deduction auto-calculated from meal system</li>
+        <li>• Onsite benefits auto-applied based on employee type</li>
+        <li>• Attendance calculated from system records</li>
+      </ul>
+    </div>
+  </div>
+</div>
 
           <div className="flex gap-3 pt-6 border-t border-gray-100">
             <button
@@ -3680,480 +4706,506 @@ const handleCreatePayroll = async (e) => {
   };
 
   const renderAllPayrollsModal = () => (
-    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">All Payroll Records</h2>
-              <p className="text-gray-500 text-sm mt-1">
-                Total {allPayrollsView.length} payroll records • {employees.length} employees
-              </p>
+  <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
+      <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">All Payroll Records</h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Total {allPayrollsView.length} payroll records • {employees.length} employees
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAllPayrollsModal(false)}
+              className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl border border-blue-100">
+            <div className="text-sm text-blue-600 font-medium">Total Amount</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {formatCurrency(allPayrollsView.reduce((sum, p) => sum + (p.netPayable || 0), 0))}
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowAllPayrollsModal(false)}
-                className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100"
-              >
-                <X size={20} />
-              </button>
+          </div>
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
+            <div className="text-sm text-green-600 font-medium">Paid Payrolls</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {allPayrollsView.filter(p => p.status?.toLowerCase() === 'paid').length}
+            </div>
+          </div>
+          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 p-4 rounded-xl border border-yellow-100">
+            <div className="text-sm text-yellow-600 font-medium">Pending</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {allPayrollsView.filter(p => p.status?.toLowerCase() === 'pending').length}
+            </div>
+          </div>
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-100">
+            <div className="text-sm text-purple-600 font-medium">Avg per Payroll</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {formatCurrency(allPayrollsView.length > 0 ? 
+                allPayrollsView.reduce((sum, p) => sum + (p.netPayable || 0), 0) / allPayrollsView.length : 0
+              )}
             </div>
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl border border-blue-100">
-              <div className="text-sm text-blue-600 font-medium">Total Amount</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(allPayrollsView.reduce((sum, p) => sum + (p.netPayable || 0), 0))}
-              </div>
+        <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+          <div className="flex flex-wrap gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Search employee, department or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none w-full"
+              />
             </div>
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
-              <div className="text-sm text-green-600 font-medium">Paid Payrolls</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {allPayrollsView.filter(p => p.status?.toLowerCase() === 'paid').length}
-              </div>
-            </div>
-            <div className="bg-gradient-to-r from-yellow-50 to-amber-50 p-4 rounded-xl border border-yellow-100">
-              <div className="text-sm text-yellow-600 font-medium">Pending</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {allPayrollsView.filter(p => p.status?.toLowerCase() === 'pending').length}
-              </div>
-            </div>
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-100">
-              <div className="text-sm text-purple-600 font-medium">Avg per Payroll</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(allPayrollsView.length > 0 ? 
-                  allPayrollsView.reduce((sum, p) => sum + (p.netPayable || 0), 0) / allPayrollsView.length : 0
-                )}
-              </div>
-            </div>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="all">All Years</option>
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = new Date().getFullYear() - 2 + i;
+                return <option key={year} value={year}>{year}</option>;
+              })}
+            </select>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="all">All Months</option>
+              {monthNames.map((month, index) => (
+                <option key={index} value={index + 1}>{month}</option>
+              ))}
+            </select>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="all">All Status</option>
+              {statusOptions.slice(1).map(status => (
+                <option key={status.value} value={status.value}>{status.label}</option>
+              ))}
+            </select>
           </div>
+        </div>
 
-          <div className="mb-6 p-4 bg-gray-50 rounded-xl">
-            <div className="flex flex-wrap gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Search employee, department or ID..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none w-full"
-                />
-              </div>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value === "all" ? "all" : Number(e.target.value))}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                <option value="all">All Years</option>
-                {Array.from({ length: 5 }, (_, i) => {
-                  const year = new Date().getFullYear() - 2 + i;
-                  return <option key={year} value={year}>{year}</option>;
-                })}
-              </select>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value === "all" ? "all" : Number(e.target.value))}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                <option value="all">All Months</option>
-                {monthNames.map((month, index) => (
-                  <option key={index} value={index + 1}>{month}</option>
-                ))}
-              </select>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                <option value="all">All Status</option>
-                {statusOptions.slice(1).map(status => (
-                  <option key={status.value} value={status.value}>{status.label}</option>
-                ))}
-              </select>
-            </div>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setViewType('table')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${viewType === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              <List size={18} />
+              Table View
+            </button>
+            <button
+              onClick={() => setViewType('grid')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${viewType === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              <Grid size={18} />
+              Grid View
+            </button>
+            <button
+              onClick={() => setViewType('grouped')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${viewType === 'grouped' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              <Layers size={18} />
+              Grouped View
+            </button>
           </div>
-
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
+          
+          {viewType === 'grouped' && (
+            <div className="flex gap-2">
               <button
-                onClick={() => setViewType('table')}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${viewType === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                onClick={() => setGroupedBy('month')}
+                className={`px-3 py-1 rounded-lg ${groupedBy === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
-                <List size={18} />
-                Table View
+                By Month
               </button>
               <button
-                onClick={() => setViewType('grid')}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${viewType === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                onClick={() => setGroupedBy('department')}
+                className={`px-3 py-1 rounded-lg ${groupedBy === 'department' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
-                <Grid size={18} />
-                Grid View
+                By Department
               </button>
               <button
-                onClick={() => setViewType('grouped')}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${viewType === 'grouped' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                onClick={() => setGroupedBy('employee')}
+                className={`px-3 py-1 rounded-lg ${groupedBy === 'employee' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
-                <Layers size={18} />
-                Grouped View
+                By Employee
               </button>
             </div>
-            
-            {viewType === 'grouped' && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setGroupedBy('month')}
-                  className={`px-3 py-1 rounded-lg ${groupedBy === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >
-                  By Month
-                </button>
-                <button
-                  onClick={() => setGroupedBy('department')}
-                  className={`px-3 py-1 rounded-lg ${groupedBy === 'department' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >
-                  By Department
-                </button>
-                <button
-                  onClick={() => setGroupedBy('employee')}
-                  className={`px-3 py-1 rounded-lg ${groupedBy === 'employee' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >
-                  By Employee
-                </button>
-              </div>
-            )}
-          </div>
+          )}
+        </div>
 
-          {loading.allView ? (
-            <div className="p-12 text-center">
-              <div className="inline-flex flex-col items-center">
-                <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-                <p className="text-gray-600 font-medium">Loading all payroll records...</p>
-                <p className="text-gray-400 text-sm mt-2">This may take a moment</p>
-              </div>
+        {loading.allView ? (
+          <div className="p-12 text-center">
+            <div className="inline-flex flex-col items-center">
+              <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+              <p className="text-gray-600 font-medium">Loading all payroll records...</p>
+              <p className="text-gray-400 text-sm mt-2">This may take a moment</p>
             </div>
-          ) : allPayrollsView.length === 0 ? (
-            <div className="p-12 text-center">
-              <div className="flex flex-col items-center justify-center">
-                <div className="w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
-                  <FileText className="text-gray-400" size={32} />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">No payroll records found</h3>
-                <p className="text-gray-500">Try adjusting your filters or create new payrolls</p>
+          </div>
+        ) : allPayrollsView.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
+                <FileText className="text-gray-400" size={32} />
               </div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No payroll records found</h3>
+              <p className="text-gray-500">Try adjusting your filters or create new payrolls</p>
             </div>
-          ) : viewType === 'table' ? (
-            <>
-              <div className="overflow-x-auto rounded-xl border border-gray-200 mb-6">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                        {userRole === 'admin' && (
-      <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-        Employee Accepted
-      </th>
-    )}
-                    <tr> 
+          </div>
+        ) : viewType === 'table' ? (
+          <>
+            <div className="overflow-x-auto rounded-xl border border-gray-200 mb-6">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr> 
+                    <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Employee
+                    </th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Period
+                    </th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Department
+                    </th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Salary Details
+                    </th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    {userRole === 'admin' && (
                       <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Period
+                        Employee Accepted
                       </th>
-                      <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Department
-                      </th>
-                      <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Salary Details
-                      </th>
-                      <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Net Payable
-                      </th>
-                      <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
+                    )}
+                    <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Net Payable
+                    </th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {allPayrollsView.map((payroll) => (
+                    <tr key={payroll._id} className="hover:bg-gray-50 transition-colors">
+                      <td className="py-4 px-6">
+                        <div>
+                          <div className="font-medium text-gray-900">{payroll.employeeName}</div>
+                          <div className="text-sm text-gray-500">{payroll.designation}</div>
+                          <div className="text-xs text-gray-400">{payroll.employeeId}</div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="text-sm font-medium text-gray-900">
+                          {payroll.monthName} {payroll.year}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Days: {payroll.attendance?.presentDays || 0}/{payroll.attendance?.totalWorkingDays || 23}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                          {payroll.department}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="text-sm">
+                          <div className="text-gray-600">Basic: {formatCurrency(payroll.earnings?.basicPay || 0)}</div>
+                          <div className="text-gray-600">Overtime: {formatCurrency(payroll.earnings?.overtime?.amount || 0)}</div>
+                          <div className="text-gray-600">Bonus: {formatCurrency(payroll.earnings?.bonus?.amount || 0)}</div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${getStatusColor(payroll.status).bg} ${getStatusColor(payroll.status).text}`}>
+                          {getStatusColor(payroll.status).icon}
+                          {payroll.status}
+                        </span>
+                        {payroll.payment?.paymentDate && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Paid: {formatDate(payroll.payment.paymentDate)}
+                          </div>
+                        )}
+                      </td>
+                      {userRole === 'admin' && (
+                        <td className="py-4 px-6">
+                          {payroll.employeeAccepted ? (
+                            <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                              ✓ Accepted
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                              Pending
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td className="py-4 px-6">
+                        <div className="font-bold text-gray-900 text-lg">
+                          {formatCurrency(payroll.netPayable)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Deductions: {formatCurrency(payroll.deductions?.total || 0)}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedPayroll(payroll);
+                              setShowDetailsModal(true);
+                              setShowAllPayrollsModal(false);
+                            }}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
-                    {allPayrollsView.map((payroll) => (
-                      <tr key={payroll._id} className="hover:bg-gray-50 transition-colors">
-                        <td className="py-4 px-6">
-                          <div>
-                            <div className="font-medium text-gray-900">{payroll.employeeName}</div>
-                            <div className="text-sm text-gray-500">{payroll.designation}</div>
-                            <div className="text-xs text-gray-400">{payroll.employeeId}</div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="text-sm font-medium text-gray-900">
-                            {payroll.monthName} {payroll.year}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Days: {payroll.attendance?.presentDays || 0}/{payroll.attendance?.totalWorkingDays || 23}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                            {payroll.department}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="text-sm">
-                            <div className="text-gray-600">Basic: {formatCurrency(payroll.earnings?.basicPay || 0)}</div>
-                            <div className="text-gray-600">Overtime: {formatCurrency(payroll.earnings?.overtime?.amount || 0)}</div>
-                            <div className="text-gray-600">Bonus: {formatCurrency(payroll.earnings?.bonus?.amount || 0)}</div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${getStatusColor(payroll.status).bg} ${getStatusColor(payroll.status).text}`}>
-                            {getStatusColor(payroll.status).icon}
-                            {payroll.status}
-                          </span>
-                          {payroll.employeeAccepted && (
-                            <div className="text-xs text-green-600 mt-1">
-                              ✓ Accepted by employee
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : viewType === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {allPayrollsView.map((payroll) => (
+              <div key={payroll._id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{payroll.employeeName}</h4>
+                    <p className="text-sm text-gray-500">{payroll.designation}</p>
+                  </div>
+                  <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(payroll.status).bg} ${getStatusColor(payroll.status).text}`}>
+                    {payroll.status}
+                  </span>
+                </div>
+                
+                <div className="mb-4">
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm text-gray-600">Period</span>
+                    <span className="font-medium">{payroll.monthName} {payroll.year}</span>
+                  </div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm text-gray-600">Department</span>
+                    <span className="font-medium">{payroll.department}</span>
+                  </div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm text-gray-600">Working Days</span>
+                    <span className="font-medium">{payroll.attendance?.presentDays || 0}/{payroll.attendance?.totalWorkingDays || 23}</span>
+                  </div>
+                  {userRole === 'admin' && (
+                    <div className="flex justify-between mb-2">
+                      <span className="text-sm text-gray-600">Accepted</span>
+                      <span className={`font-medium ${payroll.employeeAccepted ? 'text-green-600' : 'text-yellow-600'}`}>
+                        {payroll.employeeAccepted ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 rounded-lg mb-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Net Payable</span>
+                    <span className="text-lg font-bold text-blue-600">{formatCurrency(payroll.netPayable)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Basic: {formatCurrency(payroll.earnings?.basicPay || 0)}</span>
+                    <span>Deductions: {formatCurrency(payroll.deductions?.total || 0)}</span>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedPayroll(payroll);
+                      setShowDetailsModal(true);
+                      setShowAllPayrollsModal(false);
+                    }}
+                    className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                  >
+                    View Details
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(groupedPayrolls).map(([key, group]) => (
+              <div key={key} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold text-gray-900">
+                      {groupedBy === 'month' 
+                        ? `${getMonthName(parseInt(key.split('-')[1]))} ${key.split('-')[0]}`
+                        : key}
+                    </h4>
+                    <p className="text-sm text-gray-500">
+                      {group.count} payrolls • {group.employees.size} employees • Total: {formatCurrency(group.total)}
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                    {formatCurrency(group.total)}
+                  </span>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Employee</th>
+                        <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Amount</th>
+                        <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Status</th>
+                        {userRole === 'admin' && (
+                          <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Accepted</th>
+                        )}
+                        <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.payrolls.map((payroll) => (
+                        <tr key={payroll._id} className="border-t border-gray-100">
+                          <td className="py-3 px-4">
+                            <div>
+                              <div className="font-medium">{payroll.employeeName}</div>
+                              <div className="text-xs text-gray-500">{payroll.designation}</div>
                             </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-medium">{formatCurrency(payroll.netPayable)}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(payroll.status).bg} ${getStatusColor(payroll.status).text}`}>
+                              {payroll.status}
+                            </span>
+                          </td>
+                          {userRole === 'admin' && (
+                            <td className="py-3 px-4">
+                              {payroll.employeeAccepted ? (
+                                <span className="text-xs text-green-600">✓ Accepted</span>
+                              ) : (
+                                <span className="text-xs text-yellow-600">Pending</span>
+                              )}
+                            </td>
                           )}
-                          {payroll.payment?.paymentDate && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              Paid: {formatDate(payroll.payment.paymentDate)}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="font-bold text-gray-900 text-lg">
-                            {formatCurrency(payroll.netPayable)}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Deductions: {formatCurrency(payroll.deductions?.total || 0)}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="flex items-center gap-2">
+                          <td className="py-3 px-4">
                             <button
                               onClick={() => {
                                 setSelectedPayroll(payroll);
                                 setShowDetailsModal(true);
                                 setShowAllPayrollsModal(false);
                               }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                              title="View Details"
+                              className="text-blue-600 hover:text-blue-800 text-sm"
                             >
-                              <Eye size={16} />
+                              View
                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : viewType === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {allPayrollsView.map((payroll) => (
-                <div key={payroll._id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-lg transition-shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{payroll.employeeName}</h4>
-                      <p className="text-sm text-gray-500">{payroll.designation}</p>
-                    </div>
-                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(payroll.status).bg} ${getStatusColor(payroll.status).text}`}>
-                      {payroll.status}
-                    </span>
-                  </div>
-                  
-                  <div className="mb-4">
-                    <div className="flex justify-between mb-2">
-                      <span className="text-sm text-gray-600">Period</span>
-                      <span className="font-medium">{payroll.monthName} {payroll.year}</span>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-sm text-gray-600">Department</span>
-                      <span className="font-medium">{payroll.department}</span>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-sm text-gray-600">Working Days</span>
-                      <span className="font-medium">{payroll.attendance?.presentDays || 0}/{payroll.attendance?.totalWorkingDays || 23}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-3 rounded-lg mb-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Net Payable</span>
-                      <span className="text-lg font-bold text-blue-600">{formatCurrency(payroll.netPayable)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>Basic: {formatCurrency(payroll.earnings?.basicPay || 0)}</span>
-                      <span>Deductions: {formatCurrency(payroll.deductions?.total || 0)}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        setSelectedPayroll(payroll);
-                        setShowDetailsModal(true);
-                        setShowAllPayrollsModal(false);
-                      }}
-                      className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                    >
-                      View Details
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(groupedPayrolls).map(([key, group]) => (
-                <div key={key} className="bg-white rounded-xl border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="font-semibold text-gray-900">
-                        {groupedBy === 'month' 
-                          ? `${getMonthName(parseInt(key.split('-')[1]))} ${key.split('-')[0]}`
-                          : key}
-                      </h4>
-                      <p className="text-sm text-gray-500">
-                        {group.count} payrolls • {group.employees.size} employees • Total: {formatCurrency(group.total)}
-                      </p>
-                    </div>
-                    <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                      {formatCurrency(group.total)}
-                    </span>
-                  </div>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Employee</th>
-                          <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Amount</th>
-                          <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Status</th>
-                          <th className="py-2 px-4 text-left text-xs font-medium text-gray-500">Actions</th>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {group.payrolls.map((payroll) => (
-                          <tr key={payroll._id} className="border-t border-gray-100">
-                            <td className="py-3 px-4">
-                              <div>
-                                <div className="font-medium">{payroll.employeeName}</div>
-                                <div className="text-xs text-gray-500">{payroll.designation}</div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="font-medium">{formatCurrency(payroll.netPayable)}</div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(payroll.status).bg} ${getStatusColor(payroll.status).text}`}>
-                                {payroll.status}
-                              </span>
-                              {payroll.employeeAccepted && (
-                                <div className="text-xs text-green-600 mt-1">
-                                  ✓ Accepted
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4">
-                              <button
-                                onClick={() => {
-                                  setSelectedPayroll(payroll);
-                                  setShowDetailsModal(true);
-                                  setShowAllPayrollsModal(false);
-                                }}
-                                className="text-blue-600 hover:text-blue-800 text-sm"
-                              >
-                                View
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
+        )}
 
-          <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-sm text-gray-600">Total Records</div>
-                <div className="text-2xl font-bold text-gray-900">{allPayrollsView.length}</div>
+        <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="text-sm text-gray-600">Total Records</div>
+              <div className="text-2xl font-bold text-gray-900">{allPayrollsView.length}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm text-gray-600">Total Payable Amount</div>
+              <div className="text-2xl font-bold text-green-600">
+                {formatCurrency(allPayrollsView.reduce((sum, p) => sum + (p.netPayable || 0), 0))}
               </div>
-              <div className="text-center">
-                <div className="text-sm text-gray-600">Total Payable Amount</div>
-                <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(allPayrollsView.reduce((sum, p) => sum + (p.netPayable || 0), 0))}
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-sm text-gray-600">Average per Employee</div>
-                <div className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(allPayrollsView.length > 0 ? 
-                    allPayrollsView.reduce((sum, p) => sum + (p.netPayable || 0), 0) / allPayrollsView.length : 0
-                  )}
-                </div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm text-gray-600">Average per Employee</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {formatCurrency(allPayrollsView.length > 0 ? 
+                  allPayrollsView.reduce((sum, p) => sum + (p.netPayable || 0), 0) / allPayrollsView.length : 0
+                )}
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="mt-6 flex justify-between items-center">
-            <div className="text-sm text-gray-500">
-              Showing {allPayrollsView.length} records
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={async () => {
-                  try {
-                    const csvData = [
-                      ['Employee Name', 'Employee ID', 'Department', 'Month', 'Year', 'Basic Salary', 'Overtime', 'Bonus', 'Allowance', 'Deductions', 'Net Payable', 'Status', 'Payment Date', 'Employee Accepted'],
-                      ...allPayrollsView.map(p => [
-                        p.employeeName,
-                        p.employeeId,
-                        p.department,
-                        p.monthName,
-                        p.year,
-                        p.earnings?.basicPay || 0,
-                        p.earnings?.overtime?.amount || 0,
-                        p.earnings?.bonus?.amount || 0,
-                        p.earnings?.allowance?.amount || 0,
-                        p.deductions?.total || 0,
-                        p.netPayable || 0,
-                        p.status,
-                        p.payment?.paymentDate ? formatDate(p.payment.paymentDate) : 'N/A',
-                        p.employeeAccepted ? 'Yes' : 'No'
-                      ])
-                    ];
-                    
-                    const csvContent = csvData.map(row => row.join(',')).join('\n');
-                    const blob = new Blob([csvContent], { type: 'text/csv' });
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `all_payrolls_${new Date().toISOString().split('T')[0]}.csv`;
-                    a.click();
-                    
-                    toast.success('CSV exported successfully');
-                  } catch (error) {
-                    toast.error('Failed to export CSV');
-                  }
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:opacity-90 flex items-center gap-2"
-              >
-                <FileSpreadsheet size={16} />
-                Export as CSV
-              </button> 
-            </div>
+        <div className="mt-6 flex justify-between items-center">
+          <div className="text-sm text-gray-500">
+            Showing {allPayrollsView.length} records
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={async () => {
+                try {
+                  const csvData = [
+                    ['Employee Name', 'Employee ID', 'Department', 'Month', 'Year', 'Basic Salary', 'Overtime', 'Bonus', 'Allowance', 'Deductions', 'Net Payable', 'Status', 'Payment Date', 'Employee Accepted'],
+                    ...allPayrollsView.map(p => [
+                      p.employeeName,
+                      p.employeeId,
+                      p.department,
+                      p.monthName,
+                      p.year,
+                      p.earnings?.basicPay || 0,
+                      p.earnings?.overtime?.amount || 0,
+                      p.earnings?.bonus?.amount || 0,
+                      p.earnings?.allowance?.amount || 0,
+                      p.deductions?.total || 0,
+                      p.netPayable || 0,
+                      p.status,
+                      p.payment?.paymentDate ? formatDate(p.payment.paymentDate) : 'N/A',
+                      p.employeeAccepted ? 'Yes' : 'No'
+                    ])
+                  ];
+                  
+                  const csvContent = csvData.map(row => row.join(',')).join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `all_payrolls_${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                  
+                  toast.success('CSV exported successfully');
+                } catch (error) {
+                  toast.error('Failed to export CSV');
+                }
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:opacity-90 flex items-center gap-2"
+            >
+              <FileSpreadsheet size={16} />
+              Export as CSV
+            </button> 
           </div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 
   // ==================== MAIN RENDER ====================
   const months = [
@@ -4214,6 +5266,11 @@ const handleCreatePayroll = async (e) => {
       {showAllPayrollsModal && renderAllPayrollsModal()}
       {employeeDetailsModal && renderEmployeeDetailsModal()}
       {showPreviewModal && renderPreviewModal()}
+        {/* New modals */}
+  {showEditModal && renderEditModal()}
+  {showAdminAllModal && renderAdminAllModal()}
+  {employeeDetailsModal && renderEmployeeDetailsModal()}
+  {showPreviewModal && renderPreviewModal()}
       {/* Main Page */}
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 p-4 md:p-6">
         {/* Header */}
@@ -4722,7 +5779,16 @@ const handleCreatePayroll = async (e) => {
           <CheckCircle size={14} />
           Accepted
         </span>
-      )}
+      )} 
+{userRole === 'admin' && payroll.status !== 'Paid' && !payroll.employeeAccepted?.accepted && (
+  <button
+    onClick={() => handleOpenEditModal(payroll)}
+    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+    title="Edit Payroll"
+  >
+    <Edit size={18} />
+  </button>
+)}
     </div>
   </td>
 )}
@@ -4734,42 +5800,12 @@ const handleCreatePayroll = async (e) => {
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => {
-                                setSelectedPayroll(payroll);
-                                setShowDetailsModal(true);
-                              }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                              title="View Details"
-                            >
-                              <Eye size={18} />
-                            </button>
-                            {payroll.status === 'Pending' && (
-                              <>
-                                <button
-                                  onClick={() => handleUpdateStatus(payroll._id, 'Approved')}
-                                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
-                                  title="Approve"
-                                >
-                                  <CheckCircle size={18} />
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateStatus(payroll._id, 'Paid')}
-                                  className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors duration-200"
-                                  title="Mark as Paid"
-                                >
-                                  <Banknote size={18} />
-                                </button>
-                              </>
-                            )}
-                            {payroll.status === 'Pending' && (
-                              <button
-                                onClick={() => handleUpdateStatus(payroll._id, 'Cancelled')}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                                title="Cancel"
-                              >
-                                <X size={18} />
-                              </button>
-                            )}
+        onClick={() => viewPayrollDetailsAdmin(payroll._id)}
+        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+        title="View Details"
+      >
+        <Eye size={18} />
+      </button> 
                             <button
                               onClick={() => {
                                 setSelectedPayroll(payroll);
@@ -4780,6 +5816,23 @@ const handleCreatePayroll = async (e) => {
                             >
                               <Trash2 size={18} />
                             </button>
+                            {!isEmployeeView && userRole === 'admin' && (
+  <td className="py-4 px-6">
+    <div className="flex items-center gap-1"> 
+      
+      {/* ✅ EDIT BUTTON - শুধু Pending payroll এর জন্য */}
+      {payroll.status === 'Pending' && !payroll.employeeAccepted?.accepted && (
+        <button
+          onClick={() => handleOpenEditModal(payroll)}
+          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+          title="Edit Payroll"
+        >
+          <Edit size={18} />
+        </button>
+      )}   
+    </div>
+  </td>
+)}
                           </div>
                         </td>
                       )}
