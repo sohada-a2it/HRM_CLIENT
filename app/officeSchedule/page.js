@@ -35,12 +35,68 @@ export default function page() {
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const shortDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  // Check localStorage on component mount
+  // ✅ NEW: Save history to localStorage
+  const saveHistoryToLocalStorage = (history) => {
+    try {
+      localStorage.setItem('officeScheduleHistory', JSON.stringify(history));
+    } catch (error) {
+      console.error('Error saving history to localStorage:', error);
+    }
+  };
+
+  // ✅ NEW: Load history from localStorage
+  const loadHistoryFromLocalStorage = () => {
+    try {
+      const savedHistory = localStorage.getItem('officeScheduleHistory');
+      if (savedHistory) {
+        return JSON.parse(savedHistory);
+      }
+    } catch (error) {
+      console.error('Error loading history from localStorage:', error);
+    }
+    return [];
+  };
+
+  // ✅ NEW: Save schedule to localStorage
+  const saveScheduleToLocalStorage = (scheduleData) => {
+    try {
+      localStorage.setItem('officeScheduleData', JSON.stringify(scheduleData));
+    } catch (error) {
+      console.error('Error saving schedule to localStorage:', error);
+    }
+  };
+
+  // ✅ NEW: Load schedule from localStorage
+  const loadScheduleFromLocalStorage = () => {
+    try {
+      const savedSchedule = localStorage.getItem('officeScheduleData');
+      if (savedSchedule) {
+        return JSON.parse(savedSchedule);
+      }
+    } catch (error) {
+      console.error('Error loading schedule from localStorage:', error);
+    }
+    return null;
+  };
+
+  // Check localStorage on component mount - ✅ UPDATED
   useEffect(() => {
     const checkTokens = () => {
       if (typeof window !== 'undefined') {
         const adminToken = localStorage.getItem('adminToken');
         const employeeToken = localStorage.getItem('employeeToken');
+        
+        // ✅ NEW: Load cached data FIRST
+        const cachedSchedule = loadScheduleFromLocalStorage();
+        const cachedHistory = loadHistoryFromLocalStorage();
+        
+        if (cachedSchedule) {
+          setSchedule(cachedSchedule);
+        }
+        
+        if (cachedHistory.length > 0) {
+          setOverrideHistory(cachedHistory);
+        }
         
         if (adminToken) {
           // Admin is logged in
@@ -59,6 +115,15 @@ export default function page() {
           setCurrentRole('employee');
           // Show token input option
           setShowTokenInput(true);
+          
+          // ✅ NEW: If no token, use cached schedule
+          if (!cachedSchedule) {
+            setSchedule({
+              status: "success",
+              weeklyOffDays: ["Friday", "Saturday"],
+              override: false
+            });
+          }
         }
       }
     };
@@ -77,7 +142,7 @@ export default function page() {
     });
   };
 
-  // Fetch schedule data
+  // Fetch schedule data - ✅ UPDATED
   const fetchSchedule = async (token = null) => {
     try {
       setLoading(true);
@@ -86,6 +151,8 @@ export default function page() {
       
       if (response.data.status === 'success') {
         setSchedule(response.data);
+        // ✅ NEW: Save to localStorage
+        saveScheduleToLocalStorage(response.data);
       } else {
         toast.error('Failed to fetch schedule');
       }
@@ -98,20 +165,25 @@ export default function page() {
       } else if (error.response?.status === 403) {
         toast.error('Access denied for this role');
       } else {
-        // Fallback to default schedule
-        setSchedule({
-          status: "success",
-          weeklyOffDays: ["Friday", "Saturday"],
-          override: false
-        });
-        toast.info('Using default schedule');
+        // Fallback to cached data
+        const cachedSchedule = loadScheduleFromLocalStorage();
+        if (cachedSchedule) {
+          setSchedule(cachedSchedule);
+        } else {
+          setSchedule({
+            status: "success",
+            weeklyOffDays: ["Friday", "Saturday"],
+            override: false
+          });
+        }
+        toast.info('Using cached schedule data');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch override history (admin only) - FIXED TO ALWAYS FETCH
+  // Fetch override history (admin only) - ✅ UPDATED
   const fetchOverrideHistory = async (token = null) => {
     if (currentRole !== 'admin') return;
 
@@ -119,19 +191,30 @@ export default function page() {
       const api = getApiInstance(token || currentToken);
       const response = await api.get('/override/history');
       if (response.data.status === 'success') {
-        setOverrideHistory(response.data.overrides || []);
-        console.log('Override history fetched:', response.data.overrides?.length);
+        const historyData = response.data.overrides || [];
+        setOverrideHistory(historyData);
+        // ✅ NEW: Save to localStorage
+        saveHistoryToLocalStorage(historyData);
+        console.log('Override history fetched:', historyData?.length);
       } else {
         console.log('No override history found');
-        setOverrideHistory([]);
+        // ✅ NEW: Keep cached data if API fails
+        const cachedHistory = loadHistoryFromLocalStorage();
+        if (cachedHistory.length > 0) {
+          setOverrideHistory(cachedHistory);
+        }
       }
     } catch (error) {
       console.error('Error fetching override history:', error);
-      setOverrideHistory([]);
+      // ✅ NEW: Keep cached data if API fails
+      const cachedHistory = loadHistoryFromLocalStorage();
+      if (cachedHistory.length > 0) {
+        setOverrideHistory(cachedHistory);
+      }
     }
   };
 
-  // Handle Admin Token Login
+  // Handle Admin Token Login - ✅ UPDATED
   const handleAdminLogin = (e) => {
     e.preventDefault();
     
@@ -190,21 +273,20 @@ export default function page() {
     setTokenInput({ ...tokenInput, employeeToken: '' });
   };
 
-  // Handle logout
-  // const handleLogout = () => {
-  //   localStorage.removeItem('adminToken');
-  //   localStorage.removeItem('employeeToken');
+  // Handle logout - ✅ UPDATED
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('employeeToken');
     
-  //   setCurrentToken(null);
-  //   setCurrentRole('employee');
-  //   setSchedule(null);
-  //   setOverrideHistory([]);
-  //   setShowTokenInput(true);
+    setCurrentToken(null);
+    setCurrentRole('employee');
+    // ✅ NEW: Don't clear schedule and history from state
+    setShowTokenInput(true);
     
-  //   toast.success('Logged out successfully');
-  // };
+    toast.success('Logged out successfully');
+  };
 
-  // Update schedule (admin only)
+  // Update schedule (admin only) - ✅ UPDATED
   const updateSchedule = async (weeklyOffDays) => {
     if (currentRole !== 'admin') {
       toast.error('Admin access required');
@@ -218,6 +300,15 @@ export default function page() {
       
       if (response.data.status === 'success') {
         toast.success('Schedule updated successfully');
+        
+        // ✅ NEW: Update local state and cache
+        const updatedSchedule = {
+          ...schedule,
+          weeklyOffDays: weeklyOffDays
+        };
+        setSchedule(updatedSchedule);
+        saveScheduleToLocalStorage(updatedSchedule);
+        
         fetchSchedule();
       }
     } catch (error) {
@@ -236,7 +327,7 @@ export default function page() {
     }
   };
 
-  // Create override (admin only) - FIXED TO REFRESH HISTORY
+  // Create override (admin only) - ✅ UPDATED
   const createOverride = async () => {
     if (currentRole !== 'admin') {
       toast.error('Admin access required');
@@ -247,11 +338,22 @@ export default function page() {
       setLoading(true);
       const api = getApiInstance(currentToken);
       
+      // ✅ NEW: Fix date format
+      const formatDateForAPI = (date) => {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
       const dataToSend = {
-        startDate: overrideData.startDate.toISOString().split('T')[0],
-        endDate: overrideData.endDate.toISOString().split('T')[0],
+        startDate: formatDateForAPI(overrideData.startDate),
+        endDate: formatDateForAPI(overrideData.endDate),
         weeklyOffDays: overrideData.weeklyOffDays
       };
+
+      console.log('Sending override data:', dataToSend);
 
       const response = await api.put('/override', dataToSend);
       
@@ -266,11 +368,17 @@ export default function page() {
           weeklyOffDays: ['Friday', 'Saturday']
         });
         
+        // ✅ NEW: Update history immediately
+        const newOverride = response.data.override;
+        const updatedHistory = [newOverride, ...overrideHistory];
+        setOverrideHistory(updatedHistory);
+        saveHistoryToLocalStorage(updatedHistory);
+        
         // IMPORTANT: Refresh both schedule AND history
         fetchSchedule();
         setTimeout(() => {
           fetchOverrideHistory();
-        }, 500); // Small delay to ensure backend has processed
+        }, 500);
         
       } else {
         toast.error('Override creation failed');
@@ -278,7 +386,9 @@ export default function page() {
     } catch (error) {
       console.error('Error creating override:', error);
       
-      if (error.response?.status === 403) {
+      if (error.response?.status === 400) {
+        toast.error('Invalid data. Please check dates and try again.');
+      } else if (error.response?.status === 403) {
         toast.error('Permission denied. Admin access required.');
       } else if (error.response?.status === 401) {
         toast.error('Session expired');
@@ -291,7 +401,7 @@ export default function page() {
     }
   };
 
-  // Delete override (admin only) - FIXED TO REFRESH HISTORY
+  // Delete override (admin only) - ✅ UPDATED
   const deleteOverride = async (id) => {
     if (currentRole !== 'admin') {
       toast.error('Admin access required');
@@ -308,11 +418,16 @@ export default function page() {
       if (response.data.status === 'success') {
         toast.success('Override deleted successfully');
         
+        // ✅ NEW: Update local state immediately
+        const updatedHistory = overrideHistory.filter(override => override._id !== id);
+        setOverrideHistory(updatedHistory);
+        saveHistoryToLocalStorage(updatedHistory);
+        
         // IMPORTANT: Refresh both schedule AND history
         fetchSchedule();
         setTimeout(() => {
           fetchOverrideHistory();
-        }, 500); // Small delay to ensure backend has processed
+        }, 500);
         
       } else {
         toast.error('Delete failed');
@@ -337,7 +452,7 @@ export default function page() {
     });
   };
 
-  // Toggle day in schedule (admin only)
+  // Toggle day in schedule (admin only) - ✅ UPDATED
   const toggleScheduleDay = (day) => {
     if (currentRole !== 'admin') return;
 
@@ -347,10 +462,14 @@ export default function page() {
       ? schedule.weeklyOffDays.filter(d => d !== day)
       : [...schedule.weeklyOffDays, day];
 
-    setSchedule({
+    const updatedSchedule = {
       ...schedule,
       weeklyOffDays: updatedDays
-    });
+    };
+    
+    setSchedule(updatedSchedule);
+    // ✅ NEW: Save to localStorage immediately
+    saveScheduleToLocalStorage(updatedSchedule);
   };
 
   // Format date
@@ -370,6 +489,16 @@ export default function page() {
     fetchSchedule();
     if (currentRole === 'admin') {
       fetchOverrideHistory();
+    }
+  };
+
+  // ✅ NEW: Clear all cached data
+  const clearCache = () => {
+    if (confirm('Clear all cached schedule data?')) {
+      localStorage.removeItem('officeScheduleData');
+      localStorage.removeItem('officeScheduleHistory');
+      toast.success('Cache cleared successfully');
+      window.location.reload();
     }
   };
 
@@ -453,7 +582,7 @@ export default function page() {
       {/* Token Input Modal */}
       {renderTokenInputModal()}
 
-      {/* Header */}
+      {/* Header - ✅ UPDATED with Clear Cache button */}
       <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -482,6 +611,15 @@ export default function page() {
               
               {currentToken && (
                 <div className="flex items-center space-x-3">
+                  {currentRole === 'admin' && (
+                    <button
+                      onClick={clearCache}
+                      className="px-3 py-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-lg text-sm font-medium transition-all"
+                      title="Clear cached data"
+                    >
+                      Clear Cache
+                    </button>
+                  )}
                   <button
                     onClick={refreshAllData}
                     disabled={loading}
@@ -489,12 +627,12 @@ export default function page() {
                   >
                     Refresh All
                   </button>
-                  {/* <button
+                  <button
                     onClick={handleLogout}
                     className="px-4 py-2 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white rounded-lg text-sm font-medium shadow-lg shadow-red-500/25 transition-all"
                   >
                     Logout
-                  </button> */}
+                  </button>
                 </div>
               )}
               
@@ -784,7 +922,12 @@ export default function page() {
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Override History</h2>
-                  <p className="text-gray-600 mt-1">Previous temporary schedules</p>
+                  <p className="text-gray-600 mt-1">
+                    {overrideHistory.length > 0 
+                      ? `${overrideHistory.length} overrides (cached locally)` 
+                      : 'Previous temporary schedules'
+                    }
+                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -818,7 +961,6 @@ export default function page() {
                       <tr className="bg-gray-50">
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Off Days</th>
-                       
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
@@ -907,7 +1049,7 @@ export default function page() {
             <div className="flex flex-col md:flex-row justify-between items-center">
               <div className="mb-4 md:mb-0">
                 <p className="text-sm text-gray-500">
-                  Office Schedule System • Version 1.0.0
+                  Office Schedule System • Version 1.0.0 • Data cached locally
                 </p>
               </div>
               <div className="text-sm text-gray-500">

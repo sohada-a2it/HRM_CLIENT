@@ -176,6 +176,7 @@ const [editForm, setEditForm] = useState({
     mealDays: 0
   });
   // Handle approve/reject meal 
+// Handle approve/reject meal 
 const handleApproveRejectMeal = async (mealId, action) => {
   try {
     setUpdating(true);
@@ -381,7 +382,7 @@ const handleEditClick = (subscription) => {
     
     try {
       const token = getCurrentToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/all-onsite`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
@@ -578,13 +579,24 @@ const handleEditClick = (subscription) => {
     }
   };
 
-  // Handle meal request submission 
+  // Handle meal request submission  
 const handleSubmitMealRequest = async () => {
   try {
-    // Check if user has active subscription
+    // Check subscription status
     if (mySubscription?.hasSubscription && mySubscription.data?.status === 'active') {
-      toast.error("You already have an active subscription. Please cancel it first or use your subscription meals.");
-      return;
+      // Check auto-renew status
+      if (mySubscription.data?.autoRenew) {
+        toast.error("You have auto-renew subscription. Please wait for automatic approval or cancel subscription first.");
+        return;
+      }
+      
+      // Check if this month is already approved
+      const currentMonth = getCurrentMonth();
+      if (mySubscription.data?.currentMonth === currentMonth && 
+          mySubscription.data?.currentStatus === 'approved') {
+        toast.error("You already have an approved subscription for this month.");
+        return;
+      }
     }
     
     const data = await apiCall('/daily/request', 'POST', {
@@ -803,14 +815,13 @@ const handleSubmitMealRequest = async () => {
     }
   };
 // Add Edit Modal UI after other modals
+{/* Edit Subscription Modal */}
 {showEditModal && selectedSubscription && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md my-4">
-      <div className="p-6 border-b border-purple-100 dark:border-gray-700">
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="sticky top-0 bg-white dark:bg-gray-800 p-6 border-b border-purple-100 dark:border-gray-700">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            Edit Subscription
-          </h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Edit Subscription</h3>
           <button
             onClick={() => setShowEditModal(false)}
             className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -865,7 +876,12 @@ const handleSubmitMealRequest = async () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-gray-900 dark:text-white">Auto Renew</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Automatically renew subscription</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {editForm.autoRenew 
+                    ? 'Automatically continues each month'
+                    : 'Need monthly approval'
+                  }
+                </p>
               </div>
               <button
                 onClick={() => setEditForm({...editForm, autoRenew: !editForm.autoRenew})}
@@ -2076,108 +2092,119 @@ const handleSubmitMealRequest = async () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                          {allSubscriptions.map((subscription, index) => (
-                            <tr key={index} className="hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-                                    <span className="font-bold text-purple-600">
-                                      {subscription.userInfo?.firstName?.charAt(0) || "U"}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-gray-900 dark:text-white">
-                                      {subscription.userInfo?.firstName} {subscription.userInfo?.lastName}
-                                    </p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">{subscription.userInfo?.employeeId}</p>
-                                    <p className="text-xs text-gray-500">{subscription.userInfo?.department}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-2">
-                                  {subscription.preference === 'office' ? (
-                                    <Coffee className="text-purple-600" size={16} />
-                                  ) : (
-                                    <Pizza className="text-orange-600" size={16} />
-                                  )}
-                                  <span className="capitalize">{subscription.preference}</span>
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-                                  subscription.status === 'active'
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                    : subscription.status === 'pending'
-                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                                    : subscription.status === 'cancelled'
-                                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                }`}>
-                                  {subscription.status?.toUpperCase()}
-                                </span>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-2">
-                                  {subscription.autoRenew ? (
-                                    <CheckCircle className="text-green-500" size={16} />
-                                  ) : (
-                                    <XCircle className="text-red-500" size={16} />
-                                  )}
-                                  <span className="text-sm">{subscription.autoRenew ? 'Yes' : 'No'}</span>
-                                </div>
-                              </td>
-                              <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-400">
-                                {formatDate(subscription.startDate)}
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-2">
-                                  {/* Check if this month's approval is pending */}
-                                  {subscription.currentMonthStatus === 'pending' && (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          setSelectedSubscription(subscription);
-                                          setShowApproveModal(true);
-                                        }}
-                                        className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
-                                      >
-                                        Approve
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setSelectedSubscription(subscription);
-                                          setShowRejectModal(true);
-                                        }}
-                                        className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
-                                      >
-                                        Reject
-                                      </button>
-                                    </>
-                                  )}
-                                  <button
-                                  onClick={() => handleEditClick(subscription)}
-                                  className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                  title="Edit"
-                                >
-                                  <Edit className="text-blue-500" size={14} />
-                                </button>
-                                  {(subscription.status === 'active' || subscription.status === 'pending') && (
-                                    <button
-                                      onClick={() => {
-                                        setSelectedSubscription(subscription);
-                                        setShowDeleteModal(true);
-                                      }}
-                                      className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="text-red-500" size={14} />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                          {allSubscriptions.map((subscription, index) => {
+  // Check if should show approve/reject buttons
+  const shouldShowApproveReject = 
+    subscription.currentMonthStatus === 'pending' &&
+    !subscription.autoRenew; // Only show if auto-renew is OFF
+  
+  return (
+    <tr key={index} className="hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
+      <td className="py-4 px-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+            <span className="font-bold text-purple-600">
+              {subscription.userInfo?.firstName?.charAt(0) || "U"}
+            </span>
+          </div>
+          <div>
+            <p className="font-medium text-gray-900 dark:text-white">
+              {subscription.userInfo?.firstName} {subscription.userInfo?.lastName}
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{subscription.userInfo?.employeeId}</p>
+            <p className="text-xs text-gray-500">{subscription.userInfo?.department}</p>
+          </div>
+        </div>
+      </td>
+      <td className="py-4 px-6">
+        <div className="flex items-center gap-2">
+          {subscription.preference === 'office' ? (
+            <Coffee className="text-purple-600" size={16} />
+          ) : (
+            <Pizza className="text-orange-600" size={16} />
+          )}
+          <span className="capitalize">{subscription.preference}</span>
+        </div>
+      </td>
+      <td className="py-4 px-6">
+        <span className={`px-3 py-1 text-xs rounded-full font-medium ${
+          subscription.status === 'active'
+            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+            : subscription.status === 'pending'
+            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+            : subscription.status === 'cancelled'
+            ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+        }`}>
+          {subscription.status?.toUpperCase()}
+        </span>
+      </td>
+      <td className="py-4 px-6">
+        <div className="flex items-center gap-2">
+          {subscription.autoRenew ? (
+            <CheckCircle className="text-green-500" size={16} />
+          ) : (
+            <XCircle className="text-red-500" size={16} />
+          )}
+          <span className="text-sm">{subscription.autoRenew ? 'Yes' : 'No'}</span>
+          {subscription.autoRenew && (
+            <span className="text-xs text-gray-500">(Auto-continues)</span>
+          )}
+        </div>
+      </td>
+      <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-400">
+        {formatDate(subscription.startDate)}
+      </td>
+      <td className="py-4 px-6">
+        <div className="flex items-center gap-2">
+          {shouldShowApproveReject ? (
+            <>
+              <button
+                onClick={() => {
+                  setSelectedSubscription(subscription);
+                  setShowApproveModal(true);
+                }}
+                className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedSubscription(subscription);
+                  setShowRejectModal(true);
+                }}
+                className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
+              >
+                Reject
+              </button>
+            </>
+          ) : subscription.autoRenew ? (
+            <span className="text-xs text-gray-500">Auto-renew enabled</span>
+          ) : null}
+          <button
+            onClick={() => handleEditClick(subscription)}
+            className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+            title="Edit"
+          >
+            <Edit className="text-blue-500" size={14} />
+          </button>
+          {(subscription.status === 'active' || subscription.status === 'pending') && (
+            <button
+              onClick={() => {
+                setSelectedSubscription(subscription);
+                setShowDeleteModal(true);
+              }}
+              className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="text-red-500" size={14} />
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+})}
                         </tbody>
                       </table>
                     </div>
@@ -2676,112 +2703,154 @@ const handleSubmitMealRequest = async () => {
 
       {/* Request Meal Modal */}
       {showRequestModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
-            <div className="p-6 border-b border-purple-100 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">New Meal Request</h3>
-                <button
-                  onClick={() => setShowRequestModal(false)}
-                  className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                >
-                  <X className="text-gray-400" size={20} />
-                </button>
-              </div>
+ <div className="fixed inset-0 bg-black/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div className="p-6 border-b border-purple-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">New Meal Request</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Submit your meal preference</p>
+          </div>
+          <button
+            onClick={() => setShowRequestModal(false)}
+            className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
+          >
+            <X className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" size={20} />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-6">
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              Meal Preference
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setRequestForm({...requestForm, mealPreference: 'office'})}
+                className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center ${
+                  requestForm.mealPreference === 'office'
+                    ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-white dark:from-purple-900/20 dark:to-gray-800 shadow-sm'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <div className={`p-3 rounded-lg mb-2 ${
+                  requestForm.mealPreference === 'office' 
+                    ? 'bg-purple-100 dark:bg-purple-900/30' 
+                    : 'bg-gray-100 dark:bg-gray-700'
+                }`}>
+                  <Coffee className={
+                    requestForm.mealPreference === 'office' 
+                      ? 'text-purple-600 dark:text-purple-400' 
+                      : 'text-gray-500 dark:text-gray-400'
+                  } size={24} />
+                </div>
+                <span className="font-medium text-gray-900 dark:text-white">Office Meal</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">Prepared in office kitchen</span>
+              </button>
+
+              <button
+                onClick={() => setRequestForm({...requestForm, mealPreference: 'outside'})}
+                className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center ${
+                  requestForm.mealPreference === 'outside'
+                    ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-white dark:from-purple-900/20 dark:to-gray-800 shadow-sm'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <div className={`p-3 rounded-lg mb-2 ${
+                  requestForm.mealPreference === 'outside' 
+                    ? 'bg-purple-100 dark:bg-purple-900/30' 
+                    : 'bg-gray-100 dark:bg-gray-700'
+                }`}>
+                  <Pizza className={
+                    requestForm.mealPreference === 'outside' 
+                      ? 'text-purple-600 dark:text-purple-400' 
+                      : 'text-gray-500 dark:text-gray-400'
+                  } size={24} />
+                </div>
+                <span className="font-medium text-gray-900 dark:text-white">Outside Food</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">From partner restaurants</span>
+              </button>
             </div>
+          </div>
 
-            <div className="p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Meal Preference
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setRequestForm({...requestForm, mealPreference: 'office'})}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        requestForm.mealPreference === 'office'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center">
-                        <Coffee className={`mb-2 ${
-                          requestForm.mealPreference === 'office' ? 'text-purple-600' : 'text-gray-400'
-                        }`} size={24} />
-                        <span className="font-medium">Office Meal</span>
-                        <span className="text-sm text-gray-500 mt-1">Office kitchen</span>
-                      </div>
-                    </button>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Date
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                value={requestForm.date}
+                onChange={(e) => setRequestForm({...requestForm, date: e.target.value})}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              />
+              <Calendar className="absolute right-3 top-3.5 text-gray-400 pointer-events-none" size={20} />
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Select a future date for your meal</p>
+          </div>
 
-                    <button
-                      onClick={() => setRequestForm({...requestForm, mealPreference: 'outside'})}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        requestForm.mealPreference === 'outside'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center">
-                        <Pizza className={`mb-2 ${
-                          requestForm.mealPreference === 'outside' ? 'text-purple-600' : 'text-gray-400'
-                        }`} size={24} />
-                        <span className="font-medium">Outside Food</span>
-                        <span className="text-sm text-gray-500 mt-1">Partner restaurants</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Additional Note <span className="text-gray-500 font-normal">(Optional)</span>
+            </label>
+            <textarea
+              value={requestForm.note}
+              onChange={(e) => setRequestForm({...requestForm, note: e.target.value})}
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
+              placeholder="Any dietary restrictions, allergies, or special requirements..."
+            />
+            <div className="flex justify-between items-center mt-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Max 500 characters</p>
+              <span className={`text-xs ${requestForm.note.length > 450 ? 'text-red-500' : 'text-gray-500'}`}>
+                {requestForm.note.length}/500
+              </span>
+            </div>
+          </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    value={requestForm.date}
-                    onChange={(e) => setRequestForm({...requestForm, date: e.target.value})}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Additional Note (Optional)
-                  </label>
-                  <textarea
-                    value={requestForm.note}
-                    onChange={(e) => setRequestForm({...requestForm, note: e.target.value})}
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Any special requirements or notes..."
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() => setShowRequestModal(false)}
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSubmitMealRequest}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all font-medium"
-                >
-                  Submit Request
-                </button>
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
+            <div className="flex items-start">
+              <Info className="text-blue-500 dark:text-blue-400 mt-0.5 mr-3 flex-shrink-0" size={18} />
+              <div>
+                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300">Note for office meals</h4>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Office meals must be requested at least 2 hours in advance. Outside food orders require 30 minutes advance notice.</p>
               </div>
             </div>
           </div>
         </div>
-      )}
+
+        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+          <button
+            onClick={() => setShowRequestModal(false)}
+            className="flex-1 px-4 py-3.5 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmitMealRequest}
+            disabled={!requestForm.mealPreference || !requestForm.date}
+            className={`flex-1 px-4 py-3.5 rounded-xl font-medium transition-all ${
+              !requestForm.mealPreference || !requestForm.date
+                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg'
+            }`}
+          >
+            Submit Request
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Subscription Modal */}
       {showSubscriptionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
             <div className="p-6 border-b border-purple-100 dark:border-gray-700">
               <div className="flex items-center justify-between">
@@ -2877,306 +2946,315 @@ const handleSubmitMealRequest = async () => {
 
       {/* Admin Create Subscription Modal */}
       {showAdminCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
-            <div className="p-6 border-b border-purple-100 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Create Meal Subscription</h3>
-                <button
-                  onClick={() => setShowAdminCreateModal(false)}
-                  className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                >
-                  <X className="text-gray-400" size={20} />
-                </button>
-              </div>
-            </div>
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      {/* Header - More Compact */}
+      <div className="p-5 border-b border-gray-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Create Subscription</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create meal plan for employee</p>
+          </div>
+          <button
+            onClick={() => setShowAdminCreateModal(false)}
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <X className="text-gray-500 dark:text-gray-400" size={20} />
+          </button>
+        </div>
+      </div>
 
-            <div className="p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Employee
-                  </label>
-                  <select
-                    value={adminCreateForm.userId}
-                    onChange={(e) => setAdminCreateForm({...adminCreateForm, userId: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="">Select an employee</option>
-                    {allUsers.map(user => (
-                      <option key={user._id} value={user._id}>
-                        {user.firstName} {user.lastName} ({user.employeeId}) - {user.department}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+      {/* Form Content - More Compact */}
+      <div className="p-5">
+        <div className="space-y-4">
+          {/* Employee Select */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Employee
+            </label>
+            <select
+              value={adminCreateForm.userId}
+              onChange={(e) => setAdminCreateForm({...adminCreateForm, userId: e.target.value})}
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+            >
+              <option value="">Select employee</option>
+              {allUsers.map(user => (
+                <option key={user._id} value={user._id} className="text-sm">
+                  {user.firstName} {user.lastName} ({user.employeeId})
+                </option>
+              ))}
+            </select>
+          </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Meal Preference
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setAdminCreateForm({...adminCreateForm, preference: 'office'})}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        adminCreateForm.preference === 'office'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center">
-                        <Coffee className={`mb-2 ${
-                          adminCreateForm.preference === 'office' ? 'text-purple-600' : 'text-gray-400'
-                        }`} size={24} />
-                        <span className="font-medium">Office Meal</span>
-                      </div>
-                    </button>
+          {/* Meal Preference - More Compact */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Meal Preference
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setAdminCreateForm({...adminCreateForm, preference: 'office'})}
+                className={`p-3 rounded-lg border transition-all flex items-center justify-center gap-2 ${
+                  adminCreateForm.preference === 'office'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                }`}
+              >
+                <Coffee className={`${
+                  adminCreateForm.preference === 'office' ? 'text-purple-600' : 'text-gray-400'
+                }`} size={18} />
+                <span className="text-sm font-medium">Office</span>
+              </button>
 
-                    <button
-                      onClick={() => setAdminCreateForm({...adminCreateForm, preference: 'outside'})}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        adminCreateForm.preference === 'outside'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center">
-                        <Pizza className={`mb-2 ${
-                          adminCreateForm.preference === 'outside' ? 'text-purple-600' : 'text-gray-400'
-                        }`} size={24} />
-                        <span className="font-medium">Outside Food</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">Auto Renew</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Automatically renew subscription</p>
-                    </div>
-                    <button
-                      onClick={() => setAdminCreateForm({...adminCreateForm, autoRenew: !adminCreateForm.autoRenew})}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                        adminCreateForm.autoRenew ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-                      }`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                        adminCreateForm.autoRenew ? 'translate-x-6' : 'translate-x-1'
-                      }`} />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Note (Optional)
-                  </label>
-                  <textarea
-                    value={adminCreateForm.note}
-                    onChange={(e) => setAdminCreateForm({...adminCreateForm, note: e.target.value})}
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Add a note..."
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() => setShowAdminCreateModal(false)}
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAdminCreateSubscription}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-medium"
-                >
-                  Create Subscription
-                </button>
-              </div>
+              <button
+                onClick={() => setAdminCreateForm({...adminCreateForm, preference: 'outside'})}
+                className={`p-3 rounded-lg border transition-all flex items-center justify-center gap-2 ${
+                  adminCreateForm.preference === 'outside'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                }`}
+              >
+                <Pizza className={`${
+                  adminCreateForm.preference === 'outside' ? 'text-purple-600' : 'text-gray-400'
+                }`} size={18} />
+                <span className="text-sm font-medium">Outside</span>
+              </button>
             </div>
           </div>
+
+          {/* Auto Renew - More Compact */}
+          <div className="p-3 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Auto Renew</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Auto renew subscription</p>
+              </div>
+              <button
+                onClick={() => setAdminCreateForm({...adminCreateForm, autoRenew: !adminCreateForm.autoRenew})}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  adminCreateForm.autoRenew ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  adminCreateForm.autoRenew ? 'translate-x-5' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Note - More Compact */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Note <span className="text-gray-400">(Optional)</span>
+            </label>
+            <textarea
+              value={adminCreateForm.note}
+              onChange={(e) => setAdminCreateForm({...adminCreateForm, note: e.target.value})}
+              rows={2}
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              placeholder="Add note..."
+            />
+          </div>
         </div>
-      )}
+
+        {/* Action Buttons - More Compact */}
+        <div className="mt-5 flex gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <button
+            onClick={() => setShowAdminCreateModal(false)}
+            className="flex-1 px-3 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAdminCreateSubscription}
+            className="flex-1 px-3 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all text-sm font-medium shadow-sm"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Admin Create Meal Modal */}
       {showAdminCreateMealModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
-            <div className="p-6 border-b border-purple-100 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Create Meal Request</h3>
+  <div className="fixed inset-0 bg-black/80 bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden">
+      <div className="p-6 border-b border-purple-100 dark:border-gray-700">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Create Meal Request</h3>
+          <button
+            onClick={() => setShowAdminCreateMealModal(false)}
+            className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <X className="text-gray-400" size={20} />
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable content area */}
+      <div className="overflow-y-auto max-h-[calc(90vh-180px)]">
+        <div className="p-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Select Employee
+              </label>
+              <select
+                value={adminCreateMealForm.userId}
+                onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, userId: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">Select an employee</option>
+                {allUsers.map(user => (
+                  <option key={user._id} value={user._id}>
+                    {user.firstName} {user.lastName} ({user.employeeId}) - {user.department}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Meal Preference
+              </label>
+              <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => setShowAdminCreateMealModal(false)}
-                  className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  onClick={() => setAdminCreateMealForm({...adminCreateMealForm, mealPreference: 'office'})}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    adminCreateMealForm.mealPreference === 'office'
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                  }`}
                 >
-                  <X className="text-gray-400" size={20} />
+                  <div className="flex flex-col items-center">
+                    <Coffee className={`mb-2 ${
+                      adminCreateMealForm.mealPreference === 'office' ? 'text-purple-600' : 'text-gray-400'
+                    }`} size={24} />
+                    <span className="font-medium">Office Meal</span>
+                    <span className="text-sm text-gray-500 mt-1">Office kitchen</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setAdminCreateMealForm({...adminCreateMealForm, mealPreference: 'outside'})}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    adminCreateMealForm.mealPreference === 'outside'
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                  }`}
+                >
+                  <div className="flex flex-col items-center">
+                    <Pizza className={`mb-2 ${
+                      adminCreateMealForm.mealPreference === 'outside' ? 'text-purple-600' : 'text-gray-400'
+                    }`} size={24} />
+                    <span className="font-medium">Outside Food</span>
+                    <span className="text-sm text-gray-500 mt-1">Partner restaurants</span>
+                  </div>
                 </button>
               </div>
             </div>
 
-            <div className="p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Employee
-                  </label>
-                  <select
-                    value={adminCreateMealForm.userId}
-                    onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, userId: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="">Select an employee</option>
-                    {allUsers.map(user => (
-                      <option key={user._id} value={user._id}>
-                        {user.firstName} {user.lastName} ({user.employeeId}) - {user.department}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Date
+              </label>
+              <input
+                type="date"
+                value={adminCreateMealForm.date}
+                onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, date: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Meal Preference
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setAdminCreateMealForm({...adminCreateMealForm, mealPreference: 'office'})}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        adminCreateMealForm.mealPreference === 'office'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center">
-                        <Coffee className={`mb-2 ${
-                          adminCreateMealForm.mealPreference === 'office' ? 'text-purple-600' : 'text-gray-400'
-                        }`} size={24} />
-                        <span className="font-medium">Office Meal</span>
-                        <span className="text-sm text-gray-500 mt-1">Office kitchen</span>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setAdminCreateMealForm({...adminCreateMealForm, mealPreference: 'outside'})}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        adminCreateMealForm.mealPreference === 'outside'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center">
-                        <Pizza className={`mb-2 ${
-                          adminCreateMealForm.mealPreference === 'outside' ? 'text-purple-600' : 'text-gray-400'
-                        }`} size={24} />
-                        <span className="font-medium">Outside Food</span>
-                        <span className="text-sm text-gray-500 mt-1">Partner restaurants</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    value={adminCreateMealForm.date}
-                    onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, date: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Additional Note (Optional)
-                  </label>
-                  <textarea
-                    value={adminCreateMealForm.note}
-                    onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, note: e.target.value})}
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Any special requirements or notes..."
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() => setShowAdminCreateMealModal(false)}
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAdminCreateMeal}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all font-medium"
-                >
-                  Create Meal
-                </button>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Additional Note (Optional)
+              </label>
+              <textarea
+                value={adminCreateMealForm.note}
+                onChange={(e) => setAdminCreateMealForm({...adminCreateMealForm, note: e.target.value})}
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Any special requirements or notes..."
+              />
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Fixed footer */}
+      <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowAdminCreateMealModal(false)}
+            className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAdminCreateMeal}
+            className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all font-medium"
+          >
+            Create Meal
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Approve Modal */}
       {showApproveModal && selectedSubscription && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
-            <div className="p-6 border-b border-purple-100 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Approve Subscription</h3>
-                <button
-                  onClick={() => setShowApproveModal(false)}
-                  className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                >
-                  <X className="text-gray-400" size={20} />
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Are you sure you want to approve subscription for {selectedSubscription.userInfo?.firstName} {selectedSubscription.userInfo?.lastName}?
-              </p>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Note (Optional)
-                  </label>
-                  <textarea
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Add approval note..."
-                    onChange={(e) => setUpdateForm({...updateForm, note: e.target.value})}
-                  />
-                </div>
-                
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowApproveModal(false)}
-                    className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleUpdateSubscriptionStatus('approve')}
-                    className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium"
-                  >
-                    Approve
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-xs">
+      {/* Minimal Header */}
+      <div className="px-3 py-2.5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+        <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Approve</h3>
+        <button
+          onClick={() => setShowApproveModal(false)}
+          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+        >
+          <X size={14} />
+        </button>
+      </div>
+      
+      {/* Super Compact Content */}
+      <div className="p-3">
+        <p className="text-xs text-gray-600 dark:text-gray-300 mb-2">
+          Approve for <span className="font-medium">{selectedSubscription.userInfo?.firstName}</span>?
+        </p>
+        
+        {/* Tiny Note Input */}
+        <div className="mb-3">
+          <textarea
+            rows={1}
+            className="w-full px-2.5 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500 resize-none"
+            placeholder="Note (optional)..."
+            onChange={(e) => setUpdateForm({...updateForm, note: e.target.value})}
+          />
         </div>
-      )}
+        
+        {/* Tight Buttons */}
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => setShowApproveModal(false)}
+            className="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => handleUpdateSubscriptionStatus('approve')}
+            className="flex-1 px-2 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded font-medium"
+          >
+            ✓ Approve
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Reject Modal */}
       {showRejectModal && selectedSubscription && (

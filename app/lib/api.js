@@ -1,7 +1,7 @@
 // app/lib/api.js
 import axios from "axios";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://a2itserver.onrender.com/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://a2itserver.onrender.com/api/v1" ||"http://localhost:8000/api/v1";
 
 console.log('🔧 API Base URL:', API_BASE); // ডিবাগিং যোগ করুন
 
@@ -511,120 +511,150 @@ export const adminResetPassword = async (data) => {
     throw error;
   }
 };
-// Get all employee shifts (Admin only)
-export const getAllEmployeeShifts = async () => {
-  try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
+// File: app/lib/api.js
 
-    const response = await api.get('/shift/admin/employee-shifts');
-    return response.data;
-  } catch (error) {
-    console.error('Get all employee shifts error:', error);
-    return { success: false, message: error.response?.data?.message || error.message };
-  }
-};
+// // ================= SHIFT MANAGEMENT APIs =================
 
-// Assign shift to employee (Admin only)
-export const assignShiftToEmployee = async (employeeId, shiftData) => {
-  try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
+// // Get all employee shifts (Admin only)
+// export const getAllEmployeeShifts = async () => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.post(`/shift/admin/assign-shift/${employeeId}`, shiftData);
-    return response.data;
-  } catch (error) {
-    console.error('Assign shift error:', error);
-    return { success: false, message: error.response?.data?.message || error.message };
-  }
-};
+//     // ✅ সঠিক: /admin/employee-shifts (NOT /shift/admin/employee-shifts)
+//     const response = await api.get('/admin/employee-shifts');
+//     return response.data;
+//   } catch (error) {
+//     console.error('Get all employee shifts error:', error);
+//     return { success: false, message: error.response?.data?.message || error.message };
+//   }
+// };
 
-// Reset employee shift to default (Admin only)
-export const resetEmployeeShift = async (employeeId, reason = '') => {
-  try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
+// // Assign shift to employee (Admin only) - PUT method 
+// export const assignShiftToEmployee = async (employeeId, shiftData) => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.post(`/shift/admin/reset-shift/${employeeId}`, { reason });
-    return response.data;
-  } catch (error) {
-    console.error('Reset shift error:', error);
-    return { success: false, message: error.response?.data?.message || error.message };
-  }
-};
+//     // ✅ CORRECTED ENDPOINT
+//     const response = await api.put(`/employee/${employeeId}/shift`, shiftData);
+//     return response.data;
+//   } catch (error) {
+//     console.error('Assign shift error:', error);
+//     return { 
+//       success: false, 
+//       message: error.response?.data?.message || error.message 
+//     };
+//   }
+// };
 
-// Update default shift timing (Admin only)
-export const updateDefaultShift = async (startTime, endTime) => {
-  try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
+// // Reset employee shift to default (Admin only)
+// export const resetEmployeeShift = async (employeeId, reason = '') => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.put('/admin/default-shift', { startTime, endTime });
-    return response.data;
-  } catch (error) {
-    console.error('Update default shift error:', error);
-    return { success: false, message: error.response?.data?.message || error.message };
-  }
-};
+//     // ✅ সঠিক: POST /admin/reset-shift/:employeeId (NOT /shift/admin/reset-shift/:employeeId)
+//     const response = await api.post(`/admin/reset-shift/${employeeId}`, { reason });
+//     return response.data;
+//   } catch (error) {
+//     console.error('Reset shift error:', error);
+//     return { success: false, message: error.response?.data?.message || error.message };
+//   }
+// };
 
-// Get employee shift history (Admin only)
-export const getEmployeeShiftHistory = async (employeeId) => {
-  try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
+// // Update default shift timing (Admin only)
+// export const updateDefaultShift = async (startTime, endTime) => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.get(`/admin/shift-history/${employeeId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Get shift history error:', error);
-    return { success: false, message: error.response?.data?.message || error.message };
-  }
-};
+//     // ✅ সঠিক: PUT /admin/default-shift
+//     const response = await api.put('/admin/default-shift', { startTime, endTime });
+//     return response.data;
+//   } catch (error) {
+//     console.error('Update default shift error:', error);
+//     return { success: false, message: error.response?.data?.message || error.message };
+//   }
+// };
 
-// Bulk assign shifts (Admin only)
-export const bulkAssignShifts = async (employeeIds, shiftData) => {
-  try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
+// // Get employee shift history (Admin only)
+// export const getEmployeeShiftHistory = async (employeeId) => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.post('/shift/admin/bulk-assign-shifts', { 
-      employeeIds, 
-      ...shiftData 
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Bulk assign shifts error:', error);
-    return { success: false, message: error.response?.data?.message || error.message };
-  }
-};
+//     // ✅ সঠিক: GET /admin/shift-history/:employeeId
+//     const response = await api.get(`/admin/shift-history/${employeeId}`);
+//     return response.data;
+//   } catch (error) {
+//     console.error('Get shift history error:', error);
+//     return { success: false, message: error.response?.data?.message || error.message };
+//   }
+// };
 
-// Get shift statistics (Admin only)
-export const getShiftStatistics = async () => {
-  try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
+// // Bulk assign shifts (Admin only)
+// export const bulkAssignShifts = async (employeeIds, shiftData) => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.get('/admin/shift-statistics');
-    return response.data;
-  } catch (error) {
-    console.error('Get shift statistics error:', error);
-    return { success: false, message: error.response?.data?.message || error.message };
-  }
-};
+//     // ✅ সঠিক: POST /admin/bulk-assign-shifts (NOT /shift/admin/bulk-assign-shifts)
+//     const response = await api.post('/admin/bulk-assign-shifts', { 
+//       employeeIds, 
+//       ...shiftData 
+//     });
+//     return response.data;
+//   } catch (error) {
+//     console.error('Bulk assign shifts error:', error);
+//     return { success: false, message: error.response?.data?.message || error.message };
+//   }
+// };
 
-// Get my shift (Employee)
-export const getMyShift = async () => {
-  try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
+// // Get shift statistics (Admin only)
+// export const getShiftStatistics = async () => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
 
-    const response = await api.get('/shift/my-shift');
-    return response.data;
-  } catch (error) {
-    console.error('Get my shift error:', error);
-    return { success: false, message: error.response?.data?.message || error.message };
-  }
-}; 
+//     // ✅ সঠিক: GET /admin/shift-statistics
+//     const response = await api.get('/admin/shift-statistics');
+//     return response.data;
+//   } catch (error) {
+//     console.error('Get shift statistics error:', error);
+//     return { success: false, message: error.response?.data?.message || error.message };
+//   }
+// };
+
+// // Get my shift (Employee)
+// export const getMyShift = async () => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
+
+//     // ✅ সঠিক: GET /my-shift (NOT /shift/my-shift)
+//     const response = await api.get('/my-shift');
+//     return response.data;
+//   } catch (error) {
+//     console.error('Get my shift error:', error);
+//     return { success: false, message: error.response?.data?.message || error.message };
+//   }
+// };
+
+// // Get specific employee's shift (Admin or Self)
+// export const getEmployeeShift = async (employeeId) => {
+//   try {
+//     const token = getToken();
+//     if (!token) throw new Error('No authentication token found');
+
+//     // ✅ সঠিক: GET /employee/:employeeId/shift
+//     const response = await api.get(`/employee/${employeeId}/shift`);
+//     return response.data;
+//   } catch (error) {
+//     console.error('Get employee shift error:', error);
+//     return { success: false, message: error.response?.data?.message || error.message };
+//   }
+// }; 
  
 // Welcome Email পাঠানোর API 
 // app/lib/api.js - sendWelcomeEmail ফাংশন

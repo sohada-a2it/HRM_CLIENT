@@ -1,322 +1,52 @@
-// app/sessions/page.jsx - Complete Single Page Design
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  // Icons
   Clock, Calendar, Filter, Search, Download, Trash2, Eye, MoreVertical,
-  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, User, Smartphone,
+  ChevronLeft, ChevronRight, ChevronDown, User, Smartphone,
   Globe, Shield, AlertCircle, CheckCircle, XCircle, RefreshCw, BarChart3,
-  Users, Smartphone as DeviceIcon, Zap, CalendarDays, Clock as ClockIcon,
-  DollarSign, TrendingUp, ShieldAlert, FileText, Settings, LogOut, Plus,
-  Edit, Save, X, History, Building, Briefcase, CreditCard, Activity,
-  MapPin, Mail, Phone, Lock, EyeOff, Upload, Camera, Image as ImageIcon,
-  Loader2, ExternalLink, Bell, AlertTriangle, Check, Info, HelpCircle,
-  Star, Award, Target, PieChart, LineChart, BarChart, Cloud, Database,
-  HardDrive, ShieldCheck, Key, Cpu, Wifi, Battery, Signal, Thermometer,
-  Wind, Sun, Moon, CloudRain, CloudSnow, CloudLightning,
-  // Additional icons for purple theme
-  Home, UserPlus, UserCheck, UserX, CheckSquare, Square, PlayCircle,
-  PauseCircle, StopCircle, BatteryCharging, Server, Network, Bluetooth,
-  Radio, Satellite, WifiOff, SignalHigh, SignalMedium, SignalLow,
-  ThermometerSun, ThermometerSnowflake, CloudOff, SunDim, MoonStar,
-  Sunrise, Sunset, CloudSun, CloudMoon, CloudFog, WindIcon,
-  Droplets, Umbrella, Snowflake, Tornado, Hurricane, Earthquake,
-  Volcano, Meteor, Alien, Ghost, Skull, Heart, HeartPulse,
-  Brain, Bone, Pill, Stethoscope, Ambulance, Hospital,
-  // Tab icons
-  LayoutDashboard, Table, Grid, List,  Map,
-  // Analytics icons
-  TrendingDown, TrendingUp as TrendingUpIcon, Target as TargetIcon,
-  BarChart as BarChartIcon, LineChart as LineChartIcon,
-  // Settings icons
-  Sliders, ToggleLeft, ToggleRight, BellRing, Mail as MailIcon,
-  MessageSquare, PhoneCall, Video, Mic, MicOff, Headphones,
-  Volume2, VolumeX, Settings as SettingsIcon, Key as KeyIcon,
-  Shield as ShieldIcon, Lock as LockIcon, Unlock, Fingerprint,
-  QrCode, Scan, Camera as CameraIcon, Video as VideoIcon,
-  Radio as RadioIcon, Bluetooth as BluetoothIcon, Wifi as WifiIcon,
-  // User icons
-  UserCircle, UserRound, Users as UsersIcon, UserRoundCheck,
-  UserRoundPlus, UserRoundX, UserRoundSearch, UserRoundCog,
-  // Device icons
-  Smartphone as SmartphoneIcon, Tablet, Monitor, Laptop,
-  Printer, Scanner, Router, HardDrive as HardDriveIcon,
-  Database as DatabaseIcon, Server as ServerIcon,
-  // Location icons
-  MapPin as MapPinIcon, Navigation, Compass, Globe as GlobeIcon,
-  Map as MapIcon, Flag, Navigation as NavigationIcon,
-  // Time icons
-  Watch, AlarmClock, Timer, Hourglass, Calendar as CalendarIcon,
-  CalendarClock, CalendarDays as CalendarDaysIcon,
-  CalendarCheck, CalendarX,
-  // Status icons
-  Circle, CircleDot, CircleCheck, CircleX, CircleAlert,
-  CircleHelp, CircleMinus, CirclePlus, Radio as RadioIcon2,
-  Dot, DotSquare,
-  // Action icons
-  Play, Pause, Stop, SkipBack, SkipForward, Rewind, FastForward,
-  Power, PowerOff, Zap as ZapIcon, Battery as BatteryIcon,
-  BatteryFull, BatteryMedium, BatteryLow, BatteryWarning,
-  // File icons
-  File, FileText as FileTextIcon, FileCode, FileSpreadsheet,
-  FileArchive, FileAudio, FileVideo, FileImage, FilePdf,
-  FileWord, FileExcel, FilePowerpoint,
-  // Arrow icons
-  ArrowLeft, ArrowRight, ArrowUp, ArrowDown, ArrowUpRight,
-  ArrowDownRight, ArrowUpLeft, ArrowDownLeft, MoveLeft,
-  MoveRight, MoveUp, MoveDown, ChevronUp as ChevronUpIcon,
-  ChevronDown as ChevronDownIcon, ChevronLeft as ChevronLeftIcon,
-  ChevronRight as ChevronRightIcon,
-  // Other icons
-  Star as StarIcon, Heart as HeartIcon, ThumbsUp, ThumbsDown,
-  Bookmark, BookmarkCheck, Tag, Tags, Hash, AtSign, Percent,
-  DollarSign as DollarSignIcon, Euro, PoundSterling, Yen,
-  Bitcoin, CreditCard as CreditCardIcon, Wallet, Receipt,
-  ShoppingCart, Package, Truck, Home as HomeIcon, Building as BuildingIcon,
-  Factory, Warehouse, Store, Hotel, School, University, Hospital as HospitalIcon,
-  Church, Mosque, TempleHindu, TempleBuddhist, Synagogue,
-  // Weather icons
-  Cloud as CloudIcon, CloudDrizzle, CloudRain as CloudRainIcon,
-  CloudSnow as CloudSnowIcon, CloudLightning as CloudLightningIcon,
-  CloudFog as CloudFogIcon, Sun as SunIcon, Moon as MoonIcon,
-  Sunrise as SunriseIcon, Sunset as SunsetIcon, Thermometer as ThermometerIcon,
-    Droplets as DropletsIcon,
-  // Sports icons
-  Trophy, Medal, Award as AwardIcon, Crown, Flag as FlagIcon,
-  Target as TargetIcon2, Sword, Shield as ShieldIcon2, Helmet,
-  // Food icons
-  Apple, Banana, Carrot, Pizza, Hamburger, Coffee, Wine, Beer,
-  // Travel icons
-  Car, Bus, Train, Plane, Ship, Bike, Walking, Running,
-  // Music icons
-  Music, Headphones as HeadphonesIcon, Radio as RadioIcon3,
-  Microphone as MicrophoneIcon, Volume as VolumeIcon,
-  // Game icons
-  Gamepad2, Dice, Chess, Puzzle,
-  // Communication icons
-  Phone as PhoneIcon, Mail as MailIcon2, MessageCircle,
-  MessageSquare as MessageSquareIcon, PhoneCall as PhoneCallIcon,
-  Video as VideoIcon2,
-  // Social icons
-  Facebook, Instagram, Twitter, Youtube, Linkedin, Github,
-  // Tech icons
-  Code, Terminal, Cpu as CpuIcon, MemoryStick, HardDrive as HardDriveIcon2,
-  Server as ServerIcon2, Database as DatabaseIcon2, Network as NetworkIcon,
-  Wifi as WifiIcon2, Bluetooth as BluetoothIcon2, Radio as RadioIcon4,
-  Satellite as SatelliteIcon, QrCode as QrCodeIcon, Scan as ScanIcon,
-  // Shopping icons
-  ShoppingBag, ShoppingCart as ShoppingCartIcon, Store as StoreIcon,
-  Tag as TagIcon, Percent as PercentIcon, Ticket, Gift,
-  // Finance icons
-  CreditCard as CreditCardIcon2, Wallet as WalletIcon, Banknote,
-  Coins, PiggyBank, TrendingUp as TrendingUpIcon2,
-  TrendingDown as TrendingDownIcon, ChartBar, ChartLine,
-  ChartPie,
-  // Health icons
-  Heart as HeartIcon2, HeartPulse as HeartPulseIcon, Pill as PillIcon,
-  Stethoscope as StethoscopeIcon, Syringe, Thermometer as ThermometerIcon2,
-  // Education icons
-  Book, BookOpen, GraduationCap, School as SchoolIcon,
-  University as UniversityIcon,
-  // Nature icons
-  Leaf, Tree, Flower, Mountain, Waves, Fish, Bird, Cat, Dog,
-  // Tools icons
-  Wrench, Hammer, Screwdriver, Drill, Paintbrush, Palette,
-  Scissors, Ruler, EyeDropper,
-  // Safety icons
-  Shield as ShieldIcon3, ShieldCheck as ShieldCheckIcon,
-  ShieldAlert as ShieldAlertIcon, Lock as LockIcon2,
-  Key as KeyIcon2, Fingerprint as FingerprintIcon,
-  // Transportation icons
-  Car as CarIcon, Bus as BusIcon, Train as TrainIcon,
-  Plane as PlaneIcon, Ship as ShipIcon, Bike as BikeIcon,
-  // Real estate icons
-  Home as HomeIcon2, Building as BuildingIcon2, Factory as FactoryIcon,
-  Warehouse as WarehouseIcon, Store as StoreIcon2, Hotel as HotelIcon,
-  // Religion icons
-  Church as ChurchIcon, Mosque as MosqueIcon, TempleHindu as TempleHinduIcon,
-  TempleBuddhist as TempleBuddhistIcon, Synagogue as SynagogueIcon,
-  StarOfDavid, Om, YinYang,
-  // Holiday icons
-  ChristmasTree, Gift as GiftIcon, Snowflake as SnowflakeIcon,
-  Fire, Candle, Menorah,
-  // Space icons
-  Rocket, SatelliteDish, UFO, Alien as AlienIcon,
-  Meteor as MeteorIcon, Planet, Galaxy, Telescope,
-  // Fantasy icons
-  Dragon, Unicorn, Wizard, Fairy, Ghost as GhostIcon,
-  Skull as SkullIcon, Sword as SwordIcon, Shield as ShieldIcon4,
-  Helmet as HelmetIcon,
-  // Office icons
-  Briefcase as BriefcaseIcon, Clipboard, File as FileIcon,
-  Folder, FolderOpen, Archive, Printer as PrinterIcon,
-  Scanner as ScannerIcon,
-  // Home icons
-  Sofa, Bed, Bath, Kitchen, Dining, Chair, Lamp, Tv,
-  // Fashion icons
-  Shirt, TShirt, Dress, Glasses, Hat, Shoe, Bag, Jewelry,
-  // Art icons
-  Paintbrush as PaintbrushIcon, Palette as PaletteIcon,
-  Camera as CameraIcon2, Film, Music as MusicIcon2,
-  Theater, Mask,
-  // Science icons
-  Atom, Flask, Microscope, Telescope as TelescopeIcon,
-  DNA, Virus, Magnet, Lightbulb,
-  // Law icons
-  Scale, Gavel, LawBook, Handcuffs, Police,
-  // Military icons
-  Tank, FighterJet, Warship, Gun, Bomb,
-  // Agriculture icons
-  Tractor, Barn, Wheat, Corn, Cow, Chicken,
-  // Construction icons
-  Crane, Excavator, Bulldozer, HardHat, CementMixer,
-  // Entertainment icons
-  Film as FilmIcon, Tv as TvIcon, Radio as RadioIcon5,
-  Gamepad as GamepadIcon, Dice as DiceIcon, Chess as ChessIcon,
-  // Utility icons
-  Flashlight, Battery as BatteryIcon2, Plug, Outlet,
-  Lightbulb as LightbulbIcon, FireExtinguisher, FirstAid,
-  // Navigation icons
-  Compass as CompassIcon, Map as MapIcon2, Navigation as NavigationIcon2,
-  Flag as FlagIcon2, Signpost,
-  // Text icons
-  Type, Bold, Italic, Underline, Strikethrough, Heading,
-  Paragraph, List as ListIcon, ListOrdered, ListChecks,
-  Quote, Code as CodeIcon2, Terminal as TerminalIcon,
-  // Media icons
-  Play as PlayIcon, Pause as PauseIcon, Stop as StopIcon,
-  SkipBack as SkipBackIcon, SkipForward as SkipForwardIcon,
-  Rewind as RewindIcon, FastForward as FastForwardIcon,
-  Volume as VolumeIcon2, Volume1, Volume2 as Volume2Icon,
-  VolumeX as VolumeXIcon, Mic as MicIcon, MicOff as MicOffIcon,
-  Headphones as HeadphonesIcon2,
-  // Communication icons 2
-  Phone as PhoneIcon2, PhoneOff, PhoneMissed, PhoneForwarded,
-  PhoneIncoming, PhoneOutgoing, Voicemail, Message as MessageIcon,
-  MessageCircle as MessageCircleIcon, MessageSquare as MessageSquareIcon2,
-  MessageSquareDashed, MessageSquarePlus,
-  // Social icons 2
-  Facebook as FacebookIcon, Instagram as InstagramIcon,
-  Twitter as TwitterIcon, Youtube as YoutubeIcon,
-  Linkedin as LinkedinIcon, Github as GithubIcon,
-  Gitlab, Bitbucket, Slack, Discord, Twitch, Reddit,
-  // Brand icons
-  Apple as AppleIcon, Windows, Linux, Android, Chrome,
-  Firefox, Safari, Edge, Opera,
-  // Payment icons
-  CreditCard as CreditCardIcon3, Bitcoin as BitcoinIcon,
-  Ethereum, Paypal, Stripe, Visa, Mastercard, AmericanExpress,
-  // Document icons
-  File as FileIcon2, FileText as FileTextIcon2, FileCode as FileCodeIcon,
-  FileSpreadsheet as FileSpreadsheetIcon, FileArchive as FileArchiveIcon,
-  FileAudio as FileAudioIcon, FileVideo as FileVideoIcon,
-  FileImage as FileImageIcon, FilePdf as FilePdfIcon,
-  FileWord as FileWordIcon, FileExcel as FileExcelIcon,
-  FilePowerpoint as FilePowerpointIcon,
-  // Data icons
-  Database as DatabaseIcon3, Server as ServerIcon3,
-  Cloud as CloudIcon2, HardDrive as HardDriveIcon3,
-  MemoryStick as MemoryStickIcon, Cpu as CpuIcon2,
-  // Network icons
-  Wifi as WifiIcon3, WifiOff as WifiOffIcon, Bluetooth as BluetoothIcon3,
-  Radio as RadioIcon6, Satellite as SatelliteIcon2,
-  Network as NetworkIcon2, Router as RouterIcon,
-  // Security icons
-  Shield as ShieldIcon5, ShieldCheck as ShieldCheckIcon2,
-  ShieldAlert as ShieldAlertIcon2, Lock as LockIcon3,
-  Key as KeyIcon3, Fingerprint as FingerprintIcon2,
-  QrCode as QrCodeIcon2, Scan as ScanIcon2,
-  // Time icons 2
-  Watch as WatchIcon, AlarmClock as AlarmClockIcon,
-  Timer as TimerIcon, Hourglass as HourglassIcon,
-  Calendar as CalendarIcon2, CalendarClock as CalendarClockIcon,
-  CalendarDays as CalendarDaysIcon2, CalendarCheck as CalendarCheckIcon,
-  CalendarX as CalendarXIcon,
-  // Weather icons 2
-  Cloud as CloudIcon3, CloudDrizzle as CloudDrizzleIcon,
-  CloudRain as CloudRainIcon2, CloudSnow as CloudSnowIcon2,
-  CloudLightning as CloudLightningIcon2, CloudFog as CloudFogIcon2,
-  Sun as SunIcon2, Moon as MoonIcon2, Sunrise as SunriseIcon2,
-  Sunset as SunsetIcon2, Thermometer as ThermometerIcon3,
-  Umbrella as UmbrellaIcon2, Wind as WindIcon2,
-  Droplets as DropletsIcon2,
-  // Food icons 2
-  Apple as AppleIcon2, Banana as BananaIcon, Carrot as CarrotIcon,
-  Pizza as PizzaIcon, Hamburger as HamburgerIcon,
-  Coffee as CoffeeIcon, Wine as WineIcon, Beer as BeerIcon,
-  // Travel icons 2
-  Car as CarIcon2, Bus as BusIcon2, Train as TrainIcon2,
-  Plane as PlaneIcon2, Ship as ShipIcon2, Bike as BikeIcon2,
-  Walking as WalkingIcon, Running as RunningIcon,
-  // Music icons 2
-  Music as MusicIcon3, Headphones as HeadphonesIcon3,
-  Radio as RadioIcon7, Microphone as MicrophoneIcon2,
-  Volume as VolumeIcon3,
-  // Game icons 2
-  Gamepad2 as GamepadIcon2, Dice as DiceIcon2, Chess as ChessIcon2,
-  Puzzle as PuzzleIcon,
-  // Communication icons 3
-  Phone as PhoneIcon3, Mail as MailIcon3, MessageCircle as MessageCircleIcon2,
-  MessageSquare as MessageSquareIcon3, PhoneCall as PhoneCallIcon2,
-  Video as VideoIcon3,
-  // Social icons 3
-  Facebook as FacebookIcon2, Instagram as InstagramIcon2,
-  Twitter as TwitterIcon2, Youtube as YoutubeIcon2,
-  Linkedin as LinkedinIcon2, Github as GithubIcon2,
-  // Shopping icons 2
-  ShoppingBag as ShoppingBagIcon, ShoppingCart as ShoppingCartIcon2,
-  Store as StoreIcon3, Tag as TagIcon2, Percent as PercentIcon2,
-  Ticket as TicketIcon, Gift as GiftIcon2,
-  // Finance icons 2
-  CreditCard as CreditCardIcon4, Wallet as WalletIcon2,
-  Banknote as BanknoteIcon, Coins as CoinsIcon,
-  PiggyBank as PiggyBankIcon, TrendingUp as TrendingUpIcon3,
-  TrendingDown as TrendingDownIcon2, ChartBar as ChartBarIcon,
-  ChartLine as ChartLineIcon, ChartPie as ChartPieIcon
+  Users, Zap, DollarSign, TrendingUp, ShieldAlert, Plus,
+  Settings, LogOut, MapPin, PowerOff, Table, Grid, Home,
+  ShieldCheck, ArrowUpDown, Activity, Cpu, Hash, Battery,
+  Wifi, WifiOff, Map, Navigation, Server, Database,
+  HardDrive, Terminal, Play, Pause, StopCircle, X,
+  ExternalLink, Copy, Earth, Monitor, Smartphone as Phone,
+  Tablet, Laptop, Wifi as WifiIcon, Signal, Battery as BatteryIcon,
+  Activity as ActivityIcon, FileText, Key, LogIn, LogOut as LogOutIcon,
+  Info, AlertTriangle, CalendarDays, Clock as ClockIcon,
+  Navigation as NavigationIcon, Map as MapIcon, Building, Flag,
+  Mail, Phone as PhoneIcon, Globe as GlobeIcon, Cpu as CpuIcon,
+  MemoryStick, HardDrive as HardDriveIcon, Layers
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
-export default function Page() {
+export default function SessionsPage() {
   const router = useRouter();
   
-  // ==================== STATE VARIABLES ====================
-  // User state
+  // State variables
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  // Sessions state
   const [sessions, setSessions] = useState([]);
   const [filteredSessions, setFilteredSessions] = useState([]);
-  const [totalSessions, setTotalSessions] = useState(0);
-  
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [sessionsPerPage, setSessionsPerPage] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
+  const [totalSessions, setTotalSessions] = useState(0);
   
-  // Filters
   const [filters, setFilters] = useState({
     status: 'all',
-    role: 'all',
-    dateRange: '30days',
     search: '',
-    device: 'all',
-    showAutoDelete: false,
     startDate: '',
-    endDate: ''
+    endDate: '',
+    device: 'all',
+    sortBy: 'loginAt',
+    sortOrder: 'desc'
   });
   
-  // View mode
-  const [viewMode, setViewMode] = useState('table'); // 'table', 'card', 'timeline'
-  const [activeTab, setActiveTab] = useState('sessions'); // 'sessions', 'analytics', 'deletion'
-  
-  // Selected sessions for bulk operations
+  const [viewMode, setViewMode] = useState('table');
   const [selectedSessions, setSelectedSessions] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   
-  // Stats
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -325,39 +55,16 @@ export default function Page() {
     terminated: 0,
     totalHours: 0,
     avgDuration: '0m',
-    deletionCount: 0,
-    uniqueUsers: 0,
-    avgSessionDuration: 0
+    uniqueUsers: 0
   });
   
-  // Analytics data
-  const [analytics, setAnalytics] = useState({
-    dailyStats: [],
-    deviceStats: [],
-    roleDistribution: [],
-    hourlyTrends: []
-  });
+  // Session Details Modal State
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sessionDetails, setSessionDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   
-  // Auto-delete data
-  const [deletionData, setDeletionData] = useState({
-    sessionsNearingDeletion: [],
-    nextCleanup: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    retentionDays: 30,
-    autoDeleteEnabled: true
-  });
-  
-  // User settings
-  const [userSettings, setUserSettings] = useState({
-    theme: 'purple',
-    compactView: false,
-    darkMode: false,
-    notifications: true,
-    autoRefresh: false
-  });
-  
-  // ==================== HELPER FUNCTIONS ====================
-  
-  // Get user type and token
+  // User type detection
   const getUserType = () => {
     if (typeof window === 'undefined') return null;
     if (localStorage.getItem("adminToken")) return "admin";
@@ -380,83 +87,98 @@ export default function Page() {
     }
   };
   
-  // User role helpers
-  const isAdmin = () => user?.role === "admin" || user?.role === "superAdmin";
-  const isModerator = () => user?.role === "moderator";
-  const isEmployee = () => user?.role === "employee";
+  const isAdmin = () => {
+    if (!user) return false;
+    return user.role === "admin" || user.role === "superAdmin";
+  };
   
-  // Get role color (purple theme)
-  const getRoleColor = (role) => {
-    switch(role) {
-      case 'admin':
-      case 'superAdmin':
+  const isModerator = () => {
+    if (!user) return false;
+    return user.role === "moderator";
+  };
+  
+  const isEmployee = () => {
+    if (!user) return false;
+    return user.role === "employee";
+  };
+  
+  // Get status color and badge
+  const getStatusBadge = (status) => {
+    switch(status?.toLowerCase()) {
+      case 'active':
         return {
-          bg: 'from-indigo-500 to-purple-600',
-          text: 'text-indigo-600',
-          light: 'bg-indigo-50 text-indigo-700',
-          dark: 'bg-indigo-900 text-indigo-100'
+          text: 'Active',
+          color: 'text-emerald-600',
+          bg: 'bg-emerald-50',
+          icon: '●',
+          light: 'bg-emerald-500/10 text-emerald-600'
         };
-      case 'moderator':
+      case 'completed':
         return {
-          bg: 'from-violet-500 to-purple-500',
-          text: 'text-violet-600',
-          light: 'bg-violet-50 text-violet-700',
-          dark: 'bg-violet-900 text-violet-100'
+          text: 'Completed',
+          color: 'text-blue-600',
+          bg: 'bg-blue-50',
+          icon: '✓',
+          light: 'bg-blue-500/10 text-blue-600'
         };
-      case 'employee':
+      case 'expired':
         return {
-          bg: 'from-purple-500 to-pink-500',
-          text: 'text-purple-600',
-          light: 'bg-purple-50 text-purple-700',
-          dark: 'bg-purple-900 text-purple-100'
+          text: 'Expired',
+          color: 'text-amber-600',
+          bg: 'bg-amber-50',
+          icon: '⌛',
+          light: 'bg-amber-500/10 text-amber-600'
+        };
+      case 'terminated':
+        return {
+          text: 'Terminated',
+          color: 'text-rose-600',
+          bg: 'bg-rose-50',
+          icon: '✗',
+          light: 'bg-rose-500/10 text-rose-600'
         };
       default:
         return {
-          bg: 'from-gray-500 to-gray-600',
-          text: 'text-gray-600',
-          light: 'bg-gray-50 text-gray-700',
-          dark: 'bg-gray-900 text-gray-100'
+          text: 'Unknown',
+          color: 'text-gray-600',
+          bg: 'bg-gray-50',
+          icon: '?',
+          light: 'bg-gray-500/10 text-gray-600'
         };
     }
   };
   
-  // Get status badge
-  const getStatusBadge = (status) => {
-    switch(status) {
-      case 'active':
+  // Get role color
+  const getRoleColor = (role) => {
+    switch(role?.toLowerCase()) {
+      case 'admin':
+      case 'superadmin':
         return {
-          color: 'bg-gradient-to-r from-emerald-500 to-green-500',
-          text: 'Active',
-          icon: <Zap className="w-3 h-3" />,
-          light: 'bg-emerald-50 text-emerald-700'
+          bg: 'bg-gradient-to-r from-violet-500 to-purple-600',
+          text: 'text-violet-600',
+          light: 'bg-violet-50 text-violet-700',
+          icon: '👑'
         };
-      case 'completed':
+      case 'moderator':
         return {
-          color: 'bg-gradient-to-r from-blue-500 to-cyan-500',
-          text: 'Completed',
-          icon: <CheckCircle className="w-3 h-3" />,
-          light: 'bg-blue-50 text-blue-700'
+          bg: 'bg-gradient-to-r from-indigo-500 to-blue-600',
+          text: 'text-indigo-600',
+          light: 'bg-indigo-50 text-indigo-700',
+          icon: '🛡️'
         };
-      case 'expired':
+      case 'employee':
         return {
-          color: 'bg-gradient-to-r from-orange-500 to-amber-500',
-          text: 'Expired',
-          icon: <Clock className="w-3 h-3" />,
-          light: 'bg-orange-50 text-orange-700'
-        };
-      case 'terminated':
-        return {
-          color: 'bg-gradient-to-r from-red-500 to-pink-500',
-          text: 'Terminated',
-          icon: <XCircle className="w-3 h-3" />,
-          light: 'bg-red-50 text-red-700'
+          bg: 'bg-gradient-to-r from-purple-500 to-pink-600',
+          text: 'text-purple-600',
+          light: 'bg-purple-50 text-purple-700',
+          icon: '👨‍💼'
         };
       default:
         return {
-          color: 'bg-gradient-to-r from-gray-500 to-gray-600',
-          text: 'Unknown',
-          icon: <HelpCircle className="w-3 h-3" />,
-          light: 'bg-gray-50 text-gray-700'
+          bg: 'bg-gradient-to-r from-gray-500 to-gray-600',
+          text: 'text-gray-600',
+          light: 'bg-gray-50 text-gray-700',
+          icon: '👤'
         };
     }
   };
@@ -466,13 +188,31 @@ export default function Page() {
     if (!dateString) return "N/A";
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
+      return new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).format(date);
+    } catch (error) {
+      return "Invalid Date";
+    }
+  };
+  
+  // Format date for display (without seconds)
+  const formatDateShort = (dateString) => {
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-      });
+      }).format(date);
     } catch (error) {
       return "Invalid Date";
     }
@@ -497,163 +237,415 @@ export default function Page() {
     return `${Math.floor(minutes)}m`;
   };
   
-  // Format time ago
-  const timeAgo = (dateString) => {
-    if (!dateString) return "Never";
+  // Parse device from userAgent
+  const parseDeviceInfo = (userAgent) => {
+    if (!userAgent) return { device: 'Unknown', browser: 'Unknown', os: 'Unknown' };
     
-    const date = new Date(dateString);
-    const now = new Date();
-    const seconds = Math.floor((now - date) / 1000);
+    const ua = userAgent.toLowerCase();
+    const result = {
+      device: 'Desktop',
+      browser: 'Unknown',
+      os: 'Unknown',
+      deviceIcon: <Monitor className="w-5 h-5" />
+    };
     
-    if (seconds < 60) return "Just now";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
-    return formatDate(dateString);
+    if (ua.includes('mobile')) {
+      result.device = 'Mobile';
+      result.deviceIcon = <Phone className="w-5 h-5" />;
+    }
+    else if (ua.includes('tablet')) {
+      result.device = 'Tablet';
+      result.deviceIcon = <Tablet className="w-5 h-5" />;
+    }
+    else if (ua.includes('laptop')) {
+      result.device = 'Laptop';
+      result.deviceIcon = <Laptop className="w-5 h-5" />;
+    }
+    
+    if (ua.includes('chrome') && !ua.includes('edge')) result.browser = 'Chrome';
+    else if (ua.includes('firefox')) result.browser = 'Firefox';
+    else if (ua.includes('safari') && !ua.includes('chrome')) result.browser = 'Safari';
+    else if (ua.includes('edge')) result.browser = 'Edge';
+    else if (ua.includes('opera')) result.browser = 'Opera';
+    else if (ua.includes('brave')) result.browser = 'Brave';
+    
+    if (ua.includes('windows')) result.os = 'Windows';
+    else if (ua.includes('mac os')) result.os = 'macOS';
+    else if (ua.includes('linux')) result.os = 'Linux';
+    else if (ua.includes('android')) result.os = 'Android';
+    else if (ua.includes('ios') || ua.includes('iphone')) result.os = 'iOS';
+    
+    return result;
   };
   
-  // ==================== API FUNCTIONS ====================
+  // Get device icon
+  const getDeviceIcon = (device) => {
+    switch(device?.toLowerCase()) {
+      case 'mobile':
+        return <Phone className="w-5 h-5" />;
+      case 'tablet':
+        return <Tablet className="w-5 h-5" />;
+      case 'laptop':
+        return <Laptop className="w-5 h-5" />;
+      default:
+        return <Monitor className="w-5 h-5" />;
+    }
+  };
   
-  // Fetch user data
-  const fetchUserData = async () => {
+  // Get browser icon
+  const getBrowserIcon = (browser) => {
+    switch(browser?.toLowerCase()) {
+      case 'chrome':
+        return <GlobeIcon className="w-5 h-5 text-red-500" />;
+      case 'firefox':
+        return <GlobeIcon className="w-5 h-5 text-orange-500" />;
+      case 'safari':
+        return <GlobeIcon className="w-5 h-5 text-blue-500" />;
+      case 'edge':
+        return <GlobeIcon className="w-5 h-5 text-blue-600" />;
+      default:
+        return <GlobeIcon className="w-5 h-5" />;
+    }
+  };
+  
+  // Fetch user profile
+  const fetchUserProfile = async () => {
     try {
       const token = getCurrentToken();
-      if (!token) {
+      const userType = getUserType();
+      
+      if (!token || !userType) {
+        localStorage.clear();
         router.push("/");
-        return;
+        return null;
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
+      // Determine endpoint based on user type
+      let endpoint;
+      if (userType === 'admin') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`;
+      } else if (userType === 'moderator') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
+      } else if (userType === 'employee') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
+      } else {
+        localStorage.clear();
+        router.push("/");
+        return null;
+      }
+      
+      const response = await fetch(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
       
-      if (response.status === 401) {
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user || data);
+        return data.user || data;
+      } else {
+        localStorage.clear();
+        router.push("/");
+        return null;
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      toast.error("Failed to load user data");
+      return null;
+    }
+  };
+  
+  // Fetch session details
+  const fetchSessionDetails = async (sessionId) => {
+    try {
+      setLoadingDetails(true);
+      const token = getCurrentToken();
+      const userType = getUserType();
+      
+      if (!token || !userType) {
+        toast.error("Authentication required");
+        return null;
+      }
+      
+      let endpoint;
+      if (userType === 'admin') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/details/${sessionId}`;
+      } else if (userType === 'moderator') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/details/${sessionId}`;
+      } else {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/my/details/${sessionId}`;
+      }
+      
+      const response = await fetch(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSessionDetails(data.data || data);
+        return data.data || data;
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || "Failed to load session details");
+        return null;
+      }
+    } catch (error) {
+      console.error("Error fetching session details:", error);
+      toast.error("Failed to load session details");
+      return null;
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+  
+  // Open session details modal
+  const openSessionDetails = async (session) => {
+    setSelectedSession(session);
+    setIsModalOpen(true);
+    
+    // Fetch detailed session information
+    const details = await fetchSessionDetails(session.id);
+    if (!details) {
+      // If API call fails, use the basic session data
+      setSessionDetails(session);
+    }
+  };
+  
+  // Close modal
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedSession(null);
+    setSessionDetails(null);
+  };
+  
+  // Copy to clipboard
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text)
+      .then(() => toast.success("Copied to clipboard"))
+      .catch(() => toast.error("Failed to copy"));
+  };
+  
+  // Fetch sessions based on user role
+  const fetchSessions = async () => {
+    try {
+      setLoading(true);
+      const token = getCurrentToken();
+      const userType = getUserType();
+      
+      if (!token || !userType) {
         localStorage.clear();
         router.push("/");
         return;
       }
       
-      const data = await response.json();
-      if (data.user || data._id) {
-        const userData = data.user || data;
-        setUser(userData);
-      }
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      toast.error("Failed to load user data");
-    }
-  };
-  
-  // Fetch sessions
-  const fetchSessions = async () => {
-    try {
-      setLoading(true);
-      const token = getCurrentToken();
-      
-      let endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/my-sessions`;
-      if (isAdmin()) {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/all`;
-      } else if (isModerator()) {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/sessions`;
-      }
-      
-      // Add query parameters
+      // Build query params
       const params = new URLSearchParams({
         page: currentPage,
         limit: sessionsPerPage,
-        status: filters.status !== 'all' ? filters.status : '',
-        role: isAdmin() && filters.role !== 'all' ? filters.role : '',
-        startDate: filters.startDate,
-        endDate: filters.endDate
+        ...(filters.status !== 'all' && { status: filters.status }),
+        ...(filters.startDate && { startDate: filters.startDate }),
+        ...(filters.endDate && { endDate: filters.endDate }),
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder
       });
       
+      // Determine endpoint based on user role
+      let endpoint;
+      let headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
+      // Add user type header
+      if (userType) {
+        headers['X-User-Type'] = userType;
+      }
+      
+      // Admin users can access all sessions
+      if (userType === 'admin') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/all`;
+      } 
+      // Moderators have access to sessions with limitations
+      else if (userType === 'moderator') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/all`;
+      }
+      // Regular employees can only see their own sessions
+      else if (userType === 'employee') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/my-sessions`;
+      } else {
+        toast.error("Invalid user type");
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
+      
+      console.log('Fetching sessions from:', `${endpoint}?${params}`);
+      
       const response = await fetch(`${endpoint}?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: headers
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setSessions(data.data || []);
-        setFilteredSessions(data.data || []);
-        setTotalSessions(data.pagination?.total || 0);
-        setTotalPages(data.pagination?.pages || 1);
+        const result = await response.json();
         
-        // Update stats
-        if (data.statistics) {
-          setStats({
-            total: data.statistics.totalSessions || 0,
-            active: data.statistics.activeSessions || 0,
-            totalHours: parseFloat(data.statistics.totalHours || 0).toFixed(2),
-            avgDuration: formatDuration(data.statistics.avgDuration || 0),
-            deletionCount: data.statistics.deletionCount || 0,
-            uniqueUsers: data.statistics.uniqueUsers || 0,
-            avgSessionDuration: data.statistics.avgSessionDuration || 0
-          });
-        }
+        // Process sessions
+        const processedSessions = result.data?.map(session => {
+          const deviceInfo = parseDeviceInfo(session.userAgent);
+          const statusBadge = getStatusBadge(session.status || session.sessionStatus);
+          const roleColor = getRoleColor(session.userRole);
+          
+          let durationMinutes = session.durationMinutes;
+          if (!durationMinutes && session.loginAt) {
+            const endTime = session.logoutAt || (session.status === 'active' ? new Date() : session.loginAt);
+            durationMinutes = Math.round((new Date(endTime) - new Date(session.loginAt)) / (1000 * 60));
+          }
+          
+          return {
+            id: session.id || session._id,
+            sessionNumber: session.sessionNumber || `SESS-${(session.id || session._id || '').toString().slice(-6).toUpperCase()}`,
+            userId: session.userId,
+            userName: session.userName || session.user?.name || 'Unknown User',
+            userEmail: session.userEmail || session.user?.email || 'No email',
+            userRole: session.userRole || session.user?.role || 'employee',
+            loginAt: session.loginAt,
+            logoutAt: session.logoutAt,
+            formattedLogin: session.formattedLogin || formatDateShort(session.loginAt),
+            formattedLogout: session.formattedLogout || (session.logoutAt ? formatDateShort(session.logoutAt) : 'Active'),
+            status: session.status || session.sessionStatus || 'unknown',
+            statusBadge: statusBadge,
+            durationMinutes: durationMinutes,
+            formattedDuration: session.formattedDuration || formatDuration(durationMinutes),
+            ip: session.ip || 'No IP',
+            device: session.device || deviceInfo.device,
+            browser: session.browser || deviceInfo.browser,
+            os: session.os || deviceInfo.os,
+            deviceIcon: deviceInfo.deviceIcon,
+            location: session.location || {},
+            locationString: session.locationString || 
+              (session.location?.city && session.location?.country 
+                ? `${session.location.city}, ${session.location.country}`
+                : (session.ip || 'Location not available')),
+            userAgent: session.userAgent,
+            activities: session.activities || [],
+            roleColor: roleColor,
+            createdAt: session.createdAt,
+            updatedAt: session.updatedAt,
+            // Additional fields for details
+            userPhone: session.userPhone || session.user?.phone,
+            userDepartment: session.userDepartment || session.user?.department,
+            sessionToken: session.sessionToken,
+            isp: session.isp,
+            timezone: session.timezone,
+            screenResolution: session.screenResolution,
+            language: session.language,
+            referrer: session.referrer,
+            lastActivity: session.lastActivity,
+            loginAttempts: session.loginAttempts,
+            securityLevel: session.securityLevel,
+            vpnUsed: session.vpnUsed || false,
+            proxyUsed: session.proxyUsed || false,
+            torUsed: session.torUsed || false
+          };
+        }) || [];
         
-        // Update theme
-        if (data.theme === 'purple') {
-          document.documentElement.classList.add('purple-theme');
+        setSessions(processedSessions);
+        setFilteredSessions(processedSessions);
+        setTotalSessions(result.total || processedSessions.length);
+        
+        // Calculate statistics based on user role
+        calculateStatistics(processedSessions);
+        
+        toast.success(`Loaded ${processedSessions.length} sessions`);
+        
+      } else if (response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        localStorage.clear();
+        router.push('/');
+      } else if (response.status === 403) {
+        toast.error("You don't have permission to view these sessions.");
+        // Redirect to appropriate dashboard
+        if (userType === 'admin') {
+          router.push('/admin/dashboard');
+        } else if (userType === 'moderator') {
+          router.push('/moderator/dashboard');
+        } else {
+          router.push('/employee/dashboard');
         }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || 'Failed to load sessions');
       }
+      
     } catch (error) {
-      console.error("Failed to fetch sessions:", error);
-      toast.error("Failed to load sessions");
+      console.error('Network Error:', error);
+      toast.error('Network error. Please check your connection.');
     } finally {
       setLoading(false);
     }
   };
   
-  // Fetch analytics
-  const fetchAnalytics = async () => {
-    try {
-      const token = getCurrentToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/analytics`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+  // Calculate statistics
+  const calculateStatistics = (sessions) => {
+    const userType = getUserType();
+    
+    // For employees, only show their own stats
+    if (userType === 'employee') {
+      const activeSessions = sessions.filter(s => s.status === 'active').length;
+      const completedSessions = sessions.filter(s => s.status === 'completed').length;
+      const terminatedSessions = sessions.filter(s => s.status === 'terminated').length;
+      const expiredSessions = sessions.filter(s => s.status === 'expired').length;
       
-      if (response.ok) {
-        const data = await response.json();
-        setAnalytics(data.analytics || {});
-      }
-    } catch (error) {
-      console.error("Failed to fetch analytics:", error);
+      const totalDuration = sessions.reduce((sum, session) => sum + (session.durationMinutes || 0), 0);
+      const avgDuration = sessions.length > 0 ? totalDuration / sessions.length : 0;
+      
+      setStats({
+        total: sessions.length,
+        active: activeSessions,
+        completed: completedSessions,
+        terminated: terminatedSessions,
+        expired: expiredSessions,
+        totalHours: (totalDuration / 60).toFixed(2),
+        avgDuration: formatDuration(avgDuration),
+        uniqueUsers: 1 // Employee sees only their own sessions
+      });
+    } else {
+      // For admin and moderator, show all stats
+      const activeSessions = sessions.filter(s => s.status === 'active').length;
+      const completedSessions = sessions.filter(s => s.status === 'completed').length;
+      const terminatedSessions = sessions.filter(s => s.status === 'terminated').length;
+      const expiredSessions = sessions.filter(s => s.status === 'expired').length;
+      
+      const totalDuration = sessions.reduce((sum, session) => sum + (session.durationMinutes || 0), 0);
+      const avgDuration = sessions.length > 0 ? totalDuration / sessions.length : 0;
+      const uniqueUsers = new Set(sessions.map(s => s.userId)).size;
+      
+      setStats({
+        total: sessions.length,
+        active: activeSessions,
+        completed: completedSessions,
+        terminated: terminatedSessions,
+        expired: expiredSessions,
+        totalHours: (totalDuration / 60).toFixed(2),
+        avgDuration: formatDuration(avgDuration),
+        uniqueUsers: uniqueUsers
+      });
     }
   };
   
-  // Fetch deletion data
-  const fetchDeletionData = async () => {
-    try {
-      const token = getCurrentToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/deletion-status`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setDeletionData(data.data || {});
-      }
-    } catch (error) {
-      console.error("Failed to fetch deletion data:", error);
-    }
-  };
-  
-  // ==================== FILTER FUNCTIONS ====================
-  
-  const applyFilters = () => {
+  // Apply filters
+  useEffect(() => {
+    if (sessions.length === 0) return;
+    
     let filtered = [...sessions];
     
     // Status filter
     if (filters.status !== 'all') {
       filtered = filtered.filter(session => session.status === filters.status);
-    }
-    
-    // Role filter (admin only)
-    if (isAdmin() && filters.role !== 'all') {
-      filtered = filtered.filter(session => session.userRole === filters.role);
     }
     
     // Search filter
@@ -663,14 +655,11 @@ export default function Page() {
         session.userName?.toLowerCase().includes(searchLower) ||
         session.userEmail?.toLowerCase().includes(searchLower) ||
         session.device?.toLowerCase().includes(searchLower) ||
+        session.browser?.toLowerCase().includes(searchLower) ||
         session.ip?.includes(searchLower) ||
+        session.locationString?.toLowerCase().includes(searchLower) ||
         session.sessionNumber?.toLowerCase().includes(searchLower)
       );
-    }
-    
-    // Auto-delete filter
-    if (filters.showAutoDelete) {
-      filtered = filtered.filter(session => session.daysUntilDeletion <= 7);
     }
     
     // Device filter
@@ -680,45 +669,237 @@ export default function Page() {
       );
     }
     
+    // Date range filter
+    if (filters.startDate) {
+      const startDate = new Date(filters.startDate);
+      filtered = filtered.filter(session => new Date(session.loginAt) >= startDate);
+    }
+    
+    if (filters.endDate) {
+      const endDate = new Date(filters.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(session => new Date(session.loginAt) <= endDate);
+    }
+    
+    // Sorting
+    filtered.sort((a, b) => {
+      let aValue = a[filters.sortBy];
+      let bValue = b[filters.sortBy];
+      
+      if (filters.sortBy === 'loginAt' || filters.sortBy === 'logoutAt' || filters.sortBy === 'createdAt') {
+        aValue = new Date(aValue);
+        bValue = new Date(bValue);
+      }
+      
+      if (filters.sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+    
     setFilteredSessions(filtered);
-    setTotalPages(Math.ceil(filtered.length / sessionsPerPage));
+    setCurrentPage(1);
+  }, [filters, sessions]);
+  
+  // Handle filter changes
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
   };
   
-  // ==================== EVENT HANDLERS ====================
+  // Reset filters
+  const handleResetFilters = () => {
+    setFilters({
+      status: 'all',
+      search: '',
+      startDate: '',
+      endDate: '',
+      device: 'all',
+      sortBy: 'loginAt',
+      sortOrder: 'desc'
+    });
+    setSelectedSessions([]);
+    setSelectAll(false);
+  };
+  
+  // Session actions
+  const handleViewSession = (session) => {
+    openSessionDetails(session);
+  };
+  
+  const handleTerminateSession = async (sessionId) => {
+    if (!confirm("Are you sure you want to terminate this session?")) return;
+    
+    try {
+      const token = getCurrentToken();
+      const userType = getUserType();
+      
+      let endpoint;
+      if (userType === 'admin') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/terminate/${sessionId}`;
+      } else if (userType === 'moderator') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/terminate/${sessionId}`;
+      } else {
+        toast.error("You don't have permission to terminate sessions");
+        return;
+      }
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        toast.success("Session terminated successfully");
+        fetchSessions();
+        closeModal();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || "Failed to terminate session");
+      }
+    } catch (error) {
+      console.error("Terminate error:", error);
+      toast.error("Failed to terminate session");
+    }
+  };
+  
+  const handleDeleteSession = async (sessionId) => {
+    if (!confirm("Are you sure you want to delete this session? This action cannot be undone.")) return;
+    
+    try {
+      const token = getCurrentToken();
+      const userType = getUserType();
+      
+      // Only admin can delete sessions
+      if (userType !== 'admin') {
+        toast.error("Only administrators can delete sessions");
+        return;
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/delete/${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        toast.success("Session deleted successfully");
+        fetchSessions();
+        closeModal();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || "Failed to delete session");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Failed to delete session");
+    }
+  };
   
   // Session selection
   const handleSessionSelect = (sessionId) => {
-    if (selectedSessions.includes(sessionId)) {
-      setSelectedSessions(selectedSessions.filter(id => id !== sessionId));
-    } else {
-      setSelectedSessions([...selectedSessions, sessionId]);
-    }
+    setSelectedSessions(prev =>
+      prev.includes(sessionId)
+        ? prev.filter(id => id !== sessionId)
+        : [...prev, sessionId]
+    );
   };
   
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedSessions([]);
-      setSelectAll(false);
     } else {
-      setSelectedSessions(filteredSessions.slice(0, sessionsPerPage).map(session => session.id));
-      setSelectAll(true);
+      const currentPageSessions = filteredSessions.slice(
+        (currentPage - 1) * sessionsPerPage,
+        currentPage * sessionsPerPage
+      );
+      setSelectedSessions(currentPageSessions.map(session => session.id));
+    }
+    setSelectAll(!selectAll);
+  };
+  
+  // Export sessions
+  const handleExportSessions = async (format = 'json') => {
+    try {
+      const token = getCurrentToken();
+      const userType = getUserType();
+      
+      let endpoint;
+      if (userType === 'admin') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/export?format=${format}`;
+      } else if (userType === 'moderator') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/export?format=${format}`;
+      } else if (userType === 'employee') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/my/export?format=${format}`;
+      } else {
+        toast.error("Invalid user type");
+        return;
+      }
+      
+      const response = await fetch(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        if (format === 'csv') {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `sessions_${new Date().toISOString().split('T')[0]}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          const data = await response.json();
+          const jsonString = JSON.stringify(data, null, 2);
+          const blob = new Blob([jsonString], { type: 'application/json' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `sessions_${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        toast.success(`Sessions exported as ${format.toUpperCase()}`);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || 'Failed to export sessions');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export sessions');
     }
   };
   
-  // Bulk operations
+  // Bulk actions
   const handleBulkDelete = async () => {
-    if (!selectedSessions.length) {
-      toast.error("Please select sessions to delete");
+    if (selectedSessions.length === 0) {
+      toast.error("No sessions selected");
       return;
     }
     
-    if (!confirm(`Are you sure you want to delete ${selectedSessions.length} sessions? This action cannot be undone.`)) {
-      return;
-    }
+    if (!confirm(`Are you sure you want to delete ${selectedSessions.length} selected sessions? This action cannot be undone.`)) return;
     
     try {
       const token = getCurrentToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/bulk-delete`, {
+      const userType = getUserType();
+      
+      // Only admin can perform bulk delete
+      if (userType !== 'admin') {
+        toast.error("Only administrators can delete sessions");
+        return;
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/bulk-delete`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -728,12 +909,13 @@ export default function Page() {
       });
       
       if (response.ok) {
-        toast.success(`Successfully deleted ${selectedSessions.length} sessions`);
+        toast.success(`${selectedSessions.length} sessions deleted successfully`);
         setSelectedSessions([]);
         setSelectAll(false);
         fetchSessions();
       } else {
-        toast.error("Failed to delete sessions");
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || "Failed to delete sessions");
       }
     } catch (error) {
       console.error("Bulk delete error:", error);
@@ -741,367 +923,242 @@ export default function Page() {
     }
   };
   
-  const handleBulkExtend = async () => {
-    if (!selectedSessions.length) {
-      toast.error("Please select sessions to extend");
+  const handleBulkTerminate = async () => {
+    if (selectedSessions.length === 0) {
+      toast.error("No sessions selected");
       return;
     }
     
-    const days = prompt("Enter number of days to extend (1-90):", "30");
-    if (!days || isNaN(days) || days < 1 || days > 90) {
-      toast.error("Please enter a valid number between 1 and 90");
-      return;
-    }
+    if (!confirm(`Are you sure you want to terminate ${selectedSessions.length} selected sessions?`)) return;
     
     try {
       const token = getCurrentToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/bulk-extend`, {
+      const userType = getUserType();
+      
+      // Admin and moderator can perform bulk terminate
+      if (userType !== 'admin' && userType !== 'moderator') {
+        toast.error("You don't have permission to terminate sessions");
+        return;
+      }
+      
+      const endpoint = userType === 'admin' 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/bulk-terminate`
+        : `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/bulk-terminate`;
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          sessionIds: selectedSessions,
-          days: parseInt(days)
-        })
+        body: JSON.stringify({ sessionIds: selectedSessions })
       });
       
       if (response.ok) {
-        toast.success(`Extended ${selectedSessions.length} sessions by ${days} days`);
+        toast.success(`${selectedSessions.length} sessions terminated successfully`);
         setSelectedSessions([]);
         setSelectAll(false);
         fetchSessions();
       } else {
-        toast.error("Failed to extend sessions");
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || "Failed to terminate sessions");
       }
     } catch (error) {
-      console.error("Bulk extend error:", error);
-      toast.error("Failed to extend sessions");
+      console.error("Bulk terminate error:", error);
+      toast.error("Failed to terminate sessions");
     }
-  };
-  
-  // Session actions
-  const handleTerminateSession = async (sessionId) => {
-    if (!confirm("Are you sure you want to terminate this session?")) return;
-    
-    try {
-      const token = getCurrentToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/terminate/${sessionId}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        toast.success("Session terminated successfully");
-        fetchSessions();
-      } else {
-        toast.error("Failed to terminate session");
-      }
-    } catch (error) {
-      console.error("Terminate error:", error);
-      toast.error("Failed to terminate session");
-    }
-  };
-  
-  const handleViewSession = (sessionId) => {
-    router.push(`/sessions/${sessionId}`);
-  };
-  
-  // Export functions
-  const handleExport = async (format = 'json') => {
-    try {
-      const token = getCurrentToken();
-      let endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/export`;
-      
-      if (isAdmin()) {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/export-all`;
-      }
-      
-      const params = new URLSearchParams({
-        format,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        status: filters.status !== 'all' ? filters.status : ''
-      });
-      
-      const response = await fetch(`${endpoint}?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (format === 'csv') {
-          // Convert to CSV
-          const csvContent = convertToCSV(data.data);
-          downloadFile(csvContent, `sessions_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
-          toast.success("Exported as CSV");
-        } else {
-          // Download JSON
-          const jsonContent = JSON.stringify(data.data, null, 2);
-          downloadFile(jsonContent, `sessions_${new Date().toISOString().split('T')[0]}.json`, 'application/json');
-          toast.success("Exported as JSON");
-        }
-      } else {
-        toast.error("Failed to export sessions");
-      }
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("Failed to export sessions");
-    }
-  };
-  
-  const convertToCSV = (data) => {
-    if (!data || data.length === 0) return '';
-    
-    const headers = Object.keys(data[0]);
-    const csvRows = [
-      headers.join(','),
-      ...data.map(row => headers.map(header => {
-        const cell = row[header];
-        if (cell === null || cell === undefined) return '';
-        if (typeof cell === 'string') return `"${cell.replace(/"/g, '""')}"`;
-        return String(cell);
-      }).join(','))
-    ];
-    
-    return csvRows.join('\n');
-  };
-  
-  const downloadFile = (content, filename, mimeType) => {
-    const blob = new Blob([content], { type: mimeType });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
   };
   
   // Pagination
-   // Pagination handlers
+  const totalPages = Math.ceil(filteredSessions.length / sessionsPerPage);
+  
   const handlePageChange = (page) => {
     if (page < 1 || page > totalPages) return;
     setCurrentPage(page);
   };
   
-  const handleSessionsPerPageChange = (e) => {
-    setSessionsPerPage(parseInt(e.target.value));
-    setCurrentPage(1);
-  };
-  
-  // Filter handlers
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-  
-  const handleDateRangeChange = (range) => {
-    const now = new Date();
-    let startDate = '';
-    let endDate = new Date().toISOString().split('T')[0];
-    
-    switch(range) {
-      case 'today':
-        startDate = now.toISOString().split('T')[0];
-        break;
-      case 'yesterday':
-        const yesterday = new Date(now);
-        yesterday.setDate(now.getDate() - 1);
-        startDate = yesterday.toISOString().split('T')[0];
-        break;
-      case '7days':
-        const weekAgo = new Date(now);
-        weekAgo.setDate(now.getDate() - 7);
-        startDate = weekAgo.toISOString().split('T')[0];
-        break;
-      case '30days':
-        const monthAgo = new Date(now);
-        monthAgo.setDate(now.getDate() - 30);
-        startDate = monthAgo.toISOString().split('T')[0];
-        break;
-      case '90days':
-        const quarterAgo = new Date(now);
-        quarterAgo.setDate(now.getDate() - 90);
-        startDate = quarterAgo.toISOString().split('T')[0];
-        break;
-      case 'custom':
-        // Let user pick custom dates
-        return;
-    }
-    
-    setFilters(prev => ({
-      ...prev,
-      dateRange: range,
-      startDate,
-      endDate
-    }));
-  };
-  
-  const handleResetFilters = () => {
-    setFilters({
-      status: 'all',
-      role: 'all',
-      dateRange: '30days',
-      search: '',
-      device: 'all',
-      showAutoDelete: false,
-      startDate: '',
-      endDate: ''
-    });
-    setSelectedSessions([]);
-    setSelectAll(false);
-  };
-  
-  // ==================== USE EFFECTS ====================
-  
+  // Initial data fetch
   useEffect(() => {
-    fetchUserData();
+    const init = async () => {
+      const userData = await fetchUserProfile();
+      if (userData) {
+        await fetchSessions();
+      }
+    };
+    init();
   }, []);
   
+  // Fetch sessions when page or per page changes
   useEffect(() => {
     if (user) {
       fetchSessions();
-      fetchAnalytics();
-      fetchDeletionData();
     }
-  }, [user, currentPage, sessionsPerPage]);
+  }, [currentPage, sessionsPerPage]);
   
-  useEffect(() => {
-    applyFilters();
-  }, [filters, sessions]);
-  
-  // Auto-refresh effect
-  useEffect(() => {
-    let interval;
-    if (userSettings.autoRefresh) {
-      interval = setInterval(() => {
-        fetchSessions();
-      }, 30000); // 30 seconds
+  // Get user dashboard URL
+  const getDashboardUrl = () => {
+    const userType = getUserType();
+    switch(userType) {
+      case 'admin': return '/admin/dashboard';
+      case 'moderator': return '/moderator/dashboard';
+      case 'employee': return '/employee/dashboard';
+      default: return '/';
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [userSettings.autoRefresh]);
-  
-  // ==================== RENDER COMPONENTS ====================
+  };
   
   // Loading skeleton
   const LoadingSkeleton = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-6 animate-pulse">
+      {/* Stats Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[1, 2, 3, 4].map(i => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow animate-pulse">
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-4"></div>
-            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+          <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow">
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-3"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
           </div>
         ))}
       </div>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow animate-pulse">
-        <div className="p-6 border-b">
+      
+      {/* Table Skeleton */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
         </div>
         <div className="p-6">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-12 bg-gray-200 dark:bg-gray-700 rounded mb-3"></div>
+            <div key={i} className="flex items-center space-x-4 mb-4">
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+            </div>
           ))}
         </div>
       </div>
     </div>
   );
   
-  // Stats cards component
-  const StatsCards = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-purple-100 text-sm font-medium">Total Sessions</p>
-            <p className="text-3xl font-bold mt-2">{stats.total}</p>
-            <div className="flex items-center mt-2 text-sm">
-              <TrendingUp className="w-4 h-4 mr-1" />
-              <span>+12% this month</span>
+  // Stats Cards Component
+  const StatsCards = () => {
+    const userType = getUserType();
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Total Sessions */}
+        <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-violet-100 text-sm font-medium">Total Sessions</p>
+              <p className="text-3xl font-bold mt-2">{stats.total}</p>
+              <div className="flex items-center mt-2 text-sm">
+                <Database className="w-4 h-4 mr-2" />
+                <span>
+                  {userType === 'employee' ? 'My sessions' : 'All time records'}
+                </span>
+              </div>
+            </div>
+            <div className="bg-white/20 p-3 rounded-full">
+              <Server className="w-8 h-8" />
             </div>
           </div>
-          <div className="bg-white/20 p-3 rounded-full">
-            <BarChart3 className="w-8 h-8" />
-          </div>
         </div>
-      </div>
-      
-      <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-purple-100 text-sm font-medium">Active Now</p>
-            <p className="text-3xl font-bold mt-2">{stats.active}</p>
-            <div className="flex items-center mt-2 text-sm">
-              <Users className="w-4 h-4 mr-1" />
-              <span>{stats.uniqueUsers} unique users</span>
+        
+        {/* Active Sessions */}
+        <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-emerald-100 text-sm font-medium">Active Now</p>
+              <p className="text-3xl font-bold mt-2">{stats.active}</p>
+              <div className="flex items-center mt-2 text-sm">
+                <Activity className="w-4 h-4 mr-2" />
+                <span>
+                  {userType === 'employee' ? 'My active sessions' : 'Real-time tracking'}
+                </span>
+              </div>
+            </div>
+            <div className="bg-white/20 p-3 rounded-full">
+              <Zap className="w-8 h-8" />
             </div>
           </div>
-          <div className="bg-white/20 p-3 rounded-full">
-            <Activity className="w-8 h-8" />
-          </div>
         </div>
-      </div>
-      
-      <div className="bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-blue-100 text-sm font-medium">Avg Duration</p>
-            <p className="text-3xl font-bold mt-2">{stats.avgDuration}</p>
-            <div className="flex items-center mt-2 text-sm">
-              <Clock className="w-4 h-4 mr-1" />
-              <span>{stats.totalHours} total hours</span>
+        
+        {/* Average Duration */}
+        <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Avg Duration</p>
+              <p className="text-3xl font-bold mt-2">{stats.avgDuration}</p>
+              <div className="flex items-center mt-2 text-sm">
+                <Clock className="w-4 h-4 mr-2" />
+                <span>{stats.totalHours} total hours</span>
+              </div>
+            </div>
+            <div className="bg-white/20 p-3 rounded-full">
+              <Clock className="w-8 h-8" />
             </div>
           </div>
-          <div className="bg-white/20 p-3 rounded-full">
-            <ClockIcon className="w-8 h-8" />
-          </div>
         </div>
-      </div>
-      
-      <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-pink-100 text-sm font-medium">Auto Delete</p>
-            <p className="text-3xl font-bold mt-2">{stats.deletionCount}</p>
-            <div className="flex items-center mt-2 text-sm">
-              <ShieldAlert className="w-4 h-4 mr-1" />
-              <span>Next cleanup: {new Date(deletionData.nextCleanup).toLocaleDateString()}</span>
+        
+        {/* Unique Users - Hide for employees */}
+        {userType !== 'employee' ? (
+          <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-pink-100 text-sm font-medium">Unique Users</p>
+                <p className="text-3xl font-bold mt-2">{stats.uniqueUsers}</p>
+                <div className="flex items-center mt-2 text-sm">
+                  <Users className="w-4 h-4 mr-2" />
+                  <span>Distinct accounts</span>
+                </div>
+              </div>
+              <div className="bg-white/20 p-3 rounded-full">
+                <Users className="w-8 h-8" />
+              </div>
             </div>
           </div>
-          <div className="bg-white/20 p-3 rounded-full">
-            <Shield className="w-8 h-8" />
+        ) : (
+          <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-amber-100 text-sm font-medium">Completed</p>
+                <p className="text-3xl font-bold mt-2">{stats.completed}</p>
+                <div className="flex items-center mt-2 text-sm">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  <span>Successfully ended</span>
+                </div>
+              </div>
+              <div className="bg-white/20 p-3 rounded-full">
+                <CheckCircle className="w-8 h-8" />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
   
-  // Filter bar component
+  // Filter Bar Component
   const FilterBar = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow mb-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <div className="relative flex-1 md:flex-none">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+        <div className="flex-1">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search sessions..."
-              className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg w-full md:w-64 focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700"
+              placeholder={
+                getUserType() === 'employee' 
+                  ? "Search my sessions by device, location, IP..."
+                  : "Search sessions by user, device, location, IP..."
+              }
+              className="pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl w-full focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
               value={filters.search}
               onChange={(e) => handleFilterChange('search', e.target.value)}
             />
           </div>
-          
+        </div>
+        
+        <div className="flex items-center space-x-4">
           <select
-            className="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700"
+            className="border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
             value={filters.status}
             onChange={(e) => handleFilterChange('status', e.target.value)}
           >
@@ -1112,713 +1169,1111 @@ export default function Page() {
             <option value="terminated">Terminated</option>
           </select>
           
-          {isAdmin() && (
-            <select
-              className="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700"
-              value={filters.role}
-              onChange={(e) => handleFilterChange('role', e.target.value)}
-            >
-              <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="moderator">Moderator</option>
-              <option value="employee">Employee</option>
-            </select>
-          )}
-        </div>
-        
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-gray-500" />
-            <select
-              className="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700"
-              value={filters.dateRange}
-              onChange={(e) => handleDateRangeChange(e.target.value)}
-            >
-              <option value="today">Today</option>
-              <option value="yesterday">Yesterday</option>
-              <option value="7days">Last 7 days</option>
-              <option value="30days">Last 30 days</option>
-              <option value="90days">Last 90 days</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
-          
           <button
             onClick={handleResetFilters}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             Reset
           </button>
-          
-          <button
-            onClick={() => handleExport('csv')}
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all flex items-center"
-          >
-            <Download className="w-5 h-5 mr-2" />
-            Export
-          </button>
         </div>
       </div>
       
-      {filters.startDate && filters.endDate && (
-        <div className="mt-4 flex items-center text-sm text-gray-600 dark:text-gray-300">
-          <Calendar className="w-4 h-4 mr-1" />
-          Showing sessions from {filters.startDate} to {filters.endDate}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Start Date
+          </label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+            value={filters.startDate}
+            onChange={(e) => handleFilterChange('startDate', e.target.value)}
+          />
         </div>
-      )}
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            End Date
+          </label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+            value={filters.endDate}
+            onChange={(e) => handleFilterChange('endDate', e.target.value)}
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Sort By
+          </label>
+          <div className="flex space-x-2">
+            <select
+              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+              value={filters.sortBy}
+              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+            >
+              <option value="loginAt">Login Time</option>
+              <option value="logoutAt">Logout Time</option>
+              <option value="createdAt">Created At</option>
+              <option value="durationMinutes">Duration</option>
+            </select>
+            <select
+              className="border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+              value={filters.sortOrder}
+              onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
+            >
+              <option value="desc">Desc</option>
+              <option value="asc">Asc</option>
+            </select>
+          </div>
+        </div>
+      </div>
     </div>
   );
   
-  // Session table component
-  const SessionTable = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Session History</h3>
-            <p className="text-gray-600 dark:text-gray-300 mt-1">
-              {filteredSessions.length} sessions found
-              {selectedSessions.length > 0 && ` • ${selectedSessions.length} selected`}
-            </p>
+  // Session Details Modal Component
+  const SessionDetailsModal = () => {
+    if (!isModalOpen || !selectedSession) return null;
+    
+    const session = sessionDetails || selectedSession;
+    const userType = getUserType();
+    const statusBadge = getStatusBadge(session.status);
+    const roleColor = getRoleColor(session.userRole);
+    const deviceInfo = parseDeviceInfo(session.userAgent);
+    
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="relative w-full max-w-6xl max-h-[90vh] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
+          {/* Modal Header */}
+          <div className="sticky top-0 z-10 px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className={`p-3 rounded-xl ${roleColor.bg}`}>
+                  <Terminal className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Session Details
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    {session.sessionNumber}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${statusBadge.light}`}>
+                  <span className="w-2 h-2 rounded-full bg-current mr-2"></span>
+                  {statusBadge.text}
+                </span>
+                
+                <button
+                  onClick={closeModal}
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
           </div>
           
-          <div className="flex items-center space-x-3 mt-4 md:mt-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600 dark:text-gray-300">View:</span>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-2 rounded-lg ${viewMode === 'table' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300' : 'text-gray-600 dark:text-gray-300'}`}
-              >
-                <Table className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setViewMode('card')}
-                className={`p-2 rounded-lg ${viewMode === 'card' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300' : 'text-gray-600 dark:text-gray-300'}`}
-              >
-                <Grid className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setViewMode('timeline')}
-                className={`p-2 rounded-lg ${viewMode === 'timeline' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300' : 'text-gray-600 dark:text-gray-300'}`}
-              >
-                <home className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {selectedSessions.length > 0 && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={handleBulkDelete}
-                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg hover:from-red-600 hover:to-pink-700 transition-all flex items-center"
-                >
-                  <Trash2 className="w-5 h-5 mr-2" />
-                  Delete Selected
-                </button>
-                {isAdmin() && (
-                  <button
-                    onClick={handleBulkExtend}
-                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all flex items-center"
-                  >
-                    <Calendar className="w-5 h-5 mr-2" />
-                    Extend Selected
-                  </button>
-                )}
+          {/* Modal Content */}
+          <div className="overflow-y-auto max-h-[calc(90vh-180px)] p-8">
+            {loadingDetails ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 dark:bg-gray-700/50">
-            <tr>
-              <th className="p-4">
-                <input
-                  type="checkbox"
-                  checked={selectAll}
-                  onChange={handleSelectAll}
-                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                />
-              </th>
-              <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">User</th>
-              <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Session</th>
-              <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Duration</th>
-              <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Device</th>
-              <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Status</th>
-              <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredSessions.slice((currentPage - 1) * sessionsPerPage, currentPage * sessionsPerPage).map((session) => {
-              const roleColor = getRoleColor(session.userRole);
-              const statusBadge = getStatusBadge(session.status);
-              
-              return (
-                <tr 
-                  key={session.id} 
-                  className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                >
-                  <td className="p-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedSessions.includes(session.id)}
-                      onChange={() => handleSessionSelect(session.id)}
-                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                    />
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center">
-                      <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${roleColor.bg} text-white`}>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column - User Info */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* User Card */}
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6">
+                    <div className="flex items-center space-x-4 mb-6">
+                      <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ${roleColor.bg} text-white text-xl font-bold`}>
                         {session.userName?.charAt(0) || 'U'}
                       </div>
-                      <div className="ml-4">
-                        <p className="font-medium text-gray-900 dark:text-white">{session.userName || 'Unknown'}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{session.userEmail || 'No email'}</p>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                          {session.userName}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-300">{session.userEmail}</p>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${roleColor.light} mt-2`}>
+                          {session.userRole}
+                        </span>
                       </div>
                     </div>
-                  </td>
-                  <td className="p-4">
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">#{session.sessionNumber || session.id.slice(0, 8)}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {formatDate(session.startTime)}
-                      </p>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
+                        <span className="text-gray-600 dark:text-gray-400">User ID</span>
+                        <div className="flex items-center space-x-2">
+                          <code className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                            {session.userId?.slice(-8) || 'N/A'}
+                          </code>
+                          <button
+                            onClick={() => copyToClipboard(session.userId)}
+                            className="p-1 text-gray-500 hover:text-violet-600"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {session.userPhone && (
+                        <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
+                          <span className="text-gray-600 dark:text-gray-400">Phone</span>
+                          <div className="flex items-center space-x-2">
+                            <PhoneIcon className="w-4 h-4 text-gray-500" />
+                            <span className="text-gray-900 dark:text-gray-100">{session.userPhone}</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {session.userDepartment && (
+                        <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
+                          <span className="text-gray-600 dark:text-gray-400">Department</span>
+                          <span className="text-gray-900 dark:text-gray-100">{session.userDepartment}</span>
+                        </div>
+                      )}
                     </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 text-gray-400 mr-2" />
-                      <span>{formatDuration(session.duration)}</span>
+                  </div>
+                  
+                  {/* Session Status Card */}
+                  <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-6 text-white">
+                    <h3 className="text-lg font-semibold mb-4">Session Status</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span>Duration</span>
+                        <span className="text-xl font-bold">{session.formattedDuration}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Started</span>
+                        <span>{session.formattedLogin}</span>
+                      </div>
+                      {session.logoutAt && (
+                        <div className="flex items-center justify-between">
+                          <span>Ended</span>
+                          <span>{session.formattedLogout}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span>Activities</span>
+                        <span className="text-xl font-bold">{session.activities?.length || 0}</span>
+                      </div>
                     </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center">
-                      <DeviceIcon className="w-4 h-4 text-gray-400 mr-2" />
-                      <span>{session.device || 'Unknown'}</span>
+                  </div>
+                </div>
+                
+                {/* Middle Column - Device & Location */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Device Information */}
+                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <CpuIcon className="w-5 h-5 mr-2 text-violet-600" />
+                      Device Information
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="p-3 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+                          {deviceInfo.deviceIcon}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white">{session.device}</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">{session.os}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            {getBrowserIcon(session.browser)}
+                            <span className="text-sm text-gray-600 dark:text-gray-300">Browser</span>
+                          </div>
+                          <p className="font-medium text-gray-900 dark:text-white">{session.browser}</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Globe className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-300">Language</span>
+                          </div>
+                          <p className="font-medium text-gray-900 dark:text-white">{session.language || 'en-US'}</p>
+                        </div>
+                      </div>
+                      
+                      {session.screenResolution && (
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Monitor className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-300">Screen Resolution</span>
+                          </div>
+                          <p className="font-medium text-gray-900 dark:text-white">{session.screenResolution}</p>
+                        </div>
+                      )}
+                      
+                      {session.userAgent && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Terminal className="w-5 h-5 text-gray-500" />
+                              <span className="text-sm text-gray-600 dark:text-gray-300">User Agent</span>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(session.userAgent)}
+                              className="p-1 text-gray-500 hover:text-violet-600"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <code className="text-xs font-mono text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg block overflow-x-auto">
+                            {session.userAgent}
+                          </code>
+                        </div>
+                      )}
                     </div>
-                    {session.ip && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{session.ip}</p>
-                    )}
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusBadge.light}`}>
-                        {statusBadge.icon}
-                        <span className="ml-1.5">{statusBadge.text}</span>
-                      </span>
+                  </div>
+                  
+                  {/* Location Information */}
+                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <MapPin className="w-5 h-5 mr-2 text-emerald-600" />
+                      Location Information
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                        <MapIcon className="w-6 h-6 text-emerald-600" />
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white">{session.locationString}</h4>
+                          {session.location?.region && (
+                            <p className="text-sm text-gray-600 dark:text-gray-300">{session.location.region}</p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Globe className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-300">IP Address</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <code className="font-mono text-gray-900 dark:text-gray-100">{session.ip}</code>
+                            <button
+                              onClick={() => copyToClipboard(session.ip)}
+                              className="p-1 text-gray-500 hover:text-violet-600"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {session.isp && (
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <WifiIcon className="w-5 h-5 text-gray-500" />
+                              <span className="text-sm text-gray-600 dark:text-gray-300">ISP</span>
+                            </div>
+                            <p className="font-medium text-gray-900 dark:text-white">{session.isp}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {session.timezone && (
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <ClockIcon className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-300">Timezone</span>
+                          </div>
+                          <p className="font-medium text-gray-900 dark:text-white">{session.timezone}</p>
+                        </div>
+                      )}
+                      
+                      {/* Security Indicators */}
+                      <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-600">
+                        <h4 className="font-semibold text-gray-900 dark:text-white">Security Indicators</h4>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className={`flex flex-col items-center justify-center p-3 rounded-lg ${session.vpnUsed ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'}`}>
+                            <Shield className="w-5 h-5 mb-1" />
+                            <span className="text-xs">VPN</span>
+                            <span className="text-sm font-semibold">{session.vpnUsed ? 'Yes' : 'No'}</span>
+                          </div>
+                          <div className={`flex flex-col items-center justify-center p-3 rounded-lg ${session.proxyUsed ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'}`}>
+                            <Navigation className="w-5 h-5 mb-1" />
+                            <span className="text-xs">Proxy</span>
+                            <span className="text-sm font-semibold">{session.proxyUsed ? 'Yes' : 'No'}</span>
+                          </div>
+                          <div className={`flex flex-col items-center justify-center p-3 rounded-lg ${session.torUsed ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'}`}>
+                            <Globe className="w-5 h-5 mb-1" />
+                            <span className="text-xs">TOR</span>
+                            <span className="text-sm font-semibold">{session.torUsed ? 'Yes' : 'No'}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleViewSession(session.id)}
-                        className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
-                        title="View Details"
-                      >
-                        <Eye className="w-5 h-5" />
+                  </div>
+                </div>
+                
+                {/* Right Column - Activities & Actions */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Session Timeline */}
+                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <ActivityIcon className="w-5 h-5 mr-2 text-blue-600" />
+                      Session Timeline
+                    </h3>
+                    
+                    <div className="space-y-6">
+                      <div className="relative">
+                        {/* Timeline line */}
+                        <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-600"></div>
+                        
+                        {/* Login Event */}
+                        <div className="relative flex items-start mb-8">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center z-10">
+                            <LogIn className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <div className="ml-6">
+                            <h4 className="font-semibold text-gray-900 dark:text-white">Session Started</h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">{formatDate(session.loginAt)}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Login successful</p>
+                          </div>
+                        </div>
+                        
+                        {/* Activities */}
+                        {session.activities?.slice(0, 3).map((activity, index) => (
+                          <div key={index} className="relative flex items-start mb-6">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center z-10">
+                              <ActivityIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div className="ml-6">
+                              <h4 className="font-semibold text-gray-900 dark:text-white">{activity.action || 'Activity'}</h4>
+                              <p className="text-sm text-gray-600 dark:text-gray-300">
+                                {activity.timestamp ? formatDate(activity.timestamp) : 'N/A'}
+                              </p>
+                              {activity.details && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{activity.details}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* Logout Event */}
+                        {session.logoutAt && (
+                          <div className="relative flex items-start">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center z-10">
+                              <LogOutIcon className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                            </div>
+                            <div className="ml-6">
+                              <h4 className="font-semibold text-gray-900 dark:text-white">Session Ended</h4>
+                              <p className="text-sm text-gray-600 dark:text-gray-300">{formatDate(session.logoutAt)}</p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {session.status === 'terminated' ? 'Session terminated' : 'Normal logout'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {session.activities && session.activities.length > 3 && (
+                        <button className="w-full py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                          View {session.activities.length - 3} more activities
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Session Actions */}
+                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Session Actions</h3>
+                    
+                    <div className="space-y-3">
+                      {/* View Full Details Button */}
+                      <button className="w-full flex items-center justify-center space-x-2 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors">
+                        <ExternalLink className="w-5 h-5" />
+                        <span>View Full Session Log</span>
                       </button>
                       
-                      {session.status === 'active' && (
+                      {/* Terminate Session Button (for active sessions) */}
+                      {(userType === 'admin' || userType === 'moderator') && session.status === 'active' && (
                         <button
                           onClick={() => handleTerminateSession(session.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                          title="Terminate Session"
+                          className="w-full flex items-center justify-center space-x-2 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
                         >
-                          <PowerOff className="w-5 h-5" />
+                          <StopCircle className="w-5 h-5" />
+                          <span>Terminate Session</span>
                         </button>
                       )}
                       
-                      <button className="p-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                        <MoreVertical className="w-5 h-5" />
+                      {/* Delete Session Button (admin only) */}
+                      {userType === 'admin' && (
+                        <button
+                          onClick={() => handleDeleteSession(session.id)}
+                          className="w-full flex items-center justify-center space-x-2 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                          <span>Delete Session Record</span>
+                        </button>
+                      )}
+                      
+                      {/* Export Session Button */}
+                      <button className="w-full flex items-center justify-center space-x-2 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <Download className="w-5 h-5" />
+                        <span>Export Session Data</span>
                       </button>
                     </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      
-      {filteredSessions.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
-            <Search className="w-8 h-8 text-gray-400" />
+                    
+                    {/* Technical Details */}
+                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Technical Details</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Session ID</span>
+                          <code className="font-mono text-gray-900 dark:text-gray-100">{session.id?.slice(-12)}</code>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Created</span>
+                          <span className="text-gray-900 dark:text-gray-100">{session.createdAt ? formatDateShort(session.createdAt) : 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Last Updated</span>
+                          <span className="text-gray-900 dark:text-gray-100">{session.updatedAt ? formatDateShort(session.updatedAt) : 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No sessions found</h3>
-          <p className="text-gray-500 dark:text-gray-400">Try adjusting your filters or search terms</p>
-          <button
-            onClick={handleResetFilters}
-            className="mt-4 px-4 py-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
-          >
-            Reset all filters
-          </button>
+          
+          {/* Modal Footer */}
+          <div className="sticky bottom-0 px-8 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                Session ID: <code className="font-mono">{session.id}</code>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={closeModal}
+                  className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    copyToClipboard(JSON.stringify(session, null, 2));
+                    toast.success("Session data copied to clipboard");
+                  }}
+                  className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+                >
+                  Copy Data
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
   
-  // Session cards view
-  const SessionCards = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {filteredSessions.slice((currentPage - 1) * sessionsPerPage, currentPage * sessionsPerPage).map((session) => {
-        const roleColor = getRoleColor(session.userRole);
-        const statusBadge = getStatusBadge(session.status);
-        
-        return (
-          <div 
-            key={session.id} 
-            className="bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700"
-          >
-            <div className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedSessions.includes(session.id)}
-                    onChange={() => handleSessionSelect(session.id)}
-                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 mr-3"
-                  />
-                  <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br ${roleColor.bg} text-white`}>
-                    {session.userName?.charAt(0) || 'U'}
-                  </div>
-                  <div className="ml-4">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">{session.userName || 'Unknown'}</h4>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${roleColor.light} mt-1`}>
-                      {session.userRole || 'User'}
-                    </span>
-                  </div>
-                </div>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusBadge.light}`}>
-                  {statusBadge.icon}
-                  <span className="ml-1.5">{statusBadge.text}</span>
-                </span>
+  // Session Table Component
+  const SessionTable = () => {
+    const userType = getUserType();
+    
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow overflow-hidden">
+        {/* Table Header */}
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {userType === 'employee' ? 'My Session History' : 'Session History'}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                Showing {Math.min((currentPage - 1) * sessionsPerPage + 1, filteredSessions.length)} to{" "}
+                {Math.min(currentPage * sessionsPerPage, filteredSessions.length)} of {filteredSessions.length} sessions
+              </p>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`p-2 rounded-lg ${viewMode === 'table' ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                  title="Table View"
+                >
+                  <Table className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('card')}
+                  className={`p-2 rounded-lg ${viewMode === 'card' ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                  title="Card View"
+                >
+                  <Grid className="w-5 h-5" />
+                </button>
               </div>
               
-              <div className="space-y-3">
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  <span>{formatDate(session.startTime)}</span>
-                </div>
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                  <Clock className="w-4 h-4 mr-2" />
-                  <span>{formatDuration(session.duration)}</span>
-                </div>
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                  <Smartphone className="w-4 h-4 mr-2" />
-                  <span>{session.device || 'Unknown device'}</span>
-                </div>
-                {session.ip && (
-                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                    <Globe className="w-4 h-4 mr-2" />
-                    <span className="font-mono">{session.ip}</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Session #{session.sessionNumber || session.id.slice(0, 8)}
-                </div>
+              {/* Bulk actions for admin and moderator */}
+              {(userType === 'admin' || userType === 'moderator') && selectedSessions.length > 0 && (
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => handleViewSession(session.id)}
-                    className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
-                    title="View Details"
+                    onClick={handleBulkTerminate}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition-colors flex items-center"
                   >
-                    <Eye className="w-5 h-5" />
+                    <StopCircle className="w-4 h-4 mr-2" />
+                    Terminate ({selectedSessions.length})
                   </button>
                   
-                  {session.status === 'active' && (
+                  {/* Only admin can delete */}
+                  {userType === 'admin' && (
                     <button
-                      onClick={() => handleTerminateSession(session.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                      title="Terminate Session"
+                      onClick={handleBulkDelete}
+                      className="px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-colors flex items-center"
                     >
-                      <PowerOff className="w-5 h-5" />
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete ({selectedSessions.length})
                     </button>
                   )}
                 </div>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-  
-  // Analytics tab component
-  const AnalyticsTab = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Session Activity</h3>
-            <select className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm">
-              <option>Last 7 days</option>
-              <option>Last 30 days</option>
-              <option>Last 90 days</option>
-            </select>
-          </div>
-          <div className="h-64 flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-            <div className="text-center">
-              <LineChart className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-gray-400">Session activity chart</p>
-              <p className="text-sm text-gray-400">Analytics data would appear here</p>
+              )}
+              
+              <button
+                onClick={() => handleExportSessions('csv')}
+                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all flex items-center"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </button>
             </div>
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Device Distribution</h3>
-          <div className="space-y-4">
-            {[
-              { device: 'Mobile', count: 45, color: 'bg-purple-500' },
-              { device: 'Desktop', count: 30, color: 'bg-indigo-500' },
-              { device: 'Tablet', count: 15, color: 'bg-violet-500' },
-              { device: 'Other', count: 10, color: 'bg-gray-400' }
-            ].map((item, index) => (
-              <div key={index}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{item.device}</span>
-                  <span className="text-sm font-bold text-gray-900 dark:text-white">{item.count}%</span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div 
-                    className={`${item.color} h-2 rounded-full`}
-                    style={{ width: `${item.count}%` }}
-                  ></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Peak Hours</h3>
-          <div className="space-y-3">
-            {[
-              { hour: '9:00 AM', sessions: 42 },
-              { hour: '12:00 PM', sessions: 68 },
-              { hour: '3:00 PM', sessions: 45 },
-              { hour: '6:00 PM', sessions: 32 },
-              { hour: '9:00 PM', sessions: 21 }
-            ].map((item, index) => (
-              <div key={index} className="flex items-center">
-                <div className="w-20 text-sm text-gray-600 dark:text-gray-400">{item.hour}</div>
-                <div className="flex-1 ml-4">
-                  <div className="flex items-center">
-                    <div 
-                      className="h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-l"
-                      style={{ width: `${(item.sessions / 68) * 100}%` }}
-                    ></div>
-                    <span className="ml-2 text-sm font-medium text-gray-900 dark:text-white">{item.sessions}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Role Activity</h3>
-          <div className="space-y-4">
-            {[
-              { role: 'Admin', sessions: 120, avgDuration: '2h 30m' },
-              { role: 'Moderator', sessions: 85, avgDuration: '1h 45m' },
-              { role: 'Employee', sessions: 250, avgDuration: '3h 15m' }
-            ].map((item, index) => (
-              <div key={index} className="flex items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getRoleColor(item.role.toLowerCase()).bg} text-white`}>
-                  {item.role.charAt(0)}
-                </div>
-                <div className="ml-4 flex-1">
-                  <h4 className="font-medium text-gray-900 dark:text-white">{item.role}</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{item.sessions} sessions</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-gray-900 dark:text-white">{item.avgDuration}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Avg duration</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-  
-  // Auto-deletion tab component
-  const DeletionTab = () => (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <div>
-            <h3 className="text-2xl font-bold">Auto-Deletion Settings</h3>
-            <p className="text-purple-100 mt-2">
-              Sessions older than {deletionData.retentionDays} days are automatically deleted
-            </p>
-          </div>
-          <div className="flex items-center space-x-4 mt-4 md:mt-0">
-            <div className="text-center">
-              <div className="text-3xl font-bold">{deletionData.sessionsNearingDeletion?.length || 0}</div>
-              <div className="text-sm text-purple-200">Nearing deletion</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold">
-                {new Date(deletionData.nextCleanup).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </div>
-              <div className="text-sm text-purple-200">Next cleanup</div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="mt-6 flex flex-wrap gap-4">
-          <button className="px-4 py-2 bg-white text-purple-600 rounded-lg hover:bg-purple-50 transition-colors font-medium">
-            Change Retention Period
-          </button>
-          <button className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors font-medium border border-white/30">
-            Run Cleanup Now
-          </button>
-          <button className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors font-medium border border-white/30">
-            Download Report
-          </button>
-        </div>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">Sessions Nearing Deletion</h3>
-          <p className="text-gray-600 dark:text-gray-300 mt-1">
-            Sessions that will be automatically deleted in the next cleanup
-          </p>
-        </div>
-        
+        {/* Table Content */}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700/50">
               <tr>
-                <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Session</th>
-                <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">User</th>
-                <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Created</th>
-                <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Days Left</th>
-                <th className="text-left p-4 font-semibold text-gray-900 dark:text-white">Actions</th>
+                {/* Show checkbox only for admin and moderator */}
+                {(userType === 'admin' || userType === 'moderator') && (
+                  <th className="py-4 px-6 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={handleSelectAll}
+                      className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                    />
+                  </th>
+                )}
+                <th className="py-4 px-6 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                  User
+                </th>
+                <th className="py-4 px-6 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                  Session Details
+                </th>
+                <th className="py-4 px-6 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                  Device & Location
+                </th>
+                <th className="py-4 px-6 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                  Duration
+                </th>
+                <th className="py-4 px-6 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                  Status
+                </th>
+                <th className="py-4 px-6 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {deletionData.sessionsNearingDeletion?.slice(0, 5).map((session, index) => (
-                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                  <td className="p-4">
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      #{session.id?.slice(0, 8) || `SESSION-${index + 1}`}
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400"></div>
-                      <div className="ml-3">
-                        <p className="font-medium text-gray-900 dark:text-white">User {index + 1}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">user{index + 1}@example.com</p>
+              {filteredSessions
+                .slice((currentPage - 1) * sessionsPerPage, currentPage * sessionsPerPage)
+                .map((session) => (
+                  <tr
+                    key={session.id}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group"
+                  >
+                    {/* Show checkbox only for admin and moderator */}
+                    {(userType === 'admin' || userType === 'moderator') && (
+                      <td className="py-4 px-6">
+                        <input
+                          type="checkbox"
+                          checked={selectedSessions.includes(session.id)}
+                          onChange={() => handleSessionSelect(session.id)}
+                          className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                        />
+                      </td>
+                    )}
+                    
+                    <td className="py-4 px-6">
+                      <div className="flex items-center">
+                        <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${session.roleColor.bg} text-white`}>
+                          {session.userName?.charAt(0) || 'U'}
+                        </div>
+                        <div className="ml-4">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {session.userName}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
+                            {session.userEmail}
+                          </p>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${session.roleColor.light} mt-1`}>
+                            {session.roleColor.icon} {session.userRole}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="p-4 text-gray-700 dark:text-gray-300">
-                    {formatDate(session.createdAt || new Date(Date.now() - (7 - session.daysLeft) * 24 * 60 * 60 * 1000))}
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center">
-                      <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        session.daysLeft <= 1 ? 'bg-red-100 text-red-800' :
-                        session.daysLeft <= 3 ? 'bg-orange-100 text-orange-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {session.daysLeft} day{session.daysLeft !== 1 ? 's' : ''}
+                    </td>
+                    
+                    <td className="py-4 px-6">
+                      <div className="space-y-1">
+                        <div className="flex items-center">
+                          <Hash className="w-4 h-4 text-gray-400 mr-2" />
+                          <span className="font-mono text-sm text-gray-900 dark:text-white">
+                            {session.sessionNumber}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-300">
+                          <Clock className="w-3 h-3 inline mr-1" />
+                          Login: {session.formattedLogin}
+                        </div>
+                        {session.logoutAt && (
+                          <div className="text-sm text-gray-600 dark:text-gray-300">
+                            <Clock className="w-3 h-3 inline mr-1" />
+                            Logout: {session.formattedLogout}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <button className="px-3 py-1 text-sm text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors">
-                      Exempt
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    
+                    <td className="py-4 px-6">
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <Cpu className="w-4 h-4 text-gray-400 mr-2" />
+                          <span className="text-sm">{session.device} • {session.os}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                          <Globe className="w-3 h-3 mr-2" />
+                          <span>{session.browser}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                          <MapPin className="w-3 h-3 mr-2" />
+                          <span className="truncate max-w-[180px]">{session.locationString}</span>
+                        </div>
+                        {session.ip && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                            IP: {session.ip}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    
+                    <td className="py-4 px-6">
+                      <div className="flex items-center">
+                        <Clock className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {session.formattedDuration}
+                        </span>
+                      </div>
+                    </td>
+                    
+                    <td className="py-4 px-6">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${session.statusBadge.light}`}>
+                        <span className="w-2 h-2 rounded-full bg-current mr-2"></span>
+                        {session.statusBadge.text}
+                      </span>
+                    </td>
+                    
+                    <td className="py-4 px-6">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleViewSession(session)}
+                          className="p-2 text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        
+                        {/* Only show terminate button for active sessions and if user has permission */}
+                        {(userType === 'admin' || userType === 'moderator') && session.status === 'active' && (
+                          <button
+                            onClick={() => handleTerminateSession(session.id)}
+                            className="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                            title="Terminate Session"
+                          >
+                            <StopCircle className="w-5 h-5" />
+                          </button>
+                        )}
+                        
+                        {/* Only admin can delete sessions */}
+                        {userType === 'admin' && (
+                          <button
+                            onClick={() => handleDeleteSession(session.id)}
+                            className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                            title="Delete Session"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
-        </div>
-        
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-600 dark:text-gray-300">
-              Showing {Math.min(5, deletionData.sessionsNearingDeletion?.length || 0)} of {deletionData.sessionsNearingDeletion?.length || 0} sessions
-            </p>
-            <button className="px-4 py-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors">
-              View All
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-  
-  // Pagination component
-  const Pagination = () => (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-6">
-      <div className="flex items-center space-x-4 mb-4 sm:mb-0">
-        <span className="text-sm text-gray-700 dark:text-gray-300">
-          Showing {(currentPage - 1) * sessionsPerPage + 1} to {Math.min(currentPage * sessionsPerPage, filteredSessions.length)} of {filteredSessions.length} sessions
-        </span>
-        <select
-          value={sessionsPerPage}
-          onChange={handleSessionsPerPageChange}
-          className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700"
-        >
-          <option value="10">10 per page</option>
-          <option value="25">25 per page</option>
-          <option value="50">50 per page</option>
-          <option value="100">100 per page</option>
-        </select>
-      </div>
-      
-      <div className="flex items-center space-x-2">
-        <button
-          onClick={() => handlePageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        
-        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-          let pageNum;
-          if (totalPages <= 5) {
-            pageNum = i + 1;
-          } else if (currentPage <= 3) {
-            pageNum = i + 1;
-          } else if (currentPage >= totalPages - 2) {
-            pageNum = totalPages - 4 + i;
-          } else {
-            pageNum = currentPage - 2 + i;
-          }
           
-          return (
-            <button
-              key={pageNum}
-              onClick={() => handlePageChange(pageNum)}
-              className={`w-10 h-10 rounded-lg ${
-                currentPage === pageNum
-                  ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white'
-                  : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              {pageNum}
-            </button>
-          );
-        })}
-        
-        {totalPages > 5 && currentPage < totalPages - 2 && (
-          <>
-            <span className="text-gray-500">...</span>
-            <button
-              onClick={() => handlePageChange(totalPages)}
-              className="w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              {totalPages}
-            </button>
-          </>
-        )}
-        
-        <button
-          onClick={() => handlePageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
+          {filteredSessions.length === 0 && !loading && (
+            <div className="text-center py-16">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-700 mb-6">
+                <Search className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                No sessions found
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                {getUserType() === 'employee' 
+                  ? "You don't have any sessions yet. Try logging in from a different device."
+                  : "Try adjusting your search or filter criteria to find what you're looking for."
+                }
+              </p>
+              <button
+                onClick={handleResetFilters}
+                className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all"
+              >
+                Reset all filters
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
   
-  // User profile dropdown
-  const UserProfileDropdown = () => (
-    <div className="relative">
-      <button className="flex items-center space-x-3">
-        <div className="flex-shrink-0">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white">
-            {user?.name?.charAt(0) || 'U'}
+  // Session Cards Component
+  const SessionCards = () => {
+    const userType = getUserType();
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredSessions
+          .slice((currentPage - 1) * sessionsPerPage, currentPage * sessionsPerPage)
+          .map((session) => (
+            <div
+              key={session.id}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow hover:shadow-xl transition-all border border-gray-200 dark:border-gray-700 group"
+            >
+              <div className="p-6">
+                {/* Card Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center">
+                    <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${session.roleColor.bg} text-white`}>
+                      {session.userName?.charAt(0) || 'U'}
+                    </div>
+                    <div className="ml-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white">
+                        {session.userName}
+                      </h4>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${session.roleColor.light}`}>
+                          {session.roleColor.icon} {session.userRole}
+                        </span>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${session.statusBadge.light}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5"></span>
+                          {session.statusBadge.text}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Show checkbox only for admin and moderator */}
+                  {(userType === 'admin' || userType === 'moderator') && (
+                    <div className="flex items-center space-x-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedSessions.includes(session.id)}
+                        onChange={() => handleSessionSelect(session.id)}
+                        className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Session Info */}
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 mb-1">
+                      <Hash className="w-4 h-4 mr-2" />
+                      <span className="font-mono">{session.sessionNumber}</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Login Time</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {session.formattedLogin}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Duration</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center">
+                          <Clock className="w-4 h-4 mr-1" />
+                          {session.formattedDuration}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Device & Location */}
+                  <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center">
+                      {session.deviceIcon || <Cpu className="w-5 h-5 text-gray-400 mr-3" />}
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {session.device} • {session.os}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {session.browser}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <MapPin className="w-5 h-5 text-gray-400 mr-3" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[200px]">
+                          {session.locationString}
+                        </p>
+                        {session.ip && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                            IP: {session.ip}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {session.activities?.length || 0} activities
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleViewSession(session)}
+                      className="px-4 py-2 bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-colors text-sm flex items-center"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Details
+                    </button>
+                    
+                    {(userType === 'admin' || userType === 'moderator') && (
+                      <div className="relative group/actions">
+                        <button className="p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg">
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hidden group-hover/actions:block z-10">
+                          {session.status === 'active' && (
+                            <button
+                              onClick={() => handleTerminateSession(session.id)}
+                              className="w-full px-4 py-3 text-left text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-t-xl flex items-center"
+                            >
+                              <StopCircle className="w-4 h-4 mr-3" />
+                              Terminate
+                            </button>
+                          )}
+                          {/* Only show delete option for admin */}
+                          {userType === 'admin' && (
+                            <button
+                              onClick={() => handleDeleteSession(session.id)}
+                              className={`w-full px-4 py-3 text-left text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 ${session.status === 'active' ? 'rounded-b-xl' : 'rounded-xl'} flex items-center`}
+                            >
+                              <Trash2 className="w-4 h-4 mr-3" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+      </div>
+    );
+  };
+  
+  // Pagination Component
+  const Pagination = () => {
+    if (filteredSessions.length <= sessionsPerPage) return null;
+    
+    const startItem = (currentPage - 1) * sessionsPerPage + 1;
+    const endItem = Math.min(currentPage * sessionsPerPage, filteredSessions.length);
+    
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-8 p-6 bg-white dark:bg-gray-800 rounded-2xl shadow">
+        <div className="mb-4 sm:mb-0">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            Showing <span className="font-semibold">{startItem}-{endItem}</span> of{" "}
+            <span className="font-semibold">{filteredSessions.length}</span> sessions
+          </p>
+          <div className="flex items-center mt-3">
+            <span className="text-sm text-gray-600 dark:text-gray-400 mr-3">Show:</span>
+            <select
+              value={sessionsPerPage}
+              onChange={(e) => setSessionsPerPage(Number(e.target.value))}
+              className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            >
+              <option value="5">5 per page</option>
+              <option value="10">10 per page</option>
+              <option value="20">20 per page</option>
+              <option value="50">50 per page</option>
+            </select>
           </div>
         </div>
-        <div className="text-left hidden md:block">
-          <p className="font-medium text-gray-900 dark:text-white">{user?.name || 'User'}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{user?.role || 'Unknown role'}</p>
+        
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`px-4 py-2 rounded-xl border ${
+              currentPage === 1
+                ? "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            }`}
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pageNumber;
+            if (totalPages <= 5) {
+              pageNumber = i + 1;
+            } else if (currentPage <= 3) {
+              pageNumber = i + 1;
+            } else if (currentPage >= totalPages - 2) {
+              pageNumber = totalPages - 4 + i;
+            } else {
+              pageNumber = currentPage - 2 + i;
+            }
+            
+            return (
+              <button
+                key={pageNumber}
+                onClick={() => handlePageChange(pageNumber)}
+                className={`px-4 py-2 rounded-xl ${
+                  currentPage === pageNumber
+                    ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white"
+                    : "border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                }`}
+              >
+                {pageNumber}
+              </button>
+            );
+          })}
+          
+          {totalPages > 5 && currentPage < totalPages - 2 && (
+            <>
+              <span className="px-2 text-gray-500">...</span>
+              <button
+                onClick={() => handlePageChange(totalPages)}
+                className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+          
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className={`px-4 py-2 rounded-xl border ${
+              currentPage === totalPages
+                ? "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            }`}
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
-        <ChevronDown className="w-5 h-5 text-gray-400" />
-      </button>
-    </div>
-  );
+      </div>
+    );
+  };
   
-  // ==================== MAIN RETURN ====================
-  
+  // Main render
   if (loading && !user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8">
         <LoadingSkeleton />
       </div>
     );
   }
   
   if (!user) {
-    return null; // Will redirect in fetchUserData
+    return null;
   }
+  
+  const userType = getUserType();
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50">
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <button 
-                onClick={() => router.push('/dashboard')}
-                className="flex items-center space-x-3"
+              <button
+                onClick={() => router.push(getDashboardUrl())}
+                className="flex items-center space-x-3 group"
               >
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center group-hover:from-violet-700 group-hover:to-purple-700 transition-all">
+                  <Terminal className="w-6 h-6 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">Session Manager</h1>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Complete session monitoring</p>
+                <div className="text-left">
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Session Manager
+                  </h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                    {userType === 'admin' ? 'Admin Dashboard' : 
+                     userType === 'moderator' ? 'Moderator View' : 
+                     'My Sessions'}
+                  </p>
                 </div>
               </button>
             </div>
             
             <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => userSettings.autoRefresh ? fetchSessions() : null}
-                className="p-2 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400"
+              <button
+                onClick={fetchSessions}
+                className="p-2 text-gray-600 hover:text-violet-600 dark:text-gray-300 dark:hover:text-violet-400 transition-colors"
                 title="Refresh"
               >
-                <RefreshCw className={`w-5 h-5 ${userSettings.autoRefresh ? 'animate-spin' : ''}`} />
+                <RefreshCw className="w-5 h-5" />
               </button>
               
-              <button className="p-2 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
-              
-              <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-              
-              <UserProfileDropdown />
+              <div className="flex items-center space-x-3">
+                <div className="text-right hidden md:block">
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {user.name || user.firstName || 'User'}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                    {user.role}
+                  </p>
+                </div>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getRoleColor(user.role).bg} text-white`}>
+                  {(user.name || user.firstName || 'U').charAt(0).toUpperCase()}
+                </div>
+              </div>
               
               <button
                 onClick={() => {
                   localStorage.clear();
                   router.push('/');
                 }}
-                className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400"
+                className="p-2 text-gray-600 hover:text-rose-600 dark:text-gray-300 dark:hover:text-rose-400 transition-colors"
                 title="Logout"
               >
                 <LogOut className="w-5 h-5" />
@@ -1830,139 +2285,52 @@ export default function Page() {
       
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Banner */}
+        <div className="mb-8 bg-gradient-to-r from-violet-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex flex-col md:flex-row md:items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">
+                Welcome back, {user.name || user.firstName || 'User'}!
+              </h2>
+              <p className="text-violet-100">
+                {userType === 'admin' 
+                  ? 'Manage all user sessions and monitor activity in real-time.'
+                  : userType === 'moderator'
+                  ? 'Monitor user sessions and manage access.'
+                  : 'Track your login sessions and activities.'
+                }
+              </p>
+            </div>
+            <div className="mt-4 md:mt-0">
+              <span className="inline-flex items-center px-4 py-2 bg-white/20 rounded-full text-sm">
+                <Shield className="w-4 h-4 mr-2" />
+                {userType === 'admin' ? 'Admin Access' : 
+                 userType === 'moderator' ? 'Moderator Access' : 
+                 'Employee Access'}
+              </span>
+            </div>
+          </div>
+        </div>
+        
         {/* Stats Cards */}
         <StatsCards />
         
-        {/* Tabs Navigation */}
-        <div className="mb-8">
-          <div className="flex space-x-1 bg-white dark:bg-gray-800 rounded-xl p-1 shadow-inner">
-            <button
-              onClick={() => setActiveTab('sessions')}
-              className={`flex-1 py-3 px-4 rounded-lg text-center font-medium transition-all ${
-                activeTab === 'sessions'
-                  ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <div className="flex items-center justify-center space-x-2">
-                <Table className="w-5 h-5" />
-                <span>Sessions</span>
-              </div>
-            </button>
-            
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`flex-1 py-3 px-4 rounded-lg text-center font-medium transition-all ${
-                activeTab === 'analytics'
-                  ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <div className="flex items-center justify-center space-x-2">
-                <BarChart3 className="w-5 h-5" />
-                <span>Analytics</span>
-              </div>
-            </button>
-            
-            <button
-              onClick={() => setActiveTab('deletion')}
-              className={`flex-1 py-3 px-4 rounded-lg text-center font-medium transition-all ${
-                activeTab === 'deletion'
-                  ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <div className="flex items-center justify-center space-x-2">
-                <ShieldAlert className="w-5 h-5" />
-                <span>Auto-Deletion</span>
-              </div>
-            </button>
-          </div>
-        </div>
+        {/* Filter Bar */}
+        <FilterBar />
         
-        {/* Tab Content */}
-        <div className="mb-8">
-          {activeTab === 'sessions' && (
-            <>
-              <FilterBar />
-              {viewMode === 'table' ? <SessionTable /> : <SessionCards />}
-              {filteredSessions.length > sessionsPerPage && <Pagination />}
-            </>
-          )}
-          
-          {activeTab === 'analytics' && <AnalyticsTab />}
-          
-          {activeTab === 'deletion' && <DeletionTab />}
-        </div>
-        
-        {/* Quick Actions */}
-        <div className="bg-gradient-to-r from-purple-500/10 to-indigo-500/10 dark:from-purple-500/5 dark:to-indigo-500/5 rounded-2xl p-6 border border-purple-200 dark:border-purple-800">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button
-              onClick={() => handleExport('csv')}
-              className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-lg transition-shadow text-center group"
-            >
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 text-white mb-3">
-                <Download className="w-6 h-6" />
-              </div>
-              <p className="font-medium text-gray-900 dark:text-white">Export CSV</p>
-            </button>
-            
-            <button
-              onClick={() => toast.success("New session created")}
-              className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-lg transition-shadow text-center group"
-            >
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 text-white mb-3">
-                <Plus className="w-6 h-6" />
-              </div>
-              <p className="font-medium text-gray-900 dark:text-white">New Session</p>
-            </button>
-            
-            <button
-              onClick={() => router.push('/settings')}
-              className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-lg transition-shadow text-center group"
-            >
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 text-white mb-3">
-                <Settings className="w-6 h-6" />
-              </div>
-              <p className="font-medium text-gray-900 dark:text-white">Settings</p>
-            </button>
-            
-            <button
-              onClick={() => window.open('/help', '_blank')}
-              className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-lg transition-shadow text-center group"
-            >
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 text-white mb-3">
-                <HelpCircle className="w-6 h-6" />
-              </div>
-              <p className="font-medium text-gray-900 dark:text-white">Help Center</p>
-            </button>
-          </div>
-        </div>
+        {/* Sessions Content */}
+        {loading ? (
+          <LoadingSkeleton />
+        ) : (
+          <>
+            {viewMode === 'table' ? <SessionTable /> : <SessionCards />}
+            <Pagination />
+          </>
+        )}
       </main>
       
-      {/* Footer */}
-      <footer className="mt-12 border-t border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              © {new Date().getFullYear()} Session Manager. All rights reserved.
-            </div>
-            <div className="flex items-center space-x-6 mt-4 md:mt-0">
-              <button className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
-                Privacy Policy
-              </button>
-              <button className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
-                Terms of Service
-              </button>
-              <button className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
-                Contact Support
-              </button>
-            </div>
-          </div>
-        </div>
-      </footer>
+      {/* Session Details Modal */}
+      <SessionDetailsModal />
     </div>
   );
-} 
+}

@@ -30,16 +30,16 @@ import {
 } from "@/app/lib/api";
 
 // Import shift APIs
-import {
-  getAllEmployeeShifts,
-  assignShiftToEmployee,
-  resetEmployeeShift,
-  updateDefaultShift,
-  getEmployeeShiftHistory,
-  bulkAssignShifts,
-  getShiftStatistics,
-  getMyShift
-} from "@/app/lib/api";
+// import {
+//   getAllEmployeeShifts,
+//   assignShiftToEmployee,
+//   resetEmployeeShift,
+//   updateDefaultShift,
+//   getEmployeeShiftHistory,
+//   bulkAssignShifts,
+//   getShiftStatistics,
+//   getMyShift
+// } from "@/app/lib/api";
 
 export default function UserRolesPage() {
   const [users, setUsers] = useState([]);
@@ -1430,21 +1430,68 @@ const confirmDelete = async (userId, userName, userRole) => {
   };
 
   // Shift status badge
-  const ShiftBadge = ({ user }) => {
-    const shift = getCurrentShift(user);
+// UserRolesPage কম্পোনেন্টে ShiftBadge কম্পোনেন্টটি এইভাবে পরিবর্তন করুন:
+const ShiftBadge = ({ user }) => {
+  // Get shift timing display
+  const getShiftDisplay = (user) => {
+    const shiftTiming = user.shiftTiming || {};
+    const today = new Date().toISOString().split('T')[0];
     
-    return (
-      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-        shift.type === 'assigned' 
-          ? 'bg-purple-100 text-purple-700 border border-purple-200'
-          : 'bg-gray-100 text-gray-700 border border-gray-200'
-      }`}>
-        <Clock size={10} className="mr-1" />
-        {shift.type === 'assigned' ? 'Custom Shift' : 'Default Shift'}
-        <span className="ml-1 font-bold">{formatShiftTime(shift)}</span>
-      </div>
+    // Check for today's active shift
+    const todaysActiveShift = shiftTiming.currentShift?.isActive && 
+                              shiftTiming.currentShift.effectiveDate === today 
+                              ? shiftTiming.currentShift 
+                              : null;
+    
+    // Check shift history for today
+    const todaysShiftFromHistory = shiftTiming.shiftHistory?.find(shift => 
+      shift.effectiveDate === today
     );
+    
+    // Use whichever is available
+    const activeShift = todaysActiveShift || todaysShiftFromHistory;
+    
+    if (activeShift) {
+      return `${activeShift.start || activeShift.startTime} - ${activeShift.end || activeShift.endTime}`;
+    }
+    
+    // Check for assigned shift
+    if (shiftTiming.assignedShift && shiftTiming.assignedShift.start) {
+      return `${shiftTiming.assignedShift.start} - ${shiftTiming.assignedShift.end}`;
+    }
+    
+    // Default shift
+    return `${shiftTiming.defaultShift?.start || '09:00'} - ${shiftTiming.defaultShift?.end || '18:00'}`;
   };
+  
+  // Check if user has assigned shift
+  const hasAssignedShift = () => {
+    const shiftTiming = user.shiftTiming || {};
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check any assigned shift
+    const hasAssignedShift = shiftTiming.assignedShift?.start || 
+                            shiftTiming.currentShift?.isActive ||
+                            (shiftTiming.shiftHistory && shiftTiming.shiftHistory.length > 0);
+    
+    return hasAssignedShift;
+  };
+  
+  const shiftDisplay = getShiftDisplay(user);
+  const isAssignedShift = hasAssignedShift();
+  
+  return (
+    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+      isAssignedShift 
+        ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+        : 'bg-gray-100 text-gray-700 border border-gray-200'
+    }`}>
+      <Clock size={10} className="mr-1" />
+      {isAssignedShift ? 'Assigned Shift' : 'Default Shift'}
+      <span className="ml-1 font-bold">{shiftDisplay}</span>
+    </div>
+  );
+};
 
   // ================= MAIN COMPONENTS =================
 
@@ -2532,38 +2579,38 @@ const confirmDelete = async (userId, userName, userRole) => {
             </div>
             <div className="flex items-center gap-3 mt-4 md:mt-0">
               {/* Shift Management Buttons */}
-              <button
+              {/* <button
                 onClick={() => handleOpenShiftManagement()}
                 className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
                 title="Update Default Shift"
               >
                 <Clock size={18} />
                 Default Shift
-              </button>
-              <button
+              </button> */}
+              {/* <button
                 onClick={() => setShowBulkShiftAssign(true)}
                 className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
                 title="Bulk Assign Shifts"
               >
                 <Layers size={18} />
                 Bulk Assign
-              </button>
-              <button
+              </button> */}
+              {/* <button
                 onClick={() => setShowShiftStatistics(true)}
                 className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
                 title="View Shift Statistics"
               >
                 <BarChart3 size={18} />
                 Statistics
-              </button>
-              <button
+              </button> */}
+              {/* <button
                 onClick={fetchUsers}
                 disabled={loading}
                 className="px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 shadow-sm hover:shadow"
               >
                 <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
                 Refresh
-              </button>
+              </button> */}
             </div>
           </div>
 
@@ -2593,7 +2640,7 @@ const confirmDelete = async (userId, userName, userRole) => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100">
+            {/* <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Custom Shifts</p>
@@ -2603,7 +2650,7 @@ const confirmDelete = async (userId, userName, userRole) => {
                   <Clock className="text-white" size={18} />
                 </div>
               </div>
-            </div>
+            </div> */}
 
             <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100">
               <div className="flex items-center justify-between">
@@ -2826,13 +2873,13 @@ const confirmDelete = async (userId, userName, userRole) => {
     >
       <Edit size={14} />
     </button>
-    <button
+    {/* <button
       onClick={() => handleOpenShiftManagement(user)}
       className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
       title="Manage Shift"
     >
       <Clock size={14} />
-    </button> 
+    </button>  */}
     <button
       onClick={() => handleOpenResetPasswordPage(user)}
       className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"

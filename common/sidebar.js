@@ -262,6 +262,13 @@ export default function Sidebar() {
       roles: ['admin', 'moderator', 'employee'],
       showForAll: true
     },
+    { 
+      name: "Shift Shcedule", 
+      icon: <UserCog size={20} />, 
+      path: "/shift-schedule", 
+      roles: ['admin', 'moderator', 'employee'],
+      showForAll: true
+    },
   ];
 
   // Employee specific menus
