@@ -37,7 +37,7 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export default function DashboardPage() {
+export default function page() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);

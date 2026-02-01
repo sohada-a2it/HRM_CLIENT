@@ -72,7 +72,7 @@ import { toast } from "react-hot-toast";
 // API Base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/meals';
 
-export default function MealManagementPage() {
+export default function page() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   

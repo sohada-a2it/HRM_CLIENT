@@ -47,7 +47,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
-export default function ProfilePage() {
+export default function page() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -1560,17 +1560,7 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Quick Actions */}
-                <div className="mt-6 space-y-3">
-                  <button
-                    onClick={() => setActiveTab("sessions")}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50/50 hover:bg-gray-100/50 backdrop-blur-sm rounded-xl transition-all duration-200 border border-gray-100"
-                  >
-                    <div className="flex items-center gap-3">
-                      <History className="text-gray-600" size={20} />
-                      <span className="font-medium text-gray-700">Session History</span>
-                    </div>
-                    <span className="text-sm text-gray-500 bg-white/50 px-2 py-1 rounded-full">{sessions.length}</span>
-                  </button>
+                <div className="mt-6 space-y-3"> 
 
                   {isAdmin() && (
                     <button
@@ -1617,7 +1607,7 @@ export default function ProfilePage() {
                     Bank Info
                   </button>
                 )}
-                <button
+                {/* <button
                   onClick={() => setActiveTab("sessions")}
                   className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-200 min-w-0 ${
                     activeTab === "sessions"
@@ -1626,7 +1616,7 @@ export default function ProfilePage() {
                   }`}
                 >
                   Sessions
-                </button>
+                </button> */}
               </div>
 
               {/* Personal Info Tab */}

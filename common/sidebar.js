@@ -43,7 +43,10 @@ import {
   TrendingUp,
   Zap,
   PieChart,
-  Target
+  Target,
+  FileKey,
+  CalendarClock,
+  Logs
 } from "lucide-react";
 import Link from "next/link";
 
@@ -257,15 +260,8 @@ export default function Sidebar() {
   const commonMenus = [
     { 
       name: "Profile", 
-      icon: <UserCog size={20} />, 
+      icon: <User size={20} />, // Changed from UserCog to User
       path: "/profile", 
-      roles: ['admin', 'moderator', 'employee'],
-      showForAll: true
-    },
-    { 
-      name: "Shift Shcedule", 
-      icon: <UserCog size={20} />, 
-      path: "/shift-schedule", 
       roles: ['admin', 'moderator', 'employee'],
       showForAll: true
     },
@@ -309,21 +305,28 @@ export default function Sidebar() {
       path: "/holiday", 
       roles: ['employee'],
     },
-        { 
+    { 
       name: "Audit Logs", 
-      icon: <Shield size={20} />, 
+      icon: <FileClock size={20} />, // Changed from Shield to FileClock
       path: "/audit", 
       roles: ['employee'],
     },
-    { 
-      name: "Session Logs", 
-      icon: <Activity size={20} />, 
-      path: "/session", 
-      roles: ['employee'],
-    },
         { 
+      name: "Shift Schedule", 
+      icon: <CalendarClock size={20} />, // Changed from UserCog to CalendarClock
+      path: "/shift-schedule", 
+      roles: ['employee'],
+      showForAll: true
+    },
+    // { 
+    //   name: "Session Logs", 
+    //   icon: <History size={20} />, // Changed from Activity to History
+    //   path: "/session", 
+    //   roles: ['employee'],
+    // },
+    { 
       name: "Meal Management", 
-      icon: <Key size={20} />, 
+      icon: <Utensils size={20} />, // Changed from Key to Utensils
       path: "/meal", 
       roles: ['employee'],
     },
@@ -343,18 +346,18 @@ export default function Sidebar() {
     //   path: "/reports", 
     //   roles: ['moderator'],
     // },
-    { 
-      name: "Audit Logs", 
-      icon: <Shield size={20} />, 
-      path: "/audit", 
-      roles: ['moderator'],
-    },
-    { 
-      name: "Session Logs", 
-      icon: <Activity size={20} />, 
-      path: "/session", 
-      roles: ['moderator'],
-    },
+    // { 
+    //   name: "Audit Logs", 
+    //   icon: <FileClock size={20} />, // Changed from Shield to FileClock
+    //   path: "/audit", 
+    //   roles: ['moderator'],
+    // },
+    // { 
+    //   name: "Session Logs", 
+    //   icon: <History size={20} />, // Changed from Activity to History
+    //   path: "/session", 
+    //   roles: ['moderator'],
+    // },
     // { 
     //   name: "Content Review", 
     //   icon: <Eye size={20} />, 
@@ -407,27 +410,34 @@ export default function Sidebar() {
     //   path: "/reports", 
     //   roles: ['admin'],
     // },
+        { 
+      name: "Shift Schedule", 
+      icon: <CalendarClock size={20} />, // Changed from UserCog to CalendarClock
+      path: "/shift-schedule", 
+      roles: ['admin'],
+      showForAll: true
+    },
     { 
       name: "Audit Logs", 
-      icon: <Shield size={20} />, 
+      icon: <FileClock size={20} />, // Changed from Shield to FileClock
       path: "/audit", 
       roles: ['admin'],
     },
-    { 
-      name: "Session Logs", 
-      icon: <Activity size={20} />, 
-      path: "/session", 
-      roles: ['admin'],
-    },
+    // { 
+    //   name: "Session Logs", 
+    //   icon: <History size={20} />, // Changed from Activity to History
+    //   path: "/session", 
+    //   roles: ['admin'],
+    // },
     { 
       name: "User Roles", 
-      icon: <Key size={20} />, 
+      icon: <Shield size={20} />, // Changed from Key to Shield
       path: "/user-roles", 
       roles: ['admin'],
     },
     { 
       name: "Meal Management", 
-      icon: <Key size={20} />, 
+      icon: <Utensils size={20} />, // Changed from Key to Utensils
       path: "/meal", 
       roles: ['admin'],
     },
@@ -449,7 +459,7 @@ export default function Sidebar() {
     // },
     // { 
     //   name: "Employee Costs", 
-    //   icon: <User size={18} />, 
+    //   icon: <Users size={18} />, // Changed from User to Users
     //   href: "/cost/employees",
     //   roles: ['admin', 'moderator'], 
     // },
@@ -461,7 +471,7 @@ export default function Sidebar() {
     },
     { 
       name: "Utility Bills", 
-      icon: <DollarSign size={18} />, 
+      icon: <FileText size={18} />, // Changed from DollarSign to FileText
       href: "/utilityBills",
       roles: ['admin', 'moderator'],
     },
@@ -494,12 +504,6 @@ export default function Sidebar() {
       icon: <MoreHorizontal size={18} />, 
       href: "/miscellaneous",
       roles: ['admin', 'moderator'],
-    },
-        { 
-      name: "Meal Management", 
-      icon: <Key size={20} />, 
-      path: "/meal", 
-      roles: ['moderator'],
     },
   ];
 

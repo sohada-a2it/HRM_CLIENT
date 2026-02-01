@@ -1,3 +1,4 @@
+// app/sessions/page.jsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -64,42 +65,75 @@ export default function SessionsPage() {
   const [sessionDetails, setSessionDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   
-  // User type detection
-  const getUserType = () => {
+  // Token management functions
+  const getTokenByUserType = () => {
     if (typeof window === 'undefined') return null;
-    if (localStorage.getItem("adminToken")) return "admin";
-    if (localStorage.getItem("employeeToken")) return "employee";
-    if (localStorage.getItem("moderatorToken")) return "moderator";
+    
+    // Check for all possible tokens
+    const adminToken = localStorage.getItem("adminToken");
+    const employeeToken = localStorage.getItem("employeeToken");
+    const moderatorToken = localStorage.getItem("moderatorToken");
+    
+    return {
+      adminToken,
+      employeeToken,
+      moderatorToken
+    };
+  };
+  
+  const getCurrentUserType = () => {
+    if (typeof window === 'undefined') return null;
+    
+    // Check for all possible tokens
+    const adminToken = localStorage.getItem("adminToken");
+    const employeeToken = localStorage.getItem("employeeToken");
+    const moderatorToken = localStorage.getItem("moderatorToken");
+    
+    if (adminToken) return "admin";
+    if (moderatorToken) return "moderator";
+    if (employeeToken) return "employee";
+    
     return null;
   };
   
   const getCurrentToken = () => {
-    const userType = getUserType();
+    const userType = getCurrentUserType();
     switch(userType) {
       case 'admin':
         return localStorage.getItem("adminToken");
-      case 'employee':
-        return localStorage.getItem("employeeToken");
       case 'moderator':
         return localStorage.getItem("moderatorToken");
+      case 'employee':
+        return localStorage.getItem("employeeToken");
       default:
         return null;
     }
   };
   
+  const getUserDashboard = (userType) => {
+    switch(userType) {
+      case 'admin':
+        return '/admin/dashboard';
+      case 'moderator':
+        return '/moderator/dashboard';
+      case 'employee':
+        return '/employee/dashboard';
+      default:
+        return '/';
+    }
+  };
+  
+  // User type detection
   const isAdmin = () => {
-    if (!user) return false;
-    return user.role === "admin" || user.role === "superAdmin";
+    return getCurrentUserType() === 'admin';
   };
   
   const isModerator = () => {
-    if (!user) return false;
-    return user.role === "moderator";
+    return getCurrentUserType() === 'moderator';
   };
   
   const isEmployee = () => {
-    if (!user) return false;
-    return user.role === "employee";
+    return getCurrentUserType() === 'employee';
   };
   
   // Get status color and badge
@@ -308,31 +342,33 @@ export default function SessionsPage() {
     }
   };
   
-  // Fetch user profile
+  // Fetch user profile based on token type
   const fetchUserProfile = async () => {
     try {
+      const userType = getCurrentUserType();
       const token = getCurrentToken();
-      const userType = getUserType();
       
       if (!token || !userType) {
-        localStorage.clear();
+        console.log('No token or user type, redirecting to login');
         router.push("/");
         return null;
       }
       
-      // Determine endpoint based on user type
       let endpoint;
+      
+      // Different endpoints based on user type
       if (userType === 'admin') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/getAll-user`;
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/getAdminProfile`;
       } else if (userType === 'moderator') {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
       } else if (userType === 'employee') {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/users/getProfile`;
       } else {
-        localStorage.clear();
-        router.push("/");
+        toast.error("Invalid user type");
         return null;
       }
+      
+      console.log('📡 Fetching user profile from:', endpoint);
       
       const response = await fetch(endpoint, {
         headers: {
@@ -341,18 +377,42 @@ export default function SessionsPage() {
         }
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user || data);
-        return data.user || data;
-      } else {
-        localStorage.clear();
-        router.push("/");
+      if (!response.ok) {
+        console.error('Profile fetch failed:', response.status);
+        toast.error("Please login again");
+        // Clear invalid tokens
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('moderatorToken');
+        localStorage.removeItem('employeeToken');
+        router.push('/');
         return null;
       }
+      
+      const data = await response.json();
+      console.log('✅ User profile loaded:', data);
+      
+      // Set user based on response structure
+      if (data.user) {
+        setUser(data.user);
+        return data.user;
+      } else if (data.admin) {
+        setUser(data.admin);
+        return data.admin;
+      } else if (data.moderator) {
+        setUser(data.moderator);
+        return data.moderator;
+      } else if (data.data) {
+        setUser(data.data);
+        return data.data;
+      } else {
+        setUser(data);
+        return data;
+      }
+      
     } catch (error) {
       console.error("Error fetching user:", error);
-      toast.error("Failed to load user data");
+      toast.error("Please login again");
+      router.push("/");
       return null;
     }
   };
@@ -362,7 +422,7 @@ export default function SessionsPage() {
     try {
       setLoadingDetails(true);
       const token = getCurrentToken();
-      const userType = getUserType();
+      const userType = getCurrentUserType();
       
       if (!token || !userType) {
         toast.error("Authentication required");
@@ -373,7 +433,7 @@ export default function SessionsPage() {
       if (userType === 'admin') {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/details/${sessionId}`;
       } else if (userType === 'moderator') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/details/${sessionId}`;
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/details/${sessionId}`; // Moderator uses admin endpoint
       } else {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/my/details/${sessionId}`;
       }
@@ -403,47 +463,44 @@ export default function SessionsPage() {
     }
   };
   
-  // Open session details modal
-  const openSessionDetails = async (session) => {
-    setSelectedSession(session);
-    setIsModalOpen(true);
-    
-    // Fetch detailed session information
-    const details = await fetchSessionDetails(session.id);
-    if (!details) {
-      // If API call fails, use the basic session data
-      setSessionDetails(session);
-    }
-  };
-  
-  // Close modal
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setSelectedSession(null);
-    setSessionDetails(null);
-  };
-  
-  // Copy to clipboard
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text)
-      .then(() => toast.success("Copied to clipboard"))
-      .catch(() => toast.error("Failed to copy"));
-  };
-  
   // Fetch sessions based on user role
   const fetchSessions = async () => {
     try {
       setLoading(true);
       const token = getCurrentToken();
-      const userType = getUserType();
+      const userType = getCurrentUserType();
+      
+      console.log('🔍 Fetching sessions for user type:', userType);
+      console.log('🔑 Token exists:', !!token);
       
       if (!token || !userType) {
+        toast.error("Please login first");
         localStorage.clear();
         router.push("/");
         return;
       }
       
-      // Build query params
+      let endpoint;
+      let headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
+      // Determine endpoint based on user role
+      if (userType === 'admin') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/all`;
+      } else if (userType === 'moderator') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/all`; // Moderator can see all sessions
+      } else if (userType === 'employee') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/my-sessions`;
+      } else {
+        toast.error("Invalid user type");
+        return;
+      }
+      
+      console.log('📡 API Endpoint:', endpoint);
+      
+      // Add query parameters
       const params = new URLSearchParams({
         page: currentPage,
         limit: sessionsPerPage,
@@ -454,60 +511,66 @@ export default function SessionsPage() {
         sortOrder: filters.sortOrder
       });
       
-      // Determine endpoint based on user role
-      let endpoint;
-      let headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
+      const url = `${endpoint}?${params}`;
+      console.log('🌐 Full URL:', url);
       
-      // Add user type header
-      if (userType) {
-        headers['X-User-Type'] = userType;
-      }
-      
-      // Admin users can access all sessions
-      if (userType === 'admin') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/all`;
-      } 
-      // Moderators have access to sessions with limitations
-      else if (userType === 'moderator') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/all`;
-      }
-      // Regular employees can only see their own sessions
-      else if (userType === 'employee') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/my-sessions`;
-      } else {
-        toast.error("Invalid user type");
-        localStorage.clear();
-        router.push("/");
-        return;
-      }
-      
-      console.log('Fetching sessions from:', `${endpoint}?${params}`);
-      
-      const response = await fetch(`${endpoint}?${params}`, {
-        headers: headers
+      const response = await fetch(url, {
+        headers: headers,
+        cache: 'no-cache'
       });
+      
+      console.log('📊 Response status:', response.status);
       
       if (response.ok) {
         const result = await response.json();
+        console.log('✅ API Response:', result);
         
         // Process sessions
-        const processedSessions = result.data?.map(session => {
-          const deviceInfo = parseDeviceInfo(session.userAgent);
-          const statusBadge = getStatusBadge(session.status || session.sessionStatus);
-          const roleColor = getRoleColor(session.userRole);
+        const sessionsData = result.data || result.sessions || result || [];
+        console.log(`📊 Processing ${sessionsData.length} sessions`);
+        
+        const processedSessions = sessionsData.map(session => {
+          const deviceInfo = parseDeviceInfo(session.userAgent || '');
+          const statusBadge = getStatusBadge(session.sessionStatus || session.status);
+          const roleColor = getRoleColor(session.userRole || session.role);
           
-          let durationMinutes = session.durationMinutes;
+          // Duration calculation
+          let durationMinutes = session.durationMinutes || 0;
           if (!durationMinutes && session.loginAt) {
-            const endTime = session.logoutAt || (session.status === 'active' ? new Date() : session.loginAt);
-            durationMinutes = Math.round((new Date(endTime) - new Date(session.loginAt)) / (1000 * 60));
+            const loginTime = new Date(session.loginAt);
+            const logoutTime = session.logoutAt ? new Date(session.logoutAt) : new Date();
+            durationMinutes = Math.round((logoutTime - loginTime) / (1000 * 60));
+          }
+          
+          // Check if active
+          const isCurrentlyActive = (session.sessionStatus === 'active') && 
+                                   session.lastActivity && 
+                                   (new Date() - new Date(session.lastActivity)) < 5 * 60 * 1000;
+          
+          // Location string
+          let locationString = 'Unknown Location';
+          if (session.location) {
+            if (session.location.city && session.location.country) {
+              locationString = `${session.location.city}, ${session.location.country}`;
+              if (session.location.region && session.location.region !== session.location.city) {
+                locationString = `${session.location.city}, ${session.location.region}, ${session.location.country}`;
+              }
+            }
+          } else if (session.ip) {
+            locationString = `IP: ${session.ip}`;
+          }
+          
+          // Session number
+          let sessionNumber = session.sessionNumber;
+          if (!sessionNumber && session._id) {
+            sessionNumber = `SESS-${session._id.toString().slice(-6).toUpperCase()}`;
+          } else if (!sessionNumber && session.id) {
+            sessionNumber = `SESS-${session.id.toString().slice(-6).toUpperCase()}`;
           }
           
           return {
-            id: session.id || session._id,
-            sessionNumber: session.sessionNumber || `SESS-${(session.id || session._id || '').toString().slice(-6).toUpperCase()}`,
+            id: session._id || session.id,
+            sessionNumber: sessionNumber,
             userId: session.userId,
             userName: session.userName || session.user?.name || 'Unknown User',
             userEmail: session.userEmail || session.user?.email || 'No email',
@@ -515,8 +578,10 @@ export default function SessionsPage() {
             loginAt: session.loginAt,
             logoutAt: session.logoutAt,
             formattedLogin: session.formattedLogin || formatDateShort(session.loginAt),
-            formattedLogout: session.formattedLogout || (session.logoutAt ? formatDateShort(session.logoutAt) : 'Active'),
-            status: session.status || session.sessionStatus || 'unknown',
+            formattedLogout: session.formattedLogout || 
+                           (session.logoutAt ? formatDateShort(session.logoutAt) : 
+                           (isCurrentlyActive ? 'Active Now' : 'Inactive')),
+            status: session.sessionStatus || session.status || 'unknown',
             statusBadge: statusBadge,
             durationMinutes: durationMinutes,
             formattedDuration: session.formattedDuration || formatDuration(durationMinutes),
@@ -526,38 +591,24 @@ export default function SessionsPage() {
             os: session.os || deviceInfo.os,
             deviceIcon: deviceInfo.deviceIcon,
             location: session.location || {},
-            locationString: session.locationString || 
-              (session.location?.city && session.location?.country 
-                ? `${session.location.city}, ${session.location.country}`
-                : (session.ip || 'Location not available')),
-            userAgent: session.userAgent,
+            locationString: locationString,
+            userAgent: session.userAgent || '',
             activities: session.activities || [],
             roleColor: roleColor,
             createdAt: session.createdAt,
             updatedAt: session.updatedAt,
-            // Additional fields for details
-            userPhone: session.userPhone || session.user?.phone,
-            userDepartment: session.userDepartment || session.user?.department,
-            sessionToken: session.sessionToken,
-            isp: session.isp,
-            timezone: session.timezone,
-            screenResolution: session.screenResolution,
-            language: session.language,
-            referrer: session.referrer,
             lastActivity: session.lastActivity,
-            loginAttempts: session.loginAttempts,
-            securityLevel: session.securityLevel,
-            vpnUsed: session.vpnUsed || false,
-            proxyUsed: session.proxyUsed || false,
-            torUsed: session.torUsed || false
+            isActive: isCurrentlyActive
           };
-        }) || [];
+        });
+        
+        console.log(`✅ Processed ${processedSessions.length} sessions`);
         
         setSessions(processedSessions);
         setFilteredSessions(processedSessions);
         setTotalSessions(result.total || processedSessions.length);
         
-        // Calculate statistics based on user role
+        // Calculate statistics
         calculateStatistics(processedSessions);
         
         toast.success(`Loaded ${processedSessions.length} sessions`);
@@ -568,21 +619,26 @@ export default function SessionsPage() {
         router.push('/');
       } else if (response.status === 403) {
         toast.error("You don't have permission to view these sessions.");
-        // Redirect to appropriate dashboard
-        if (userType === 'admin') {
-          router.push('/admin/dashboard');
-        } else if (userType === 'moderator') {
-          router.push('/moderator/dashboard');
-        } else {
-          router.push('/employee/dashboard');
-        }
+        router.push(getUserDashboard(getCurrentUserType()));
+      } else if (response.status === 404) {
+        console.log('ℹ️ No sessions found (404)');
+        setSessions([]);
+        setFilteredSessions([]);
+        setTotalSessions(0);
+        toast.info("No sessions found");
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.message || 'Failed to load sessions');
+        const errorText = await response.text();
+        console.error('❌ Server error:', errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          toast.error(errorData.message || 'Failed to load sessions');
+        } catch {
+          toast.error('Server error occurred');
+        }
       }
       
     } catch (error) {
-      console.error('Network Error:', error);
+      console.error('❌ fetchSessions error:', error);
       toast.error('Network error. Please check your connection.');
     } finally {
       setLoading(false);
@@ -591,7 +647,7 @@ export default function SessionsPage() {
   
   // Calculate statistics
   const calculateStatistics = (sessions) => {
-    const userType = getUserType();
+    const userType = getCurrentUserType();
     
     // For employees, only show their own stats
     if (userType === 'employee') {
@@ -635,6 +691,33 @@ export default function SessionsPage() {
         uniqueUsers: uniqueUsers
       });
     }
+  };
+  
+  // Open session details modal
+  const openSessionDetails = async (session) => {
+    setSelectedSession(session);
+    setIsModalOpen(true);
+    
+    // Fetch detailed session information
+    const details = await fetchSessionDetails(session.id);
+    if (!details) {
+      // If API call fails, use the basic session data
+      setSessionDetails(session);
+    }
+  };
+  
+  // Close modal
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedSession(null);
+    setSessionDetails(null);
+  };
+  
+  // Copy to clipboard
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text)
+      .then(() => toast.success("Copied to clipboard"))
+      .catch(() => toast.error("Failed to copy"));
   };
   
   // Apply filters
@@ -732,13 +815,13 @@ export default function SessionsPage() {
     
     try {
       const token = getCurrentToken();
-      const userType = getUserType();
+      const userType = getCurrentUserType();
       
       let endpoint;
       if (userType === 'admin') {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/terminate/${sessionId}`;
       } else if (userType === 'moderator') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/terminate/${sessionId}`;
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/terminate/${sessionId}`; // Moderator uses admin endpoint
       } else {
         toast.error("You don't have permission to terminate sessions");
         return;
@@ -771,7 +854,7 @@ export default function SessionsPage() {
     
     try {
       const token = getCurrentToken();
-      const userType = getUserType();
+      const userType = getCurrentUserType();
       
       // Only admin can delete sessions
       if (userType !== 'admin') {
@@ -823,63 +906,6 @@ export default function SessionsPage() {
     setSelectAll(!selectAll);
   };
   
-  // Export sessions
-  const handleExportSessions = async (format = 'json') => {
-    try {
-      const token = getCurrentToken();
-      const userType = getUserType();
-      
-      let endpoint;
-      if (userType === 'admin') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/export?format=${format}`;
-      } else if (userType === 'moderator') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/export?format=${format}`;
-      } else if (userType === 'employee') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/sessions/my/export?format=${format}`;
-      } else {
-        toast.error("Invalid user type");
-        return;
-      }
-      
-      const response = await fetch(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        if (format === 'csv') {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `sessions_${new Date().toISOString().split('T')[0]}.csv`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        } else {
-          const data = await response.json();
-          const jsonString = JSON.stringify(data, null, 2);
-          const blob = new Blob([jsonString], { type: 'application/json' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `sessions_${new Date().toISOString().split('T')[0]}.json`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }
-        toast.success(`Sessions exported as ${format.toUpperCase()}`);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.message || 'Failed to export sessions');
-      }
-    } catch (error) {
-      console.error('Export error:', error);
-      toast.error('Failed to export sessions');
-    }
-  };
-  
   // Bulk actions
   const handleBulkDelete = async () => {
     if (selectedSessions.length === 0) {
@@ -891,7 +917,7 @@ export default function SessionsPage() {
     
     try {
       const token = getCurrentToken();
-      const userType = getUserType();
+      const userType = getCurrentUserType();
       
       // Only admin can perform bulk delete
       if (userType !== 'admin') {
@@ -933,7 +959,7 @@ export default function SessionsPage() {
     
     try {
       const token = getCurrentToken();
-      const userType = getUserType();
+      const userType = getCurrentUserType();
       
       // Admin and moderator can perform bulk terminate
       if (userType !== 'admin' && userType !== 'moderator') {
@@ -943,7 +969,7 @@ export default function SessionsPage() {
       
       const endpoint = userType === 'admin' 
         ? `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/bulk-terminate`
-        : `${process.env.NEXT_PUBLIC_API_URL}/sessions/moderator/bulk-terminate`;
+        : `${process.env.NEXT_PUBLIC_API_URL}/sessions/admin/bulk-terminate`; // Moderator uses admin endpoint
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -980,11 +1006,18 @@ export default function SessionsPage() {
   // Initial data fetch
   useEffect(() => {
     const init = async () => {
-      const userData = await fetchUserProfile();
-      if (userData) {
-        await fetchSessions();
+      try {
+        const userData = await fetchUserProfile();
+        if (userData) {
+          console.log('👤 User loaded, fetching sessions...');
+          await fetchSessions();
+        }
+      } catch (error) {
+        console.error('Initialization error:', error);
+        toast.error('Failed to initialize');
       }
     };
+    
     init();
   }, []);
   
@@ -994,17 +1027,6 @@ export default function SessionsPage() {
       fetchSessions();
     }
   }, [currentPage, sessionsPerPage]);
-  
-  // Get user dashboard URL
-  const getDashboardUrl = () => {
-    const userType = getUserType();
-    switch(userType) {
-      case 'admin': return '/admin/dashboard';
-      case 'moderator': return '/moderator/dashboard';
-      case 'employee': return '/employee/dashboard';
-      default: return '/';
-    }
-  };
   
   // Loading skeleton
   const LoadingSkeleton = () => (
@@ -1038,7 +1060,7 @@ export default function SessionsPage() {
   
   // Stats Cards Component
   const StatsCards = () => {
-    const userType = getUserType();
+    const userType = getCurrentUserType();
     
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -1136,543 +1158,99 @@ export default function SessionsPage() {
   };
   
   // Filter Bar Component
-  const FilterBar = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow mb-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder={
-                getUserType() === 'employee' 
-                  ? "Search my sessions by device, location, IP..."
-                  : "Search sessions by user, device, location, IP..."
-              }
-              className="pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl w-full focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-            />
-          </div>
-        </div>
-        
-        <div className="flex items-center space-x-4">
-          <select
-            className="border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
-            value={filters.status}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-            <option value="expired">Expired</option>
-            <option value="terminated">Terminated</option>
-          </select>
-          
-          <button
-            onClick={handleResetFilters}
-            className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Start Date
-          </label>
-          <input
-            type="date"
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
-            value={filters.startDate}
-            onChange={(e) => handleFilterChange('startDate', e.target.value)}
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            End Date
-          </label>
-          <input
-            type="date"
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
-            value={filters.endDate}
-            onChange={(e) => handleFilterChange('endDate', e.target.value)}
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Sort By
-          </label>
-          <div className="flex space-x-2">
-            <select
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
-              value={filters.sortBy}
-              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-            >
-              <option value="loginAt">Login Time</option>
-              <option value="logoutAt">Logout Time</option>
-              <option value="createdAt">Created At</option>
-              <option value="durationMinutes">Duration</option>
-            </select>
-            <select
-              className="border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
-              value={filters.sortOrder}
-              onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
-            >
-              <option value="desc">Desc</option>
-              <option value="asc">Asc</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-  
-  // Session Details Modal Component
-  const SessionDetailsModal = () => {
-    if (!isModalOpen || !selectedSession) return null;
-    
-    const session = sessionDetails || selectedSession;
-    const userType = getUserType();
-    const statusBadge = getStatusBadge(session.status);
-    const roleColor = getRoleColor(session.userRole);
-    const deviceInfo = parseDeviceInfo(session.userAgent);
+  const FilterBar = () => {
+    const userType = getCurrentUserType();
     
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div className="relative w-full max-w-6xl max-h-[90vh] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
-          {/* Modal Header */}
-          <div className="sticky top-0 z-10 px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className={`p-3 rounded-xl ${roleColor.bg}`}>
-                  <Terminal className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Session Details
-                  </h2>
-                  <p className="text-gray-600 dark:text-gray-300">
-                    {session.sessionNumber}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-3">
-                <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${statusBadge.light}`}>
-                  <span className="w-2 h-2 rounded-full bg-current mr-2"></span>
-                  {statusBadge.text}
-                </span>
-                
-                <button
-                  onClick={closeModal}
-                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder={
+                  userType === 'employee' 
+                    ? "Search my sessions by device, location, IP..."
+                    : "Search sessions by user, device, location, IP..."
+                }
+                className="pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl w-full focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+                value={filters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+              />
             </div>
           </div>
           
-          {/* Modal Content */}
-          <div className="overflow-y-auto max-h-[calc(90vh-180px)] p-8">
-            {loadingDetails ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column - User Info */}
-                <div className="lg:col-span-1 space-y-6">
-                  {/* User Card */}
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6">
-                    <div className="flex items-center space-x-4 mb-6">
-                      <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ${roleColor.bg} text-white text-xl font-bold`}>
-                        {session.userName?.charAt(0) || 'U'}
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                          {session.userName}
-                        </h3>
-                        <p className="text-gray-600 dark:text-gray-300">{session.userEmail}</p>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${roleColor.light} mt-2`}>
-                          {session.userRole}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
-                        <span className="text-gray-600 dark:text-gray-400">User ID</span>
-                        <div className="flex items-center space-x-2">
-                          <code className="text-sm font-mono text-gray-900 dark:text-gray-100">
-                            {session.userId?.slice(-8) || 'N/A'}
-                          </code>
-                          <button
-                            onClick={() => copyToClipboard(session.userId)}
-                            className="p-1 text-gray-500 hover:text-violet-600"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {session.userPhone && (
-                        <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
-                          <span className="text-gray-600 dark:text-gray-400">Phone</span>
-                          <div className="flex items-center space-x-2">
-                            <PhoneIcon className="w-4 h-4 text-gray-500" />
-                            <span className="text-gray-900 dark:text-gray-100">{session.userPhone}</span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {session.userDepartment && (
-                        <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
-                          <span className="text-gray-600 dark:text-gray-400">Department</span>
-                          <span className="text-gray-900 dark:text-gray-100">{session.userDepartment}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Session Status Card */}
-                  <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-6 text-white">
-                    <h3 className="text-lg font-semibold mb-4">Session Status</h3>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span>Duration</span>
-                        <span className="text-xl font-bold">{session.formattedDuration}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Started</span>
-                        <span>{session.formattedLogin}</span>
-                      </div>
-                      {session.logoutAt && (
-                        <div className="flex items-center justify-between">
-                          <span>Ended</span>
-                          <span>{session.formattedLogout}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <span>Activities</span>
-                        <span className="text-xl font-bold">{session.activities?.length || 0}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Middle Column - Device & Location */}
-                <div className="lg:col-span-1 space-y-6">
-                  {/* Device Information */}
-                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                      <CpuIcon className="w-5 h-5 mr-2 text-violet-600" />
-                      Device Information
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div className="p-3 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
-                          {deviceInfo.deviceIcon}
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-gray-900 dark:text-white">{session.device}</h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-300">{session.os}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            {getBrowserIcon(session.browser)}
-                            <span className="text-sm text-gray-600 dark:text-gray-300">Browser</span>
-                          </div>
-                          <p className="font-medium text-gray-900 dark:text-white">{session.browser}</p>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Globe className="w-5 h-5 text-gray-500" />
-                            <span className="text-sm text-gray-600 dark:text-gray-300">Language</span>
-                          </div>
-                          <p className="font-medium text-gray-900 dark:text-white">{session.language || 'en-US'}</p>
-                        </div>
-                      </div>
-                      
-                      {session.screenResolution && (
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Monitor className="w-5 h-5 text-gray-500" />
-                            <span className="text-sm text-gray-600 dark:text-gray-300">Screen Resolution</span>
-                          </div>
-                          <p className="font-medium text-gray-900 dark:text-white">{session.screenResolution}</p>
-                        </div>
-                      )}
-                      
-                      {session.userAgent && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <Terminal className="w-5 h-5 text-gray-500" />
-                              <span className="text-sm text-gray-600 dark:text-gray-300">User Agent</span>
-                            </div>
-                            <button
-                              onClick={() => copyToClipboard(session.userAgent)}
-                              className="p-1 text-gray-500 hover:text-violet-600"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <code className="text-xs font-mono text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg block overflow-x-auto">
-                            {session.userAgent}
-                          </code>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Location Information */}
-                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                      <MapPin className="w-5 h-5 mr-2 text-emerald-600" />
-                      Location Information
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                        <MapIcon className="w-6 h-6 text-emerald-600" />
-                        <div>
-                          <h4 className="font-semibold text-gray-900 dark:text-white">{session.locationString}</h4>
-                          {session.location?.region && (
-                            <p className="text-sm text-gray-600 dark:text-gray-300">{session.location.region}</p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Globe className="w-5 h-5 text-gray-500" />
-                            <span className="text-sm text-gray-600 dark:text-gray-300">IP Address</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <code className="font-mono text-gray-900 dark:text-gray-100">{session.ip}</code>
-                            <button
-                              onClick={() => copyToClipboard(session.ip)}
-                              className="p-1 text-gray-500 hover:text-violet-600"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        
-                        {session.isp && (
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <WifiIcon className="w-5 h-5 text-gray-500" />
-                              <span className="text-sm text-gray-600 dark:text-gray-300">ISP</span>
-                            </div>
-                            <p className="font-medium text-gray-900 dark:text-white">{session.isp}</p>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {session.timezone && (
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <ClockIcon className="w-5 h-5 text-gray-500" />
-                            <span className="text-sm text-gray-600 dark:text-gray-300">Timezone</span>
-                          </div>
-                          <p className="font-medium text-gray-900 dark:text-white">{session.timezone}</p>
-                        </div>
-                      )}
-                      
-                      {/* Security Indicators */}
-                      <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-600">
-                        <h4 className="font-semibold text-gray-900 dark:text-white">Security Indicators</h4>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className={`flex flex-col items-center justify-center p-3 rounded-lg ${session.vpnUsed ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'}`}>
-                            <Shield className="w-5 h-5 mb-1" />
-                            <span className="text-xs">VPN</span>
-                            <span className="text-sm font-semibold">{session.vpnUsed ? 'Yes' : 'No'}</span>
-                          </div>
-                          <div className={`flex flex-col items-center justify-center p-3 rounded-lg ${session.proxyUsed ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'}`}>
-                            <Navigation className="w-5 h-5 mb-1" />
-                            <span className="text-xs">Proxy</span>
-                            <span className="text-sm font-semibold">{session.proxyUsed ? 'Yes' : 'No'}</span>
-                          </div>
-                          <div className={`flex flex-col items-center justify-center p-3 rounded-lg ${session.torUsed ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'}`}>
-                            <Globe className="w-5 h-5 mb-1" />
-                            <span className="text-xs">TOR</span>
-                            <span className="text-sm font-semibold">{session.torUsed ? 'Yes' : 'No'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Right Column - Activities & Actions */}
-                <div className="lg:col-span-1 space-y-6">
-                  {/* Session Timeline */}
-                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                      <ActivityIcon className="w-5 h-5 mr-2 text-blue-600" />
-                      Session Timeline
-                    </h3>
-                    
-                    <div className="space-y-6">
-                      <div className="relative">
-                        {/* Timeline line */}
-                        <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-600"></div>
-                        
-                        {/* Login Event */}
-                        <div className="relative flex items-start mb-8">
-                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center z-10">
-                            <LogIn className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                          <div className="ml-6">
-                            <h4 className="font-semibold text-gray-900 dark:text-white">Session Started</h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">{formatDate(session.loginAt)}</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Login successful</p>
-                          </div>
-                        </div>
-                        
-                        {/* Activities */}
-                        {session.activities?.slice(0, 3).map((activity, index) => (
-                          <div key={index} className="relative flex items-start mb-6">
-                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center z-10">
-                              <ActivityIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div className="ml-6">
-                              <h4 className="font-semibold text-gray-900 dark:text-white">{activity.action || 'Activity'}</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-300">
-                                {activity.timestamp ? formatDate(activity.timestamp) : 'N/A'}
-                              </p>
-                              {activity.details && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{activity.details}</p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {/* Logout Event */}
-                        {session.logoutAt && (
-                          <div className="relative flex items-start">
-                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center z-10">
-                              <LogOutIcon className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                            </div>
-                            <div className="ml-6">
-                              <h4 className="font-semibold text-gray-900 dark:text-white">Session Ended</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-300">{formatDate(session.logoutAt)}</p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                {session.status === 'terminated' ? 'Session terminated' : 'Normal logout'}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {session.activities && session.activities.length > 3 && (
-                        <button className="w-full py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                          View {session.activities.length - 3} more activities
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Session Actions */}
-                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Session Actions</h3>
-                    
-                    <div className="space-y-3">
-                      {/* View Full Details Button */}
-                      <button className="w-full flex items-center justify-center space-x-2 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors">
-                        <ExternalLink className="w-5 h-5" />
-                        <span>View Full Session Log</span>
-                      </button>
-                      
-                      {/* Terminate Session Button (for active sessions) */}
-                      {(userType === 'admin' || userType === 'moderator') && session.status === 'active' && (
-                        <button
-                          onClick={() => handleTerminateSession(session.id)}
-                          className="w-full flex items-center justify-center space-x-2 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-                        >
-                          <StopCircle className="w-5 h-5" />
-                          <span>Terminate Session</span>
-                        </button>
-                      )}
-                      
-                      {/* Delete Session Button (admin only) */}
-                      {userType === 'admin' && (
-                        <button
-                          onClick={() => handleDeleteSession(session.id)}
-                          className="w-full flex items-center justify-center space-x-2 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                          <span>Delete Session Record</span>
-                        </button>
-                      )}
-                      
-                      {/* Export Session Button */}
-                      <button className="w-full flex items-center justify-center space-x-2 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                        <Download className="w-5 h-5" />
-                        <span>Export Session Data</span>
-                      </button>
-                    </div>
-                    
-                    {/* Technical Details */}
-                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Technical Details</h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">Session ID</span>
-                          <code className="font-mono text-gray-900 dark:text-gray-100">{session.id?.slice(-12)}</code>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">Created</span>
-                          <span className="text-gray-900 dark:text-gray-100">{session.createdAt ? formatDateShort(session.createdAt) : 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">Last Updated</span>
-                          <span className="text-gray-900 dark:text-gray-100">{session.updatedAt ? formatDateShort(session.updatedAt) : 'N/A'}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+          <div className="flex items-center space-x-4">
+            <select
+              className="border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+              value={filters.status}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="expired">Expired</option>
+              <option value="terminated">Terminated</option>
+            </select>
+            
+            <button
+              onClick={handleResetFilters}
+              className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Start Date
+            </label>
+            <input
+              type="date"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+              value={filters.startDate}
+              onChange={(e) => handleFilterChange('startDate', e.target.value)}
+            />
           </div>
           
-          {/* Modal Footer */}
-          <div className="sticky bottom-0 px-8 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600 dark:text-gray-300">
-                Session ID: <code className="font-mono">{session.id}</code>
-              </div>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={closeModal}
-                  className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    copyToClipboard(JSON.stringify(session, null, 2));
-                    toast.success("Session data copied to clipboard");
-                  }}
-                  className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
-                >
-                  Copy Data
-                </button>
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              End Date
+            </label>
+            <input
+              type="date"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+              value={filters.endDate}
+              onChange={(e) => handleFilterChange('endDate', e.target.value)}
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Sort By
+            </label>
+            <div className="flex space-x-2">
+              <select
+                className="flex-1 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+                value={filters.sortBy}
+                onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+              >
+                <option value="loginAt">Login Time</option>
+                <option value="logoutAt">Logout Time</option>
+                <option value="createdAt">Created At</option>
+                <option value="durationMinutes">Duration</option>
+              </select>
+              <select
+                className="border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2 focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:bg-gray-700"
+                value={filters.sortOrder}
+                onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
+              >
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
             </div>
           </div>
         </div>
@@ -1682,7 +1260,8 @@ export default function SessionsPage() {
   
   // Session Table Component
   const SessionTable = () => {
-    const userType = getUserType();
+    const userType = getCurrentUserType();
+    const canSelect = userType === 'admin' || userType === 'moderator';
     
     return (
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow overflow-hidden">
@@ -1718,7 +1297,7 @@ export default function SessionsPage() {
               </div>
               
               {/* Bulk actions for admin and moderator */}
-              {(userType === 'admin' || userType === 'moderator') && selectedSessions.length > 0 && (
+              {canSelect && selectedSessions.length > 0 && (
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={handleBulkTerminate}
@@ -1740,14 +1319,6 @@ export default function SessionsPage() {
                   )}
                 </div>
               )}
-              
-              <button
-                onClick={() => handleExportSessions('csv')}
-                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all flex items-center"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </button>
             </div>
           </div>
         </div>
@@ -1758,7 +1329,7 @@ export default function SessionsPage() {
             <thead className="bg-gray-50 dark:bg-gray-700/50">
               <tr>
                 {/* Show checkbox only for admin and moderator */}
-                {(userType === 'admin' || userType === 'moderator') && (
+                {canSelect && (
                   <th className="py-4 px-6 text-left">
                     <input
                       type="checkbox"
@@ -1797,7 +1368,7 @@ export default function SessionsPage() {
                     className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group"
                   >
                     {/* Show checkbox only for admin and moderator */}
-                    {(userType === 'admin' || userType === 'moderator') && (
+                    {canSelect && (
                       <td className="py-4 px-6">
                         <input
                           type="checkbox"
@@ -1897,7 +1468,7 @@ export default function SessionsPage() {
                         </button>
                         
                         {/* Only show terminate button for active sessions and if user has permission */}
-                        {(userType === 'admin' || userType === 'moderator') && session.status === 'active' && (
+                        {(canSelect) && session.status === 'active' && (
                           <button
                             onClick={() => handleTerminateSession(session.id)}
                             className="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
@@ -1933,7 +1504,7 @@ export default function SessionsPage() {
                 No sessions found
               </h3>
               <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                {getUserType() === 'employee' 
+                {getCurrentUserType() === 'employee' 
                   ? "You don't have any sessions yet. Try logging in from a different device."
                   : "Try adjusting your search or filter criteria to find what you're looking for."
                 }
@@ -1953,7 +1524,8 @@ export default function SessionsPage() {
   
   // Session Cards Component
   const SessionCards = () => {
-    const userType = getUserType();
+    const userType = getCurrentUserType();
+    const canSelect = userType === 'admin' || userType === 'moderator';
     
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1988,7 +1560,7 @@ export default function SessionsPage() {
                   </div>
                   
                   {/* Show checkbox only for admin and moderator */}
-                  {(userType === 'admin' || userType === 'moderator') && (
+                  {canSelect && (
                     <div className="flex items-center space-x-1">
                       <input
                         type="checkbox"
@@ -2069,7 +1641,7 @@ export default function SessionsPage() {
                       View Details
                     </button>
                     
-                    {(userType === 'admin' || userType === 'moderator') && (
+                    {canSelect && (
                       <div className="relative group/actions">
                         <button className="p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg">
                           <MoreVertical className="w-5 h-5" />
@@ -2193,11 +1765,378 @@ export default function SessionsPage() {
             className={`px-4 py-2 rounded-xl border ${
               currentPage === totalPages
                 ? "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-                : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                : "border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             }`}
           >
             <ChevronRight className="w-5 h-5" />
           </button>
+        </div>
+      </div>
+    );
+  };
+  
+  // Session Details Modal Component
+  const SessionDetailsModal = () => {
+    if (!isModalOpen || !selectedSession) return null;
+    
+    const session = sessionDetails || selectedSession;
+    const userType = getCurrentUserType();
+    const statusBadge = getStatusBadge(session.status);
+    const roleColor = getRoleColor(session.userRole);
+    const deviceInfo = parseDeviceInfo(session.userAgent);
+    
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="relative w-full max-w-6xl max-h-[90vh] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
+          {/* Modal Header */}
+          <div className="sticky top-0 z-10 px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className={`p-3 rounded-xl ${roleColor.bg}`}>
+                  <Terminal className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Session Details
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    {session.sessionNumber}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${statusBadge.light}`}>
+                  <span className="w-2 h-2 rounded-full bg-current mr-2"></span>
+                  {statusBadge.text}
+                </span>
+                
+                <button
+                  onClick={closeModal}
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Modal Content */}
+          <div className="overflow-y-auto max-h-[calc(90vh-180px)] p-8">
+            {loadingDetails ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column - User Info */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* User Card */}
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6">
+                    <div className="flex items-center space-x-4 mb-6">
+                      <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ${roleColor.bg} text-white text-xl font-bold`}>
+                        {session.userName?.charAt(0) || 'U'}
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                          {session.userName}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-300">{session.userEmail}</p>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${roleColor.light} mt-2`}>
+                          {session.userRole}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
+                        <span className="text-gray-600 dark:text-gray-400">User ID</span>
+                        <div className="flex items-center space-x-2">
+                          <code className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                            {session.userId?.slice(-8) || 'N/A'}
+                          </code>
+                          <button
+                            onClick={() => copyToClipboard(session.userId)}
+                            className="p-1 text-gray-500 hover:text-violet-600"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Session Status Card */}
+                  <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-6 text-white">
+                    <h3 className="text-lg font-semibold mb-4">Session Status</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span>Duration</span>
+                        <span className="text-xl font-bold">{session.formattedDuration}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Started</span>
+                        <span>{session.formattedLogin}</span>
+                      </div>
+                      {session.logoutAt && (
+                        <div className="flex items-center justify-between">
+                          <span>Ended</span>
+                          <span>{session.formattedLogout}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span>Activities</span>
+                        <span className="text-xl font-bold">{session.activities?.length || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Middle Column - Device & Location */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Device Information */}
+                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <CpuIcon className="w-5 h-5 mr-2 text-violet-600" />
+                      Device Information
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="p-3 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+                          {deviceInfo.deviceIcon}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white">{session.device}</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">{session.os}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            {getBrowserIcon(session.browser)}
+                            <span className="text-sm text-gray-600 dark:text-gray-300">Browser</span>
+                          </div>
+                          <p className="font-medium text-gray-900 dark:text-white">{session.browser}</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Globe className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-300">Language</span>
+                          </div>
+                          <p className="font-medium text-gray-900 dark:text-white">{session.language || 'en-US'}</p>
+                        </div>
+                      </div>
+                      
+                      {session.userAgent && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Terminal className="w-5 h-5 text-gray-500" />
+                              <span className="text-sm text-gray-600 dark:text-gray-300">User Agent</span>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(session.userAgent)}
+                              className="p-1 text-gray-500 hover:text-violet-600"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <code className="text-xs font-mono text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg block overflow-x-auto">
+                            {session.userAgent}
+                          </code>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Location Information */}
+                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <MapPin className="w-5 h-5 mr-2 text-emerald-600" />
+                      Location Information
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                        <MapIcon className="w-6 h-6 text-emerald-600" />
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white">{session.locationString}</h4>
+                          {session.location?.region && (
+                            <p className="text-sm text-gray-600 dark:text-gray-300">{session.location.region}</p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Globe className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-300">IP Address</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <code className="font-mono text-gray-900 dark:text-gray-100">{session.ip}</code>
+                            <button
+                              onClick={() => copyToClipboard(session.ip)}
+                              className="p-1 text-gray-500 hover:text-violet-600"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Right Column - Activities & Actions */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Session Timeline */}
+                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <ActivityIcon className="w-5 h-5 mr-2 text-blue-600" />
+                      Session Timeline
+                    </h3>
+                    
+                    <div className="space-y-6">
+                      <div className="relative">
+                        {/* Timeline line */}
+                        <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-600"></div>
+                        
+                        {/* Login Event */}
+                        <div className="relative flex items-start mb-8">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center z-10">
+                            <LogIn className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <div className="ml-6">
+                            <h4 className="font-semibold text-gray-900 dark:text-white">Session Started</h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">{formatDate(session.loginAt)}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Login successful</p>
+                          </div>
+                        </div>
+                        
+                        {/* Activities */}
+                        {session.activities?.slice(0, 3).map((activity, index) => (
+                          <div key={index} className="relative flex items-start mb-6">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center z-10">
+                              <ActivityIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div className="ml-6">
+                              <h4 className="font-semibold text-gray-900 dark:text-white">{activity.action || 'Activity'}</h4>
+                              <p className="text-sm text-gray-600 dark:text-gray-300">
+                                {activity.timestamp ? formatDate(activity.timestamp) : 'N/A'}
+                              </p>
+                              {activity.details && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{activity.details}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* Logout Event */}
+                        {session.logoutAt && (
+                          <div className="relative flex items-start">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center z-10">
+                              <LogOutIcon className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                            </div>
+                            <div className="ml-6">
+                              <h4 className="font-semibold text-gray-900 dark:text-white">Session Ended</h4>
+                              <p className="text-sm text-gray-600 dark:text-gray-300">{formatDate(session.logoutAt)}</p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {session.status === 'terminated' ? 'Session terminated' : 'Normal logout'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {session.activities && session.activities.length > 3 && (
+                        <button className="w-full py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                          View {session.activities.length - 3} more activities
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Session Actions */}
+                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Session Actions</h3>
+                    
+                    <div className="space-y-3">
+                      {/* Terminate Session Button (for active sessions) */}
+                      {(userType === 'admin' || userType === 'moderator') && session.status === 'active' && (
+                        <button
+                          onClick={() => handleTerminateSession(session.id)}
+                          className="w-full flex items-center justify-center space-x-2 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                        >
+                          <StopCircle className="w-5 h-5" />
+                          <span>Terminate Session</span>
+                        </button>
+                      )}
+                      
+                      {/* Delete Session Button (admin only) */}
+                      {userType === 'admin' && (
+                        <button
+                          onClick={() => handleDeleteSession(session.id)}
+                          className="w-full flex items-center justify-center space-x-2 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                          <span>Delete Session Record</span>
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* Technical Details */}
+                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Technical Details</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Session ID</span>
+                          <code className="font-mono text-gray-900 dark:text-gray-100">{session.id?.slice(-12)}</code>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Created</span>
+                          <span className="text-gray-900 dark:text-gray-100">{session.createdAt ? formatDateShort(session.createdAt) : 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Last Updated</span>
+                          <span className="text-gray-900 dark:text-gray-100">{session.updatedAt ? formatDateShort(session.updatedAt) : 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Modal Footer */}
+          <div className="sticky bottom-0 px-8 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                Session ID: <code className="font-mono">{session.id}</code>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={closeModal}
+                  className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    copyToClipboard(JSON.stringify(session, null, 2));
+                    toast.success("Session data copied to clipboard");
+                  }}
+                  className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+                >
+                  Copy Data
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -2216,7 +2155,8 @@ export default function SessionsPage() {
     return null;
   }
   
-  const userType = getUserType();
+  const userType = getCurrentUserType();
+  const userName = user.firstName || user.name || user.fullName || 'User';
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -2226,7 +2166,7 @@ export default function SessionsPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <button
-                onClick={() => router.push(getDashboardUrl())}
+                onClick={() => router.push(getUserDashboard(userType))}
                 className="flex items-center space-x-3 group"
               >
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center group-hover:from-violet-700 group-hover:to-purple-700 transition-all">
@@ -2257,14 +2197,14 @@ export default function SessionsPage() {
               <div className="flex items-center space-x-3">
                 <div className="text-right hidden md:block">
                   <p className="font-medium text-gray-900 dark:text-white">
-                    {user.name || user.firstName || 'User'}
+                    {userName}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
-                    {user.role}
+                    {user.role || userType}
                   </p>
                 </div>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getRoleColor(user.role).bg} text-white`}>
-                  {(user.name || user.firstName || 'U').charAt(0).toUpperCase()}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getRoleColor(user.role || userType).bg} text-white`}>
+                  {userName.charAt(0).toUpperCase()}
                 </div>
               </div>
               
@@ -2290,7 +2230,7 @@ export default function SessionsPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold mb-2">
-                Welcome back, {user.name || user.firstName || 'User'}!
+                Welcome back, {userName}!
               </h2>
               <p className="text-violet-100">
                 {userType === 'admin' 

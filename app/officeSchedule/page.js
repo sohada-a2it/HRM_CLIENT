@@ -607,43 +607,7 @@ export default function page() {
                   : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
               }`}>
                 {currentRole === 'admin' ? 'Administrator' : 'Employee'}
-              </div>
-              
-              {currentToken && (
-                <div className="flex items-center space-x-3">
-                  {currentRole === 'admin' && (
-                    <button
-                      onClick={clearCache}
-                      className="px-3 py-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-lg text-sm font-medium transition-all"
-                      title="Clear cached data"
-                    >
-                      Clear Cache
-                    </button>
-                  )}
-                  <button
-                    onClick={refreshAllData}
-                    disabled={loading}
-                    className="px-3 py-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg text-sm font-medium transition-all"
-                  >
-                    Refresh All
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="px-4 py-2 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white rounded-lg text-sm font-medium shadow-lg shadow-red-500/25 transition-all"
-                  >
-                    Logout
-                  </button>
-                </div>
-              )}
-              
-              {!currentToken && (
-                <button
-                  onClick={() => setShowTokenInput(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-sm font-medium shadow-lg shadow-blue-500/25 transition-all"
-                >
-                  Login
-                </button>
-              )}
+              </div> 
             </div>
           </div>
         </div>

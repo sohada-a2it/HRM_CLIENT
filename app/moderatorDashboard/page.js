@@ -34,7 +34,7 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export default function ModeratorDashboard() {
+export default function page() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);

@@ -626,7 +626,7 @@ function ShiftHistoryModal({ isOpen, onClose, user, history }) {
 }
 
 // ====================== MAIN COMPONENT ======================
-export default function CompleteShiftManagementPage() {
+export default function page() {
   const [viewMode, setViewMode] = useState('overview');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1870,14 +1870,14 @@ const handleShiftReset = async (userId) => {
                                   >
                                     <History size={14} />
                                   </button>
-                                  <button
+                                  {/* <button
                                     onClick={() => handleShiftReset(user._id)}
                                     className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                                     title="Reset to Default"
                                     disabled={!user.shiftInfo?.isActive}
                                   >
                                     <RotateCcw size={14} className={!user.shiftInfo?.isActive ? 'opacity-30' : ''} />
-                                  </button>
+                                  </button> */}
                                 </div>
                               </td>
                             </tr>

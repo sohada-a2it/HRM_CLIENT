@@ -707,25 +707,7 @@ export default function page() {
                 Refresh
               </button>
               
-              {isAdmin && (
-                <>
-                  <button 
-                    onClick={exportLogs}
-                    className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                  >
-                    <Download size={18} />
-                    Export
-                  </button>
-                  
-                  <button 
-                    onClick={() => window.print()}
-                    className="px-4 py-2.5 bg-gradient-to-r from-gray-700 to-gray-900 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                  >
-                    <Printer size={18} />
-                    Print
-                  </button>
-                </>
-              )}
+ 
             </div>
           </div>
 

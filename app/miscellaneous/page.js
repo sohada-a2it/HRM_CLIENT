@@ -398,7 +398,7 @@ const StatsDashboard = ({ expenses, userRole }) => {
   );
 };
 
-export default function MiscellaneousExpensesPage() {
+export default function page() {
   const router = useRouter();
   
   // User role state

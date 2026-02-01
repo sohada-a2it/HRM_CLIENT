@@ -156,7 +156,7 @@ const DeleteConfirmationModal = ({
   );
 };
 
-export default function OfficeSupplyPage() {
+export default function page() {
   const router = useRouter();
   
   // Authentication state

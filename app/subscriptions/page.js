@@ -65,7 +65,7 @@ const Toast = ({ message, type = 'success', onClose }) => {
   );
 };
 
-export default function SoftwareSubscriptionPage() {
+export default function page() {
   const router = useRouter();
   
   // Authentication state

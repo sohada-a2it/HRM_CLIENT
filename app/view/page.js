@@ -266,38 +266,7 @@ function UserViewContent() {
                 <Edit size={16} />
                 Edit Profile
               </button>
-              
-              <button
-                onClick={handleResetPassword}
-                className="px-4 py-2 border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50 flex items-center gap-2"
-              >
-                <Lock size={16} />
-                Reset Password
-              </button>
-              
-              <button
-                onClick={handleExport}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-              >
-                <Download size={16} />
-                Export
-              </button>
-              
-              <button
-                onClick={handlePrint}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-              >
-                <Printer size={16} />
-                Print
-              </button>
-              
-              <button
-                onClick={handleCopyUserId}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-              >
-                <Copy size={16} />
-                Copy ID
-              </button>
+               
             </div>
           </div>
         </div>
@@ -1016,7 +985,7 @@ function LoadingSpinner() {
 }
 
 // Main Export with Suspense
-export default function AdminUserViewPage() {
+export default function page() {
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <UserViewContent />

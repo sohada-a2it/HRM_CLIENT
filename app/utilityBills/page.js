@@ -157,7 +157,7 @@ const DeleteConfirmationModal = ({
   );
 };
 
-export default function BillsPage() {
+export default function page() {
   const router = useRouter();
   
   // Authentication state

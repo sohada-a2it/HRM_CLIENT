@@ -55,7 +55,7 @@ const Toast = ({ message, type = 'success', onClose }) => {
   );
 };
 
-export default function OfficeRent() {
+export default function page() {
   const router = useRouter();
   const formRef = useRef(null);
   

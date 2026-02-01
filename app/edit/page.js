@@ -1387,7 +1387,7 @@ function LoadingSpinner() {
 }
 
 // Main Export with Suspense
-export default function AdminUserEditPage() {
+export default function page() {
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <UserEditContent />

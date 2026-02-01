@@ -7,7 +7,7 @@ import autoTable from "jspdf-autotable";
 // API বেস URL
 const API_BASE_URL = 'https://a2it-hrm-server.onrender.com/api/v1';
 
-export default function TransportExpensePage() {
+export default function page() {
   const [transports, setTransports] = useState([
     {
       id: crypto.randomUUID(),

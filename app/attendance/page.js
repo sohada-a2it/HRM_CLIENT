@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+  // উপরের imports এ যোগ করুন:
+import { PDFDownloadLink, PDFViewer } from "@react-pdf/renderer";
+import AttendanceReportPDF from "@/components/AttendanceReportPDF";
 import { 
   Clock, Calendar, Filter, Wifi, Server, Network,
   RefreshCw, CheckCircle, XCircle, AlertCircle, Download,
@@ -147,9 +150,42 @@ import {
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
-export default function AttendanceSystem() {
+export default function page() {
   const router = useRouter();
+// state এ যোগ করুন:
+const [showPDFPreview, setShowPDFPreview] = useState(false);
+const [pdfLoading, setPdfLoading] = useState(false);
+
+// PDF জেনারেট ফাংশন:
+const generatePDFReport = () => {
+  if (attendance.length === 0) {
+    toast.error("No records to generate PDF");
+    return;
+  }
   
+  setPdfLoading(true);
+  
+  // ফিল্টারকৃত ডেটা নিয়ে PDF তৈরি হবে
+  const reportData = {
+    attendance: attendance, // ফিল্টারকৃত attendance ডেটা
+    filters: filters,
+    dateRange: dateRange,
+    summary: summary,
+    userData: userData,
+    isAdmin: isAdmin,
+    selectedEmployeeName: filters.employeeId 
+      ? employees.find(e => e._id === filters.employeeId)?.firstName + " " + 
+        employees.find(e => e._id === filters.employeeId)?.lastName
+      : null
+  };
+  
+  // PDF প্রিভিউ দেখানো (ঐচ্ছিক)
+  setShowPDFPreview(true);
+  setPdfLoading(false);
+  
+  toast.success("PDF generated successfully!");
+};
+
   // Main state
   const [attendance, setAttendance] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -1052,95 +1088,217 @@ const fetchAttendanceData = async () => {
     setCurrentPage(1);
   };
   
-  const fetchSummary = async () => {
+const fetchSummary = async () => {
   try {
     const tokenInfo = getToken();
     if (!tokenInfo) return;
-    
+
+    console.log("📊 Fetching summary...");
+    console.log("👑 Is Admin:", isAdmin);
+    console.log("👤 Selected Employee ID:", filters.employeeId);
+
     const queryParams = new URLSearchParams({
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
     });
-    
-    // ✅ Admin এর জন্য যদি specific employee select করা থাকে
-    if (isAdmin && filters.employeeId) {
-      queryParams.append('employeeId', filters.employeeId);
-    } else if (!isAdmin && userData?._id) {
-      // Employee এর জন্য তাদের নিজের ID পাঠানো
-      queryParams.append('employeeId', userData._id);
-    }
-    
-    const query = queryParams.toString();
-    
+
+    // Determine which endpoint to call based on role and filters
     let endpoint;
+    
     if (isAdmin) {
-      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/summary?${query}`;
+      // Admin এর জন্য dashboard stats নিবে (employeeId না থাকলে)
+      if (!filters.employeeId) {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/dashboard`;
+        console.log("📊 Calling ADMIN DASHBOARD endpoint");
+      } else {
+        // Admin যখন specific employee select করে
+        queryParams.append('employeeId', filters.employeeId);
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/employee-summary?${queryParams}`;
+        console.log("📊 Calling EMPLOYEE SUMMARY endpoint for admin");
+      }
     } else {
-      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/summary?${query}`;
+      // Regular employee এর জন্য
+      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/summary?${queryParams}`;
+      console.log("📊 Calling EMPLOYEE SUMMARY endpoint");
     }
-    
-    console.log("📊 Fetching summary from:", endpoint.replace(process.env.NEXT_PUBLIC_API_URL, '[API_URL]'));
-    
+
+    console.log("📊 API Endpoint:", endpoint);
+
     const response = await fetch(endpoint, {
       headers: { 
         Authorization: `Bearer ${tokenInfo.token}`,
         "Content-Type": "application/json"
-      }
+      },
+      cache: 'no-cache'
     });
-    
+
+    console.log("📊 Response Status:", response.status);
+
     if (response.ok) {
       const data = await response.json();
-      console.log("Summary Data:", data);
+      console.log("📊 Full API Response:", data);
+
+      // এখন API response structure অনুযায়ী ডেটা process করব
+      if (isAdmin && !filters.employeeId) {
+        // Admin dashboard stats এর জন্য
+        console.log("📊 Processing ADMIN DASHBOARD data");
+        
+        if (data.dashboard) {
+          const dashboardData = data.dashboard;
+          
+          // Dashboard ডেটা থেকে summary বানানো
+          const newSummary = {
+            // Dashboard থেকে পাওয়া ডেটা
+            totalEmployees: dashboardData.totalEmployees || 0,
+            presentToday: dashboardData.presentToday || 0,
+            absentToday: dashboardData.absentToday || 0,
+            pendingClockOut: dashboardData.pendingClockOut || 0,
+            
+            // Month ডেটা থেকে calculate
+            presentDays: dashboardData.month?.Present?.count || 0,
+            absentDays: dashboardData.month?.Absent?.count || 0,
+            lateDays: dashboardData.month?.Late?.count || 0,
+            earlyDays: dashboardData.month?.Early?.count || 0,
+            totalHours: dashboardData.month?.Present?.totalHours || 
+                      dashboardData.month?.Late?.totalHours || 
+                      dashboardData.month?.Early?.totalHours || 0,
+            
+            // Calculate additional fields
+            totalDays: (dashboardData.month?.Present?.count || 0) +
+                      (dashboardData.month?.Absent?.count || 0) +
+                      (dashboardData.month?.Late?.count || 0) +
+                      (dashboardData.month?.Early?.count || 0) +
+                      (dashboardData.month?.Leave?.count || 0) +
+                      (dashboardData.month?.['Govt Holiday']?.count || 0) +
+                      (dashboardData.month?.['Weekly Off']?.count || 0) +
+                      (dashboardData.month?.['Off Day']?.count || 0),
+            
+            averageHours: dashboardData.month?.Present?.count > 0 
+              ? ((dashboardData.month?.Present?.totalHours || 0) / dashboardData.month?.Present?.count) 
+              : 0,
+            
+            attendanceRate: dashboardData.totalEmployees > 0 
+              ? ((dashboardData.presentToday || 0) / dashboardData.totalEmployees) * 100 
+              : 0,
+            
+            workingDays: (dashboardData.month?.Present?.count || 0) +
+                        (dashboardData.month?.Late?.count || 0) +
+                        (dashboardData.month?.Early?.count || 0) +
+                        (dashboardData.month?.Leave?.count || 0)
+          };
+          
+          console.log("📊 Processed Admin Dashboard Summary:", newSummary);
+          setSummary(newSummary);
+        } else {
+          console.warn("📊 No dashboard data found in response");
+          createLocalSummary();
+        }
+        
+      } else {
+        // Regular employee summary এর জন্য
+        console.log("📊 Processing REGULAR SUMMARY data");
+        
+        if (data.summary) {
+          const summaryData = data.summary;
+          
+          // Ensure all required fields are present
+          const newSummary = {
+            totalEmployees: 1, // Employee এর জন্য 1
+            presentToday: 0,
+            absentToday: 0,
+            pendingClockOut: 0,
+            presentDays: summaryData.presentDays || 0,
+            absentDays: summaryData.absentDays || 0,
+            totalDays: summaryData.totalDays || summaryData.workingDays || 0,
+            totalHours: summaryData.totalHours || 0,
+            averageHours: summaryData.averageHours || 0,
+            attendanceRate: summaryData.attendanceRate || 0,
+            lateDays: summaryData.lateDays || 0,
+            earlyDays: summaryData.earlyDays || 0,
+            workingDays: summaryData.workingDays || summaryData.totalDays || 0
+          };
+          
+          console.log("📊 Processed Employee Summary:", newSummary);
+          setSummary(newSummary);
+        } else {
+          console.warn("📊 No summary data found in response");
+          createLocalSummary();
+        }
+      }
       
-      // Handle different response structures
-      if (data.summary) {
-        setSummary(data.summary);
-      } else if (data.data?.summary) {
-        setSummary(data.data.summary);
-      } else if (data.data) {
-        setSummary(data.data);
-      } else {
-        setSummary(data);
-      }
     } else {
-      console.warn("Failed to fetch summary, using default");
-      // ✅ Admin এর জন্য default summary তৈরি করুন
-      if (isAdmin) {
-        setSummary({
-          totalEmployees: employees.length,
-          presentToday: 0,
-          absentToday: 0,
-          pendingClockOut: 0,
-          presentDays: attendance.filter(a => a.status === "Present").length,
-          absentDays: attendance.filter(a => a.status === "Absent").length,
-          totalDays: attendance.length,
-          totalHours: attendance.reduce((sum, a) => sum + (a.totalHours || 0), 0),
-          averageHours: attendance.length > 0 
-            ? attendance.reduce((sum, a) => sum + (a.totalHours || 0), 0) / attendance.length 
-            : 0,
-          attendanceRate: attendance.length > 0 
-            ? (attendance.filter(a => a.status === "Present").length / attendance.length) * 100 
-            : 0,
-          lateDays: attendance.filter(a => a.status === "Late").length,
-          earlyDays: attendance.filter(a => a.status === "Early").length,
-          workingDays: attendance.filter(a => 
-            !["Govt Holiday", "Weekly Off", "Off Day", "Leave"].includes(a.status)
-          ).length
-        });
-      } else {
-        setSummary({
-          totalEmployees: 1,
-          presentToday: 0,
-          absentToday: 0,
-          pendingClockOut: 0
-        });
-      }
+      console.warn("❌ Failed to fetch summary from API");
+      const errorText = await response.text();
+      console.error("❌ Error response:", errorText);
+      createLocalSummary();
     }
   } catch (error) {
-    console.error("Fetch summary error:", error);
-    setSummary(null);
+    console.error("❌ Fetch summary error:", error);
+    createLocalSummary();
   }
 };
+
+// Local summary calculation function
+const createLocalSummary = () => {
+  console.log("🔄 Creating local summary from attendance data");
+  console.log("📊 Attendance data length:", attendance.length);
+  console.log("👥 Employees count:", employees.length);
+  console.log("👑 Is admin:", isAdmin);
+  console.log("👤 Selected employee ID:", filters.employeeId);
+  
+  if (attendance.length === 0) {
+    console.log("📊 No attendance data, setting empty summary");
+    const emptySummary = {
+      totalEmployees: isAdmin ? employees.length : 1,
+      presentToday: 0,
+      absentToday: 0,
+      pendingClockOut: 0,
+      presentDays: 0,
+      absentDays: 0,
+      totalDays: 0,
+      totalHours: 0,
+      averageHours: 0,
+      attendanceRate: 0,
+      lateDays: 0,
+      earlyDays: 0,
+      workingDays: 0
+    };
+    console.log("📊 Empty summary:", emptySummary);
+    setSummary(emptySummary);
+    return;
+  }
+
+  // Calculate from attendance data
+  const presentDays = attendance.filter(a => a.status === "Present").length;
+  const absentDays = attendance.filter(a => a.status === "Absent").length;
+  const totalDays = attendance.length;
+  const totalHours = attendance.reduce((sum, a) => sum + (a.totalHours || 0), 0);
+  const lateDays = attendance.filter(a => a.status === "Late").length;
+  const earlyDays = attendance.filter(a => a.status === "Early").length;
+  const workingDays = attendance.filter(a => 
+    !["Govt Holiday", "Weekly Off", "Off Day", "Leave"].includes(a.status)
+  ).length;
+  
+  const calculatedSummary = {
+    totalEmployees: isAdmin ? (filters.employeeId ? 1 : employees.length) : 1,
+    presentToday: 0,
+    absentToday: 0,
+    pendingClockOut: 0,
+    presentDays,
+    absentDays,
+    totalDays,
+    totalHours,
+    averageHours: totalDays > 0 ? totalHours / totalDays : 0,
+    attendanceRate: totalDays > 0 ? (presentDays / totalDays) * 100 : 0,
+    lateDays,
+    earlyDays,
+    workingDays
+  };
+  
+  console.log("📊 Calculated summary:", calculatedSummary);
+  setSummary(calculatedSummary);
+};
+ 
   
   const fetchAnalytics = async () => {
     try {
@@ -2181,7 +2339,7 @@ const handleClockIn = async () => {
         )}
         
         {/* Admin Stats (Admin Only) */}
-        {isAdmin && (
+        {/* {isAdmin && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
@@ -2239,7 +2397,7 @@ const handleClockIn = async () => {
               </div>
             </div>
           </div>
-        )}
+        )} */}
         
         {/* Enhanced Filters and Controls */}
         <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl p-6 mb-8 shadow-sm">
@@ -2564,7 +2722,144 @@ const handleClockIn = async () => {
                   </button>
                 </div>
               </div>
+            )} 
+
+{/* ফিল্টার সেকশনে Apply/Clear বাটনের পরে যোগ করুন: */}
+<div className="flex justify-between items-center pt-2">
+  <div className="text-sm text-gray-500">
+    Showing data from {formatDateShort(dateRange.startDate)} to {formatDateShort(dateRange.endDate)}
+  </div>
+  
+  <div className="flex gap-2">
+    {/* PDF জেনারেট বাটন */}
+    <button
+      onClick={generatePDFReport}
+      disabled={attendance.length === 0 || pdfLoading}
+      className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm flex items-center gap-2 disabled:opacity-50"
+    >
+      {pdfLoading ? (
+        <>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Generating...
+        </>
+      ) : (
+        <>
+          <FileText size={16} />
+          Generate PDF
+        </>
+      )}
+    </button>
+    
+    {/* ডাউনলোড লিঙ্ক (বিকল্প) */}
+    {attendance.length > 0 && (
+      <PDFDownloadLink
+        document={
+          <AttendanceReportPDF
+            attendance={attendance}
+            filters={filters}
+            dateRange={dateRange}
+            summary={summary}
+            userData={userData}
+            isAdmin={isAdmin}
+            selectedEmployeeName={filters.employeeId 
+              ? employees.find(e => e._id === filters.employeeId)?.firstName + " " + 
+                employees.find(e => e._id === filters.employeeId)?.lastName
+              : null
+            }
+          />
+        }
+        fileName={`attendance-report-${new Date().toISOString().split("T")[0]}.pdf`}
+      >
+        {({ loading }) => (
+          <button
+            disabled={loading}
+            className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm flex items-center gap-2 disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Preparing...
+              </>
+            ) : (
+              <>
+                <Download size={16} />
+                Download PDF
+              </>
             )}
+          </button>
+        )}
+      </PDFDownloadLink>
+    )}  
+  </div>
+</div>
+
+{/* PDF প্রিভিউ মডাল (ঐচ্ছিক) */}
+{showPDFPreview && (
+  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl p-6 max-w-6xl w-full max-h-[90vh] flex flex-col shadow-2xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">PDF Preview</h2>
+          <p className="text-gray-500">Preview of generated attendance report</p>
+        </div>
+        <div className="flex gap-2">
+          <PDFDownloadLink
+            document={
+              <AttendanceReportPDF
+                attendance={attendance}
+                filters={filters}
+                dateRange={dateRange}
+                summary={summary}
+                userData={userData}
+                isAdmin={isAdmin}
+                selectedEmployeeName={filters.employeeId 
+                  ? employees.find(e => e._id === filters.employeeId)?.firstName + " " + 
+                    employees.find(e => e._id === filters.employeeId)?.lastName
+                  : null
+                }
+              />
+            }
+            fileName={`attendance-report-${new Date().toISOString().split("T")[0]}.pdf`}
+          >
+            {({ loading }) => (
+              <button
+                disabled={loading}
+                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:opacity-90 font-medium flex items-center gap-2"
+              >
+                <Download size={16} />
+                {loading ? "Preparing..." : "Download"}
+              </button>
+            )}
+          </PDFDownloadLink>
+          <button
+            onClick={() => setShowPDFPreview(false)}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex-1 overflow-hidden">
+        <PDFViewer width="100%" height="100%" className="rounded-lg">
+          <AttendanceReportPDF
+            attendance={attendance}
+            filters={filters}
+            dateRange={dateRange}
+            summary={summary}
+            userData={userData}
+            isAdmin={isAdmin}
+            selectedEmployeeName={filters.employeeId 
+              ? employees.find(e => e._id === filters.employeeId)?.firstName + " " + 
+                employees.find(e => e._id === filters.employeeId)?.lastName
+              : null
+            }
+          />
+        </PDFViewer>
+      </div>
+    </div>
+  </div>
+)}
           </div>
         </div>
         
@@ -3222,21 +3517,22 @@ const handleClockIn = async () => {
           )}
         </div>
         
-        {/* Enhanced Summary Stats */}
-        {/* Enhanced Summary Stats */}
+        {/* Enhanced Summary Stats */}{/* Enhanced Summary Stats */}
 {summary && (
   <div className="mt-8 bg-gradient-to-br from-white to-purple-50 border border-purple-200 rounded-2xl p-6 shadow-sm">
     <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
       <BarChart3 className="text-purple-600" size={24} />
-      {isAdmin && filters.employeeId ? (
-        <>
-          Employee Statistics: {
-            employees.find(e => e._id === filters.employeeId)?.firstName + ' ' + 
-            employees.find(e => e._id === filters.employeeId)?.lastName
-          }
-        </>
-      ) : isAdmin ? (
-        "Company Statistics"
+      {isAdmin ? (
+        filters.employeeId ? (
+          <>
+            Employee Statistics: {
+              employees.find(e => e._id === filters.employeeId)?.firstName + ' ' + 
+              employees.find(e => e._id === filters.employeeId)?.lastName
+            }
+          </>
+        ) : (
+          "Company Statistics"
+        )
       ) : (
         "Your Statistics"
       )}
@@ -3289,62 +3585,66 @@ const handleClockIn = async () => {
       </div>
     </div>
     
-    {/* Second Row - Admin এর জন্য employee সিলেক্ট করলে দেখাবে */}
-    {(isAdmin && !filters.employeeId) ? (
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-        <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-100">
-          <div className="text-sm text-gray-600">Total Employees</div>
-          <div className="text-xl font-bold text-amber-700">{summary.totalEmployees || 0}</div>
-          <div className="text-xs text-gray-500">
-            Active employees
+    {/* Second Row - Conditional Display */}
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+      {isAdmin && !filters.employeeId ? (
+        // Admin View - Company Statistics
+        <>
+          <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-100">
+            <div className="text-sm text-gray-600">Total Employees</div>
+            <div className="text-xl font-bold text-amber-700">{summary.totalEmployees || 0}</div>
+            <div className="text-xs text-gray-500">
+              Active employees
+            </div>
           </div>
-        </div>
-        
-        <div className="p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100">
-          <div className="text-sm text-gray-600">Present Today</div>
-          <div className="text-xl font-bold text-violet-700">{summary.presentToday || 0}</div>
-          <div className="text-xs text-gray-500">
-            {summary.totalEmployees ? `${Math.round((summary.presentToday / summary.totalEmployees) * 100)}% present` : ''}
+          
+          <div className="p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100">
+            <div className="text-sm text-gray-600">Present Today</div>
+            <div className="text-xl font-bold text-violet-700">{summary.presentToday || 0}</div>
+            <div className="text-xs text-gray-500">
+              {summary.totalEmployees ? `${Math.round((summary.presentToday / summary.totalEmployees) * 100)}% present` : ''}
+            </div>
           </div>
-        </div>
-        
-        <div className="p-4 bg-gradient-to-br from-slate-50 to-gray-50 rounded-xl border border-slate-100">
-          <div className="text-sm text-gray-600">Pending Clock Out</div>
-          <div className="text-xl font-bold text-gray-700">{summary.pendingClockOut || 0}</div>
-          <div className="text-xs text-gray-500">
-            Will auto clock out
+          
+          <div className="p-4 bg-gradient-to-br from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+            <div className="text-sm text-gray-600">Pending Clock Out</div>
+            <div className="text-xl font-bold text-gray-700">{summary.pendingClockOut || 0}</div>
+            <div className="text-xs text-gray-500">
+              Will auto clock out
+            </div>
           </div>
-        </div>
-      </div>
-    ) : (
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-        <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-100">
-          <div className="text-sm text-gray-600">Late Days</div>
-          <div className="text-xl font-bold text-amber-700">{summary.lateDays || 0}</div>
-          <div className="text-xs text-gray-500">
-            Avg: {summary.averageLateMinutes?.toFixed(1) || "0.0"} mins
+        </>
+      ) : (
+        // Employee View or Admin with specific employee selected
+        <>
+          <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-100">
+            <div className="text-sm text-gray-600">Late Days</div>
+            <div className="text-xl font-bold text-amber-700">{summary.lateDays || 0}</div>
+            <div className="text-xs text-gray-500">
+              Avg: {summary.averageLateMinutes?.toFixed(1) || "0.0"} mins
+            </div>
           </div>
-        </div>
-        
-        <div className="p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100">
-          <div className="text-sm text-gray-600">Early Days</div>
-          <div className="text-xl font-bold text-violet-700">{summary.earlyDays || 0}</div>
-          <div className="text-xs text-gray-500">
-            Avg: {summary.averageEarlyMinutes?.toFixed(1) || "0.0"} mins
+          
+          <div className="p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100">
+            <div className="text-sm text-gray-600">Early Days</div>
+            <div className="text-xl font-bold text-violet-700">{summary.earlyDays || 0}</div>
+            <div className="text-xs text-gray-500">
+              Avg: {summary.averageEarlyMinutes?.toFixed(1) || "0.0"} mins
+            </div>
           </div>
-        </div>
-        
-        <div className="p-4 bg-gradient-to-br from-slate-50 to-gray-50 rounded-xl border border-slate-100">
-          <div className="text-sm text-gray-600">Total Days</div>
-          <div className="text-xl font-bold text-gray-700">{summary.totalDays || 0}</div>
-          <div className="text-xs text-gray-500">
-            Working days: {summary.workingDays || 0}
+          
+          <div className="p-4 bg-gradient-to-br from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+            <div className="text-sm text-gray-600">Total Days</div>
+            <div className="text-xl font-bold text-gray-700">{summary.totalDays || 0}</div>
+            <div className="text-xs text-gray-500">
+              Working days: {summary.workingDays || 0}
+            </div>
           </div>
-        </div>
-      </div>
-    )}
+        </>
+      )}
+    </div>
     
-    {/* Employee selection hint for admin */}
+    {/* Info Message for Admin */}
     {isAdmin && !filters.employeeId && (
       <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg">
         <div className="text-sm text-blue-700 flex items-center gap-2">

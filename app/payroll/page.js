@@ -1,10 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-// আপনার PayrollPage-এর উপরে import করুন
-import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
-import PayrollPDFDocument from '@/components/PayrollPDFDocument';
+import { useRouter } from "next/navigation"; 
 import {
   DollarSign,
   Users,
@@ -72,10 +69,423 @@ import {
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 
-export default function PayrollPage() {
-  // State যোগ করুন
+export default function page() {
+// PayrollPage.jsx এর state section এ যোগ করুন
+const [pdfLoading, setPdfLoading] = useState(false);
 const [selectedForPDF, setSelectedForPDF] = useState(null);
 const [showPDFPreview, setShowPDFPreview] = useState(false);
+
+// PDF generation functions
+const generateSinglePayrollPDF = async (payrollId) => {
+  setPdfLoading(true);
+  
+  try {
+    // Load payroll details
+    const payroll = payrolls.find(p => p._id === payrollId);
+    if (!payroll) {
+      toast.error('Payroll not found');
+      return;
+    }
+    
+    // Create payroll details object for PDF
+    const payrollDetails = {
+      payrollId: payroll._id,
+      employee: {
+        name: payroll.employeeName || getEmployeeName(payroll),
+        employeeId: payroll.employeeId || 'N/A',
+        department: payroll.department || 'General',
+        designation: payroll.designation || 'Employee'
+      },
+      salary: {
+        monthly: payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0,
+        daily: Math.round((payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0) / 23)
+      },
+      earnings: {
+        basicPay: payroll.earnings?.basicPay || 0,
+        overtime: payroll.earnings?.overtime?.amount || 0,
+        bonus: payroll.earnings?.bonus?.amount || 0,
+        allowance: payroll.earnings?.allowance?.amount || 0,
+        total: payroll.summary?.grossEarnings || 0
+      },
+      deductions: {
+        late: payroll.deductions?.lateDeduction || 0,
+        absent: payroll.deductions?.absentDeduction || 0,
+        leave: payroll.deductions?.leaveDeduction || 0,
+        halfDay: payroll.deductions?.halfDayDeduction || 0,
+        allowanceDeduction: payroll.deductions?.allowanceDeduction || 0,
+        total: payroll.deductions?.total || 0
+      },
+      attendance: {
+        totalDays: payroll.attendance?.totalWorkingDays || 23,
+        presentDays: payroll.attendance?.presentDays || 0,
+        absentDays: payroll.attendance?.absentDays || 0,
+        attendancePercentage: payroll.attendance?.attendancePercentage || 0
+      },
+      summary: {
+        netPayable: payroll.summary?.netPayable || 0,
+        grossEarnings: payroll.summary?.grossEarnings || 0,
+        totalDeductions: payroll.deductions?.total || 0
+      },
+      status: {
+        current: payroll.status || 'Pending',
+        employeeAccepted: payroll.employeeAccepted?.accepted || false,
+        acceptedAt: payroll.employeeAccepted?.acceptedAt
+      },
+      period: {
+        formattedPeriod: `${getMonthName(payroll.month)} ${payroll.year}`
+      },
+      mealDeduction: payroll.mealSystemData?.mealDeduction || null,
+      onsiteBenefits: payroll.onsiteBenefitsDetails || null,
+      foodCostDetails: payroll.foodCostDetails || null
+    };
+
+    // Import and use PDF generator
+    const { PayrollPDFDocument } = await import('@/components/PayrollPDFDocument');
+    PayrollPDFDocument(payrollDetails);
+    
+    toast.success('PDF generated successfully!');
+    
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    toast.error('Failed to generate PDF');
+  } finally {
+    setPdfLoading(false);
+  }
+};
+
+const generateFilteredPayrollsPDF = async () => {
+  if (filteredPayrolls.length === 0) {
+    toast.error('No payrolls to generate PDF');
+    return;
+  }
+  
+  setPdfLoading(true);
+  
+  try {
+    // Prepare payroll details for all filtered payrolls
+    const payrollDetails = filteredPayrolls.map(payroll => {
+      return {
+        payrollId: payroll._id,
+        employee: {
+          name: payroll.employeeName || getEmployeeName(payroll),
+          employeeId: payroll.employeeId || 'N/A',
+          department: payroll.department || 'General',
+          designation: payroll.designation || 'Employee'
+        },
+        salary: {
+          monthly: payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0,
+          daily: Math.round((payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0) / 23)
+        },
+        earnings: {
+          basicPay: payroll.earnings?.basicPay || 0,
+          overtime: payroll.earnings?.overtime?.amount || 0,
+          bonus: payroll.earnings?.bonus?.amount || 0,
+          allowance: payroll.earnings?.allowance?.amount || 0,
+          total: payroll.summary?.grossEarnings || 0
+        },
+        deductions: {
+          late: payroll.deductions?.lateDeduction || 0,
+          absent: payroll.deductions?.absentDeduction || 0,
+          leave: payroll.deductions?.leaveDeduction || 0,
+          halfDay: payroll.deductions?.halfDayDeduction || 0,
+          allowanceDeduction: payroll.deductions?.allowanceDeduction || 0,
+          total: payroll.deductions?.total || 0
+        },
+        attendance: {
+          totalDays: payroll.attendance?.totalWorkingDays || 23,
+          presentDays: payroll.attendance?.presentDays || 0,
+          absentDays: payroll.attendance?.absentDays || 0,
+          attendancePercentage: payroll.attendance?.attendancePercentage || 0
+        },
+        summary: {
+          netPayable: payroll.summary?.netPayable || 0,
+          grossEarnings: payroll.summary?.grossEarnings || 0,
+          totalDeductions: payroll.deductions?.total || 0
+        },
+        status: {
+          current: payroll.status || 'Pending',
+          employeeAccepted: payroll.employeeAccepted?.accepted || false,
+          acceptedAt: payroll.employeeAccepted?.acceptedAt
+        },
+        period: {
+          formattedPeriod: `${getMonthName(payroll.month)} ${payroll.year}`
+        },
+        mealDeduction: payroll.mealSystemData?.mealDeduction || null,
+        onsiteBenefits: payroll.onsiteBenefitsDetails || null,
+        foodCostDetails: payroll.foodCostDetails || null
+      };
+    });
+
+    // Prepare filters info
+    const filters = {
+      searchTerm,
+      month: selectedMonth,
+      year: selectedYear,
+      status: selectedStatus,
+      department: selectedDepartment,
+      startDate: new Date(selectedYear, selectedMonth === 'all' ? 0 : selectedMonth - 1, 1).toLocaleDateString(),
+      endDate: new Date(selectedYear, selectedMonth === 'all' ? 11 : selectedMonth - 1, 
+        selectedMonth === 'all' ? 31 : new Date(selectedYear, selectedMonth, 0).getDate()
+      ).toLocaleDateString()
+    };
+
+    // Import and use PDF generator
+    const { generateFilteredPayrollsPDF } = await import('../utils/pdfGenerator');
+    generateFilteredPayrollsPDF(payrollDetails, filters);
+    
+    toast.success(`PDF generated for ${filteredPayrolls.length} payrolls!`);
+    
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    toast.error('Failed to generate PDF');
+  } finally {
+    setPdfLoading(false);
+  }
+};
+
+const generateAllPayrollsPDF = async () => {
+  if (payrolls.length === 0) {
+    toast.error('No payrolls to generate PDF');
+    return;
+  }
+  
+  setPdfLoading(true);
+  
+  try {
+    // Prepare all payroll details
+    const payrollDetails = payrolls.map(payroll => {
+      return {
+        payrollId: payroll._id,
+        employee: {
+          name: payroll.employeeName || getEmployeeName(payroll),
+          employeeId: payroll.employeeId || 'N/A',
+          department: payroll.department || 'General',
+          designation: payroll.designation || 'Employee'
+        },
+        salary: {
+          monthly: payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0,
+          daily: Math.round((payroll.salaryDetails?.monthlySalary || payroll.earnings?.basicPay || 0) / 23)
+        },
+        earnings: {
+          basicPay: payroll.earnings?.basicPay || 0,
+          overtime: payroll.earnings?.overtime?.amount || 0,
+          bonus: payroll.earnings?.bonus?.amount || 0,
+          allowance: payroll.earnings?.allowance?.amount || 0,
+          total: payroll.summary?.grossEarnings || 0
+        },
+        deductions: {
+          late: payroll.deductions?.lateDeduction || 0,
+          absent: payroll.deductions?.absentDeduction || 0,
+          leave: payroll.deductions?.leaveDeduction || 0,
+          halfDay: payroll.deductions?.halfDayDeduction || 0,
+          allowanceDeduction: payroll.deductions?.allowanceDeduction || 0,
+          total: payroll.deductions?.total || 0
+        },
+        attendance: {
+          totalDays: payroll.attendance?.totalWorkingDays || 23,
+          presentDays: payroll.attendance?.presentDays || 0,
+          absentDays: payroll.attendance?.absentDays || 0,
+          attendancePercentage: payroll.attendance?.attendancePercentage || 0
+        },
+        summary: {
+          netPayable: payroll.summary?.netPayable || 0,
+          grossEarnings: payroll.summary?.grossEarnings || 0,
+          totalDeductions: payroll.deductions?.total || 0
+        },
+        status: {
+          current: payroll.status || 'Pending',
+          employeeAccepted: payroll.employeeAccepted?.accepted || false,
+          acceptedAt: payroll.employeeAccepted?.acceptedAt
+        },
+        period: {
+          formattedPeriod: `${getMonthName(payroll.month)} ${payroll.year}`
+        },
+        mealDeduction: payroll.mealSystemData?.mealDeduction || null,
+        onsiteBenefits: payroll.onsiteBenefitsDetails || null,
+        foodCostDetails: payroll.foodCostDetails || null
+      };
+    });
+
+    // Import and use PDF generator
+    const { generateMultiplePayrollsPDF } = await import('../utils/pdfGenerator');
+    generateMultiplePayrollsPDF(payrollDetails, 'All Payrolls Report');
+    
+    toast.success(`PDF generated for all ${payrolls.length} payrolls!`);
+    
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    toast.error('Failed to generate PDF');
+  } finally {
+    setPdfLoading(false);
+  }
+};
+
+// PDF Preview Modal
+const renderPDFPreviewModal = () => {
+  if (!showPDFPreview || !selectedForPDF) return null;
+
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Generate PDF</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {selectedForPDF.employeeName} • {getMonthName(selectedForPDF.month)} {selectedForPDF.year}
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                setShowPDFPreview(false);
+                setSelectedForPDF(null);
+              }} 
+              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">PDF Generation Options</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <button
+                onClick={() => generateSinglePayrollPDF(selectedForPDF._id)}
+                disabled={pdfLoading}
+                className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200 hover:border-blue-400 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <FileText className="text-blue-600" size={20} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-blue-700">Single Payroll</div>
+                    <div className="text-sm text-blue-600">Individual slip</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={generateFilteredPayrollsPDF}
+                disabled={pdfLoading || filteredPayrolls.length === 0}
+                className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 hover:border-green-400 transition-colors disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <Filter className="text-green-600" size={20} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-green-700">Filtered Results</div>
+                    <div className="text-sm text-green-600">{filteredPayrolls.length} payrolls</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={generateAllPayrollsPDF}
+                disabled={pdfLoading || payrolls.length === 0}
+                className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200 hover:border-purple-400 transition-colors disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <FileBarChart className="text-purple-600" size={20} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-purple-700">All Payrolls</div>
+                    <div className="text-sm text-purple-600">{payrolls.length} total</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Preview Section */}
+            <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Preview Information</h4>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-gray-600">Employee Name</div>
+                  <div className="font-medium">{selectedForPDF.employeeName}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600">Employee ID</div>
+                  <div className="font-medium">{selectedForPDF.employeeId}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600">Period</div>
+                  <div className="font-medium">{getMonthName(selectedForPDF.month)} {selectedForPDF.year}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600">Net Payable</div>
+                  <div className="font-bold text-green-600">{formatCurrency(selectedForPDF.summary?.netPayable || 0)}</div>
+                </div>
+              </div>
+
+              {/* Special Features Indicators */}
+              <div className="mt-4 pt-4 border-t border-gray-300">
+                <div className="flex flex-wrap gap-2">
+                  {selectedForPDF.mealSystemData?.mealDeduction?.amount > 0 && (
+                    <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">
+                      Meal Deduction: {formatCurrency(selectedForPDF.mealSystemData.mealDeduction.amount)}
+                    </span>
+                  )}
+                  {selectedForPDF.onsiteBenefitsDetails && (
+                    <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full">
+                      Onsite Benefits
+                    </span>
+                  )}
+                  {selectedForPDF.foodCostDetails?.included && (
+                    <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                      Food Cost Included
+                    </span>
+                  )}
+                  {selectedForPDF.employeeAccepted?.accepted && (
+                    <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full">
+                      Accepted by Employee
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-6 border-t border-gray-100">
+            <button
+              onClick={() => {
+                setShowPDFPreview(false);
+                setSelectedForPDF(null);
+              }}
+              className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+            >
+              Cancel
+            </button>
+            
+            <button
+              onClick={() => generateSinglePayrollPDF(selectedForPDF._id)}
+              disabled={pdfLoading}
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {pdfLoading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Generating PDF...
+                </>
+              ) : (
+                <>
+                  <FileDown size={18} />
+                  Generate PDF Now
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
   const router = useRouter();
   // State এর শুরুতে এই variables গুলো যোগ করুন
 const [showEditModal, setShowEditModal] = useState(false);
@@ -640,6 +1050,7 @@ const renderEditModal = () => {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-6 border-t border-gray-100">
+              
               <button
                 type="button"
                 onClick={() => {
@@ -904,7 +1315,7 @@ const renderAdminAllModal = () => {
                       </div>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2"> 
                         <button
                           onClick={() => {
                             viewEmployeePayrollDetails(payroll._id);
@@ -4846,7 +5257,7 @@ const renderCalculateModal = () => (
           </div>
         </div>
 
-        <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+        {/* <div className="mb-6 p-4 bg-gray-50 rounded-xl">
           <div className="flex flex-wrap gap-3">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -4890,7 +5301,7 @@ const renderCalculateModal = () => (
               ))}
             </select>
           </div>
-        </div>
+        </div> */}
 
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -5542,7 +5953,7 @@ const renderCalculateModal = () => (
               <Plus size={24} className="group-hover:rotate-90 transition-transform duration-300" />
             </button>
 
-            <button 
+            {/* <button 
               onClick={() => setShowCalculateModal(true)} 
               disabled={loading.employees} 
               className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl p-5 hover:opacity-90 flex items-center justify-between group disabled:opacity-50"
@@ -5552,7 +5963,7 @@ const renderCalculateModal = () => (
                 <p className="text-sm opacity-90">Preview calculation</p>
               </div>
               {loading.employees ? <Loader2 size={24} className="animate-spin" /> : <Calculator size={24} className="group-hover:scale-110 transition-transform duration-300" />}
-            </button>
+            </button> */}
 
             <button 
               onClick={() => setShowBulkModal(true)} 
@@ -5836,7 +6247,15 @@ const renderCalculateModal = () => (
         <Eye size={14} />
         View Details
       </button>
-      
+            {/* ✅ NEW: PDF Button for Employee */}
+     <button
+  onClick={() => generateSinglePayrollPDF(payroll._id)}
+  disabled={pdfLoading}
+  className="px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm transition-colors flex items-center gap-1"
+>
+  <FileDown size={14} />
+  PDF
+</button>
       {/* Accept Button - Only for pending payrolls */}
       {payroll.status === 'Pending' && !payroll.employeeAccepted?.accepted && (
         <button
@@ -5895,6 +6314,14 @@ const renderCalculateModal = () => (
       >
         <Eye size={18} />
       </button> 
+      {/* ✅ NEW: PDF Button for Admin */}
+        <button
+    onClick={() => generateSinglePayrollPDF(payroll._id)}
+    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+    title="Generate PDF"
+  >
+    <FileDown size={18} />
+  </button>
                             <button
                               onClick={() => {
                                 setSelectedPayroll(payroll);

@@ -92,7 +92,7 @@ const StatsCard = ({ title, value, icon, color, subtitle }) => (
   </div>
 );
 
-export default function FoodCost() {
+export default function page() {
   const router = useRouter();
   const formRef = useRef(null);
   
