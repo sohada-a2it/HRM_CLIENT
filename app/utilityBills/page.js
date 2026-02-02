@@ -1516,17 +1516,20 @@ const addBillField = () => {
 
                           {/* Amount */}
                           <div className="col-span-2">
-                            <input
-                              type="number"
-                              placeholder="0.00"
-                              value={bill.amount}
-                              onChange={(e) => updateBillField(index, "amount", e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                              min="0"
-                              step="0.01"
-                              required
-                            />
-                          </div>
+  <input
+    type="number"
+    placeholder="0.00"
+    value={bill.amount}
+    onChange={(e) => updateBillField(index, "amount", e.target.value)}
+    onWheel={(e) => { e.preventDefault(); e.target.blur(); }}
+    onKeyDown={(e) => { if (['ArrowUp','ArrowDown','e','E','+','-'].includes(e.key)) e.preventDefault(); }}
+    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
+    min="0"
+    step="0.01"
+    required
+    inputMode="decimal"
+  />
+</div>
 
                           {/* Date */}
                           <div className="col-span-2">

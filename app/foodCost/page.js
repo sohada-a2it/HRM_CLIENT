@@ -1369,30 +1369,24 @@ export default function page() {
 
               {/* Cost Amount */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cost Amount (BDT) *
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">
-                    ৳
-                  </span>
-                  <input
-                    type="number"
-                    name="cost"
-                    placeholder="Enter cost amount in BDT"
-                    value={formData.cost}
-                    onChange={handleChange}
-                    className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    required
-                    min="0"
-                    step="0.01"
-                    disabled={loading}
-                  />
-                  <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400">
-                    BDT
-                  </span>
-                </div>
-              </div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Cost Amount (BDT) *</label>
+  <div className="relative">
+    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">৳</span>
+    <input
+      type="number"
+      name="cost"
+      placeholder="Enter cost amount in BDT"
+      value={formData.cost}
+      onChange={handleChange}
+      // ✅ এটা 100% কাজ করবে
+      onWheel={(e) => e.currentTarget.blur()}
+      onKeyDown={(e) => ['ArrowUp','ArrowDown','e','E','+','-'].includes(e.key) && e.preventDefault()}
+      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
+      required min="0" step="0.01" disabled={loading} inputMode="decimal"
+    />
+    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">BDT</span>
+  </div>
+</div>
 
               {/* Note */}
               <div>

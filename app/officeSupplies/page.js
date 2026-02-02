@@ -1032,18 +1032,19 @@ export default function page() {
                     </div>
 
                     {/* Price */}
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        value={supply.price}
-                        onChange={(e) => updateSupplyField(index, "price", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        min="0"
-                        step="0.01"
-                        required
-                      />
-                    </div>
+<div className="col-span-2">
+  <input
+    type="number"
+    placeholder="0.00"
+    value={supply.price}
+    onChange={(e) => updateSupplyField(index, "price", e.target.value)}
+    onWheel={(e) => e.target.blur()}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+    min="0"
+    step="0.01"
+    required
+  />
+</div>
 
                     {/* Date */}
                     <div className="col-span-2">

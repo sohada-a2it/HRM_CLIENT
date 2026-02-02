@@ -883,23 +883,32 @@ export default function page() {
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Amount (৳) *
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="Amount in ৳"
-                        value={sub.amount}
-                        onChange={(e) =>
-                          updateField(sub.id, "amount", e.target.value)
-                        }
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        required
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
+                    <div 
+  onWheel={(e) => {
+    if (e.target.type === 'number') {
+      e.preventDefault();
+      e.target.blur();
+    }
+  }}
+>
+  <label className="block text-xs font-medium text-gray-700 mb-1">
+    Amount (৳) *
+  </label>
+  <input
+    type="number"
+    placeholder="Amount in ৳"
+    value={sub.amount}
+    onChange={(e) => updateField(sub.id, "amount", e.target.value)}
+    onWheel={(e) => {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }}
+    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+    required
+    min="0"
+    step="0.01"
+  />
+</div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3">

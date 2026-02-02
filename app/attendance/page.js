@@ -553,83 +553,118 @@ const handleDeleteAttendance = async () => {
     }
   };
 
-  const calculateLateEarlyMinutes = (clockInTime, shiftStart, lateThreshold = 5, earlyThreshold = -1) => {
-    if (!clockInTime || !shiftStart) return { 
-      isLate: false, 
-      isEarly: false, 
-      minutes: 0, 
-      details: 'N/A' 
-    };
+  const calculateLateEarlyMinutes = (clockInTime, shiftStart, lateThreshold = 5, earlyThreshold = 1) => {
+  if (!clockInTime || !shiftStart) return { 
+    isLate: false, 
+    isEarly: false, 
+    minutes: 0, 
+    details: 'N/A',
+    status: 'Present'
+  };
 
-    try {
-      const clockIn = new Date(clockInTime);
+  try {
+    const clockIn = new Date(clockInTime);
+    
+    // Parse shift start time (e.g., "09:00")
+    const [shiftHour, shiftMinute] = shiftStart.split(':').map(Number);
+    
+    // Get only hours and minutes from clockIn (ignore seconds, milliseconds)
+    const clockInHour = clockIn.getHours();
+    const clockInMinute = clockIn.getMinutes();
+    
+    // Convert both to total minutes
+    const clockInTotalMinutes = clockInHour * 60 + clockInMinute;
+    let shiftTotalMinutes = shiftHour * 60 + shiftMinute;
+    
+    // Adjust for night shift
+    if (clockInHour < 4 && shiftHour >= 18) {
+      // Previous day
+      shiftTotalMinutes -= 24 * 60; // Subtract 24 hours
+    }
+    
+    // Calculate difference in minutes
+    const diffMinutes = clockInTotalMinutes - shiftTotalMinutes;
+    
+    console.log("🔍 Late/Early Calculation:");
+    console.log("Clock In:", `${clockInHour}:${clockInMinute.toString().padStart(2, '0')}`);
+    console.log("Shift:", `${shiftHour}:${shiftMinute.toString().padStart(2, '0')}`);
+    console.log("Diff:", diffMinutes, "minutes");
+    console.log("Late Threshold:", lateThreshold);
+    console.log("Early Threshold:", earlyThreshold);
+    
+    // ✅ Case 1: LATE - যদি clock-in shift time এর 5+ minute পর হয় (diffMinutes > 5)
+    if (diffMinutes > lateThreshold) {
+      const lateMinutes = diffMinutes - lateThreshold;
+      const hours = Math.floor(lateMinutes / 60);
+      const minutes = lateMinutes % 60;
+      let details = '';
       
-      // Parse shift start time
-      const [shiftHour, shiftMinute] = shiftStart.split(':').map(Number);
+      if (hours > 0) details = `${hours}h ${minutes}m late`;
+      else details = `${minutes}m late`;
       
-      // Create shift time
-      const shiftTime = new Date(clockIn);
-      shiftTime.setHours(shiftHour, shiftMinute, 0, 0);
+      console.log("✅ Result: LATE -", details);
       
-      // Adjust for night shift
-      if (clockIn.getHours() < 4 && shiftHour >= 18) {
-        shiftTime.setDate(shiftTime.getDate() - 1);
+      return { 
+        isLate: true, 
+        isEarly: false, 
+        minutes: lateMinutes, 
+        details,
+        status: 'Late'
+      };
+    } 
+    // ✅ Case 2: EARLY - যদি clock-in shift time এর 1+ minute আগে হয় (diffMinutes <= -1)
+    else if (diffMinutes < 0 && Math.abs(diffMinutes) >= earlyThreshold) {
+      const earlyMinutes = Math.abs(diffMinutes);
+      const hours = Math.floor(earlyMinutes / 60);
+      const minutes = earlyMinutes % 60;
+      let details = '';
+      
+      if (hours > 0) details = `${hours}h ${minutes}m early`;
+      else details = `${minutes}m early`;
+      
+      console.log("✅ Result: EARLY -", details);
+      
+      return { 
+        isLate: false, 
+        isEarly: true, 
+        minutes: earlyMinutes, 
+        details,
+        status: 'Early'
+      };
+    }
+    // ✅ Case 3: ON TIME PRESENT - যদি clock-in shift time এর 0 থেকে +5 minute এর মধ্যে হয়
+    else {
+      let details = '';
+      
+      if (diffMinutes === 0) {
+        details = 'Exactly on time';
+      } else if (diffMinutes > 0) {
+        details = `${diffMinutes}m after shift (On time)`;
+      } else {
+        details = `${Math.abs(diffMinutes)}m before shift (On time)`;
       }
       
-      // Calculate difference in minutes
-      const diffMinutes = Math.round((clockIn - shiftTime) / (1000 * 60));
+      console.log("✅ Result: ON TIME PRESENT -", details);
       
-      // Check late
-      if (diffMinutes > lateThreshold) {
-        const lateMinutes = diffMinutes;
-        const hours = Math.floor(lateMinutes / 60);
-        const minutes = lateMinutes % 60;
-        let details = '';
-        if (hours > 0) details = `${hours}h ${minutes}m late`;
-        else details = `${minutes}m late`;
-        
-        return { 
-          isLate: true, 
-          isEarly: false, 
-          minutes: lateMinutes, 
-          details 
-        };
-      } 
-      // Check early
-      else if (diffMinutes < earlyThreshold) {
-        const earlyMinutes = Math.abs(diffMinutes);
-        const hours = Math.floor(earlyMinutes / 60);
-        const minutes = earlyMinutes % 60;
-        let details = '';
-        if (hours > 0) details = `${hours}h ${minutes}m early`;
-        else details = `${minutes}m early`;
-        
-        return { 
-          isLate: false, 
-          isEarly: true, 
-          minutes: earlyMinutes, 
-          details 
-        };
-      }
-      // On time
-      else {
-        return { 
-          isLate: false, 
-          isEarly: false, 
-          minutes: Math.abs(diffMinutes), 
-          details: 'On time' 
-        };
-      }
-    } catch (error) {
-      console.error('Error in late/early calculation:', error);
       return { 
         isLate: false, 
         isEarly: false, 
-        minutes: 0, 
-        details: 'Calculation error' 
+        minutes: Math.abs(diffMinutes), 
+        details,
+        status: 'Present'
       };
     }
-  };
+  } catch (error) {
+    console.error('Error in late/early calculation:', error);
+    return { 
+      isLate: false, 
+      isEarly: false, 
+      minutes: 0, 
+      details: 'Calculation error',
+      status: 'Present'
+    };
+  }
+};
   
   // ===================== DATA FETCHING =====================
   
@@ -1003,8 +1038,8 @@ const fetchAttendanceData = async () => {
       
       // Show warning if duplicates found
       if (duplicateCount > 0) {
-        toast.warning(`Found ${duplicateCount} duplicate records. Showing only unique records.`);
-      }
+        console.log(`Found ${duplicateCount} duplicate records. Showing only unique records.`);
+       }
       
     } else {
       const errorText = await response.text();

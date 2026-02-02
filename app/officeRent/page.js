@@ -983,23 +983,25 @@ const handleSubmit = async (e) => {
               </div>
 
               {/* Rent Amount */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rent Amount (BDT) *
-                </label>
-                <input
-                  type="number"
-                  name="rent"
-                  placeholder="Enter rent amount in BDT"
-                  value={formData.rent}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  required
-                  min="0"
-                  step="0.01"
-                  disabled={loading}
-                />
-              </div>
+              {/* Rent Amount - Compact Tailwind solution */}
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Rent Amount (BDT) *</label>
+  <input
+    type="number"
+    name="rent"
+    placeholder="Enter rent amount in BDT"
+    value={formData.rent}
+    onChange={handleChange}
+    onWheel={(e) => { e.preventDefault(); e.target.blur(); }}
+    onKeyDown={(e) => { if (['ArrowUp','ArrowDown','e','E','+','-'].includes(e.key)) e.preventDefault(); }}
+    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
+    required
+    min="0"
+    step="0.01"
+    disabled={loading}
+    inputMode="decimal"
+  />
+</div>
 
               {/* Payment Method */}
               <div>

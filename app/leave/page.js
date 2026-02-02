@@ -1669,543 +1669,921 @@ const getInitials = (name) => {
 
   // Modal components
   const RequestLeaveModal = () => {
-    // Calculate minimum date (24 hours from now for employees)
-    const calculateMinDate = () => {
-      if (isAdmin) {
-        return new Date().toISOString().split('T')[0];
-      }
-      const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return tomorrow.toISOString().split('T')[0];
-    };
+  const [localForm, setLocalForm] = useState({
+    leaveType: "Sick",
+    payStatus: "Paid",
+    startDate: "",
+    endDate: "",
+    reason: "",
+    employeeId: "",
+    status: "Pending"
+  });
 
-    return (
-      <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {isAdmin ? "Create Leave Request" : "Request Leave"}
-                </h2>
-                <p className="text-gray-500 text-sm mt-1">
-                  {isAdmin ? "Create leave request for employee" : "Submit a new leave request"}
-                </p>
-                {!isAdmin && (
-                  <div className="mt-2 px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-xs text-yellow-700">
-                      <strong>Note:</strong> You must request leave at least 24 hours before the start date
+  // Calculate minimum date (24 hours from now for employees)
+  const calculateMinDate = () => {
+    if (isAdmin) {
+      return new Date().toISOString().split('T')[0];
+    }
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  // Local form change handler
+  const handleLocalChange = (e) => {
+    const { name, value } = e.target;
+    console.log(`Request Form - Changing ${name}: ${value}`);
+    setLocalForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle form submit
+  const handleLocalRequestLeave = async (e) => {
+    e.preventDefault();
+    
+    if (!localForm.startDate || !localForm.endDate) {
+      toast.error("Please select start and end dates");
+      return;
+    }
+    
+    const startDate = new Date(localForm.startDate);
+    const endDate = new Date(localForm.endDate);
+    
+    if (startDate > endDate) {
+      toast.error("Start date cannot be after end date");
+      return;
+    }
+    
+    // Check if start date is in the past (for employees only)
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const startDateUTC = new Date(startDate);
+    startDateUTC.setUTCHours(0, 0, 0, 0);
+    
+    if (!isAdmin && startDateUTC < today) {
+      toast.error("Cannot request leave for past dates");
+      return;
+    }
+    
+    // Check if request is made at least 24 hours before start date (for employees only)
+    const isAtLeast24HoursBefore = (startDate) => {
+      const now = new Date();
+      const start = new Date(startDate);
+      const timeDiff = start.getTime() - now.getTime();
+      const hoursDiff = timeDiff / (1000 * 60 * 60);
+      return hoursDiff >= 24;
+    };
+    
+    if (!isAdmin && !isAtLeast24HoursBefore(localForm.startDate)) {
+      toast.error("You must request leave at least 24 hours before the start date");
+      return;
+    }
+    
+    // Admin validation for employee selection
+    if (isAdmin && !localForm.employeeId) {
+      toast.error("Please select an employee");
+      return;
+    }
+    
+    setFormLoading(true);
+    const loadingToast = toast.loading(
+      isAdmin ? "Creating leave request..." : "Submitting leave request..."
+    );
+    
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        toast.error("Authentication token not found");
+        setTimeout(() => {
+          router.push("/");
+        }, 1000);
+        return;
+      }
+      
+      const requestData = {
+        leaveType: localForm.leaveType,
+        payStatus: localForm.payStatus,
+        startDate: localForm.startDate,
+        endDate: localForm.endDate,
+        reason: localForm.reason
+      };
+      
+      // Add employee ID if admin is creating for someone else
+      if (isAdmin && localForm.employeeId) {
+        requestData.employeeId = localForm.employeeId;
+        // If admin selects Approved status, auto-approve
+        if (localForm.status === "Approved") {
+          requestData.autoApprove = true;
+        }
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.status === 'success') {
+        toast.dismiss(loadingToast);
+        
+        if (isAdmin && localForm.status === "Approved") {
+          toast.success("Leave request created and approved successfully!", {
+            icon: '✅',
+            duration: 3000,
+          });
+        } else {
+          toast.success(data.message || "Leave request submitted successfully!", {
+            icon: '✅',
+            duration: 3000,
+          });
+        }
+        
+        // Find the selected employee info
+        let selectedEmployee = null;
+        if (isAdmin && localForm.employeeId) {
+          selectedEmployee = employees.find(emp => emp._id === localForm.employeeId);
+        }
+        
+        // Optimistically update UI with denormalized data
+        const newLeave = data.data || data.leave;
+        
+        const enrichedLeave = transformLeaveData({
+          ...newLeave,
+          employeeName: isAdmin 
+            ? `${selectedEmployee?.firstName || ''} ${selectedEmployee?.lastName || ''}`.trim()
+            : currentUser?.name || "You",
+          employeeId: isAdmin 
+            ? selectedEmployee?.employeeId 
+            : currentUser?.employeeId,
+          department: isAdmin 
+            ? selectedEmployee?.department 
+            : currentUser?.department,
+          profilePicture: isAdmin 
+            ? selectedEmployee?.profilePicture 
+            : currentUser?.profilePicture,
+          // If admin created with Approved status
+          ...(isAdmin && localForm.status === "Approved" && {
+            status: "Approved",
+            approvedAt: new Date().toISOString(),
+            approvedByName: currentUser?.name || "Admin"
+          })
+        });
+        
+        setLeaves(prev => [enrichedLeave, ...prev]);
+        
+        // Update stats
+        const newStatus = isAdmin ? localForm.status : "Pending";
+        setStats(prev => ({
+          ...prev,
+          [newStatus.toLowerCase()]: prev[newStatus.toLowerCase()] + 1,
+          total: prev.total + 1,
+          paid: newLeave.payStatus === 'Paid' ? prev.paid + 1 : prev.paid,
+          unpaid: newLeave.payStatus === 'Unpaid' ? prev.unpaid + 1 : prev.unpaid,
+          halfPaid: newLeave.payStatus === 'HalfPaid' ? prev.halfPaid + 1 : prev.halfPaid
+        }));
+        
+        // Reset form and close modal
+        setShowRequestModal(false);
+        setLocalForm({
+          leaveType: "Sick",
+          payStatus: "Paid",
+          startDate: "",
+          endDate: "",
+          reason: "",
+          employeeId: "",
+          status: "Pending"
+        });
+        
+        // Refresh data from server after a short delay
+        setTimeout(() => {
+          fetchLeaves();
+          fetchLeaveBalance();
+        }, 1000);
+        
+      } else {
+        toast.dismiss(loadingToast);
+        toast.error(data.message || "Error submitting leave request");
+      }
+      
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error("Network error. Please try again.");
+      console.error("Request leave error:", error);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Handle modal close
+  const handleCloseModal = () => {
+    setShowRequestModal(false);
+    setLocalForm({
+      leaveType: "Sick",
+      payStatus: "Paid",
+      startDate: "",
+      endDate: "",
+      reason: "",
+      employeeId: "",
+      status: "Pending"
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                {isAdmin ? "Create Leave Request" : "Request Leave"}
+              </h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {isAdmin ? "Create leave request for employee" : "Submit a new leave request"}
+              </p>
+              {!isAdmin && (
+                <div className="mt-2 px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs text-yellow-700">
+                    <strong>Note:</strong> You must request leave at least 24 hours before the start date
+                  </p>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleCloseModal}
+              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+        
+        <form onSubmit={handleLocalRequestLeave} className="p-6 space-y-4">
+          {/* Employee Selection for Admin */}
+          {isAdmin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Employee *
+              </label>
+              
+              {/* Loading State */}
+              {employees.length === 0 && (
+                <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-sm text-gray-600">Loading employees...</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Employee Selection */}
+              {employees.length > 0 && (
+                <>
+                  <div className="relative">
+                    <select
+                      name="employeeId"
+                      value={localForm.employeeId || ""}
+                      onChange={handleLocalChange}
+                      required={isAdmin}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 appearance-none"
+                    >
+                      <option value="">Select Employee</option>
+                      {employees.map((emp) => (
+                        <option key={emp._id} value={emp._id}>
+                          {emp.firstName} {emp.lastName} - {emp.employeeId} ({emp.department})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <ChevronDown size={20} className="text-gray-400" />
+                    </div>
+                  </div>
+                  
+                  {/* Selected Employee Preview */}
+                  {localForm.employeeId && (() => {
+                    const selectedEmp = employees.find(emp => emp._id === localForm.employeeId);
+                    if (!selectedEmp) return null;
+                    
+                    return (
+                      <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          {getEmployeeAvatar({
+                            employeeName: `${selectedEmp.firstName} ${selectedEmp.lastName}`,
+                            profilePicture: selectedEmp.profilePicture
+                          })}
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-gray-900">
+                                {selectedEmp.firstName} {selectedEmp.lastName}
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={() => setLocalForm({...localForm, employeeId: ""})}
+                                className="text-gray-400 hover:text-gray-600"
+                                title="Clear selection"
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                ID: {selectedEmp.employeeId}
+                              </span>
+                              <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                                {selectedEmp.department}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
+                  <p className="text-xs text-gray-500 mt-1">
+                    {employees.length} employee(s) available
+                  </p>
+                </>
+              )}
+              
+              {/* No Employees Found */}
+              {employees.length === 0 && !loading && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle size={16} className="text-yellow-600" />
+                    <p className="text-sm text-yellow-700">
+                      No employees found. Please check if users exist in the system.
                     </p>
                   </div>
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  setShowRequestModal(false);
-                  setForm({
-                    leaveType: "Sick",
-                    payStatus: "Paid",
-                    startDate: "",
-                    endDate: "",
-                    reason: "",
-                    employeeId: "",
-                    status: "Pending"
-                  });
-                }}
-                className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Status Selection for Admin */}
+          {isAdmin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status *
+              </label>
+              <select
+                name="status"
+                value={localForm.status || "Pending"}
+                onChange={handleLocalChange}
+                required={isAdmin}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
               >
-                <X size={20} />
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+              {localForm.status === "Approved" && (
+                <p className="text-xs text-green-600 mt-1">
+                  This leave will be automatically approved upon creation
+                </p>
+              )}
+            </div>
+          )}
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Leave Type *
+            </label>
+            <select
+              name="leaveType"
+              value={localForm.leaveType}
+              onChange={handleLocalChange}
+              required
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+            >
+              {leaveTypeOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Pay Status *
+            </label>
+            <select
+              name="payStatus"
+              value={localForm.payStatus}
+              onChange={handleLocalChange}
+              required
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+            >
+              {payStatusOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Start Date *
+              </label>
+              <input
+                type="date"
+                name="startDate"
+                value={localForm.startDate}
+                onChange={handleLocalChange}
+                required
+                min={calculateMinDate()}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+              />
+              {!isAdmin && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Must be at least 24 hours from now
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                End Date *
+              </label>
+              <input
+                type="date"
+                name="endDate"
+                value={localForm.endDate}
+                onChange={handleLocalChange}
+                required
+                min={localForm.startDate || new Date().toISOString().split('T')[0]}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason *
+            </label>
+            <textarea
+              name="reason"
+              value={localForm.reason}
+              onChange={handleLocalChange}
+              placeholder="Brief reason for leave..."
+              required
+              rows="3"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 resize-none"
+            />
+          </div>
+          
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={formLoading}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {formLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {isAdmin ? "Creating..." : "Submitting..."}
+                  </>
+                ) : (
+                  <>
+                    {isAdmin ? <UserPlus size={18} /> : <Calendar size={18} />}
+                    {isAdmin ? "Create Leave" : "Request Leave"}
+                  </>
+                )}
               </button>
             </div>
           </div>
-          
-          <form onSubmit={handleRequestLeave} className="p-6 space-y-4">
-            {/* Employee Selection for Admin */}
-{/* Employee Selection for Admin */}
-{isAdmin && (
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-2">
-      Select Employee *
-    </label>
-    
-    {/* Loading State */}
-    {employees.length === 0 && (
-      <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-sm text-gray-600">Loading employees...</p>
-        </div>
+        </form>
       </div>
-    )}
-    
-    {/* Employee Selection */}
-    {employees.length > 0 && (
-      <>
-        <div className="relative">
-          <select
-            name="employeeId"
-            value={form.employeeId || ""}
-            onChange={handleChange}
-            required={isAdmin}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 appearance-none"
-          >
-            <option value="">Select Employee</option>
-            {employees.map((emp) => (
-              <option key={emp._id} value={emp._id}>
-                {emp.firstName} {emp.lastName} - {emp.employeeId} ({emp.department})
-              </option>
-            ))}
-          </select>
-          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-            <ChevronDown size={20} className="text-gray-400" />
-          </div>
-        </div>
-        
-        {/* Selected Employee Preview */}
-        {form.employeeId && (() => {
-          const selectedEmp = employees.find(emp => emp._id === form.employeeId);
-          if (!selectedEmp) return null;
-          
-          return (
-            <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-              <div className="flex items-center gap-3">
-                {getEmployeeAvatar({
-                  employeeName: `${selectedEmp.firstName} ${selectedEmp.lastName}`,
-                  profilePicture: selectedEmp.profilePicture
-                })}
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-gray-900">
-                      {selectedEmp.firstName} {selectedEmp.lastName}
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={() => setForm({...form, employeeId: ""})}
-                      className="text-gray-400 hover:text-gray-600"
-                      title="Clear selection"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 mt-1">
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                      ID: {selectedEmp.employeeId}
-                    </span>
-                    <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
-                      {selectedEmp.department}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-        
-        <p className="text-xs text-gray-500 mt-1">
-          {employees.length} employee(s) available
-        </p>
-      </>
-    )}
-    
-    {/* No Employees Found */}
-    {employees.length === 0 && !loading && (
-      <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
-        <div className="flex items-center gap-2">
-          <AlertCircle size={16} className="text-yellow-600" />
-          <p className="text-sm text-yellow-700">
-            No employees found. Please check if users exist in the system.
-          </p>
-        </div>
-      </div>
-    )}
-  </div>
-)}
-            
-            {/* Status Selection for Admin */}
-            {isAdmin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status *
-                </label>
-                <select
-                  name="status"
-                  value={form.status || "Pending"}
-                  onChange={handleChange}
-                  required={isAdmin}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
-                {form.status === "Approved" && (
-                  <p className="text-xs text-green-600 mt-1">
-                    This leave will be automatically approved upon creation
-                  </p>
-                )}
-              </div>
-            )}
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Leave Type *
-              </label>
-              <select
-                name="leaveType"
-                value={form.leaveType}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              >
-                {leaveTypeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Pay Status *
-              </label>
-              <select
-                name="payStatus"
-                value={form.payStatus}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              >
-                {payStatusOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Start Date *
-                </label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={form.startDate}
-                  onChange={handleChange}
-                  required
-                  min={calculateMinDate()}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                />
-                {!isAdmin && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Must be at least 24 hours from now
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  End Date *
-                </label>
-                <input
-                  type="date"
-                  name="endDate"
-                  value={form.endDate}
-                  onChange={handleChange}
-                  required
-                  min={form.startDate || new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Reason *
-              </label>
-              <textarea
-                name="reason"
-                value={form.reason}
-                onChange={handleChange}
-                placeholder="Brief reason for leave..."
-                required
-                rows="3"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 resize-none"
-              />
-            </div>
-            
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowRequestModal(false);
-                    setForm({
-                      leaveType: "Sick",
-                      payStatus: "Paid",
-                      startDate: "",
-                      endDate: "",
-                      reason: "",
-                      employeeId: "",
-                      status: "Pending"
-                    });
-                  }}
-                  className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {formLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      {isAdmin ? "Creating..." : "Submitting..."}
-                    </>
-                  ) : (
-                    <>
-                      {isAdmin ? <UserPlus size={18} /> : <Calendar size={18} />}
-                      {isAdmin ? "Create Leave" : "Request Leave"}
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
+    </div>
+  );
+};
+
+ const EditLeaveModal = () => {
+  const [localEditForm, setLocalEditForm] = useState({
+    leaveType: "",
+    payStatus: "",
+    startDate: "",
+    endDate: "",
+    reason: "",
+    status: ""
+  });
+
+  // Admin can edit any leave, employees can only edit pending leaves
+  const canEdit = isAdmin || (selectedLeave?.status === 'Pending' && 
+    selectedLeave?.employeeId === currentUser?.employeeId);
+
+  // Calculate minimum date (24 hours from now for employees)
+  const calculateMinDate = () => {
+    if (isAdmin) {
+      return new Date().toISOString().split('T')[0];
+    }
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
   };
 
-  const EditLeaveModal = () => {
-    // Admin can edit any leave, employees can only edit pending leaves
-    const canEdit = isAdmin || (selectedLeave?.status === 'Pending' && 
-      selectedLeave?.employeeId === currentUser?.employeeId);
-
-    if (!canEdit && !isAdmin) {
-      return (
-        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="text-red-600" size={24} />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Cannot Edit Leave</h3>
-                <p className="text-gray-600 mb-6">
-                  {selectedLeave?.status === 'Approved' 
-                    ? "Approved leaves cannot be edited. Please contact admin for changes."
-                    : "You don't have permission to edit this leave."}
-                </p>
-                <button
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setSelectedLeave(null);
-                  }}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-xl font-medium hover:bg-gray-700 transition-all duration-300"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
+  // যখন modal খুলবে, তখন selectedLeave থেকে ডাটা লোড করবে
+  useEffect(() => {
+    if (showEditModal && selectedLeave) {
+      console.log("Loading leave data into edit form:", selectedLeave);
+      
+      setLocalEditForm({
+        leaveType: selectedLeave.leaveType || "",
+        payStatus: selectedLeave.payStatus || "",
+        startDate: selectedLeave.startDate ? new Date(selectedLeave.startDate).toISOString().split('T')[0] : "",
+        endDate: selectedLeave.endDate ? new Date(selectedLeave.endDate).toISOString().split('T')[0] : "",
+        reason: selectedLeave.reason || "",
+        status: selectedLeave.status || "Pending"
+      });
     }
+  }, [showEditModal, selectedLeave]);
 
-    // Calculate minimum date (24 hours from now for employees)
-    const calculateMinDate = () => {
-      if (isAdmin) {
-        return new Date().toISOString().split('T')[0];
+  // Local form change handler
+  const handleLocalEditChange = (e) => {
+    const { name, value } = e.target;
+    console.log(`Editing ${name}: ${value}`);
+    
+    setLocalEditForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Update leave with local form data
+  const handleLocalUpdateLeave = async () => {
+    if (!selectedLeave) return;
+    
+    if (!localEditForm.startDate || !localEditForm.endDate) {
+      toast.error("Please select start and end dates");
+      return;
+    }
+    
+    const startDate = new Date(localEditForm.startDate);
+    const endDate = new Date(localEditForm.endDate);
+    
+    if (startDate > endDate) {
+      toast.error("Start date cannot be after end date");
+      return;
+    }
+    
+    // Check if employee can edit this leave
+    if (!isAdmin && selectedLeave?.status !== 'Pending') {
+      toast.error("Only pending leaves can be edited");
+      return;
+    }
+    
+    setFormLoading(true);
+    const loadingToast = toast.loading("Updating leave request...");
+    
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        toast.error("Authentication token not found");
+        setTimeout(() => {
+          router.push("/");
+        }, 1000);
+        return;
       }
-      const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return tomorrow.toISOString().split('T')[0];
-    };
+      
+      const updateData = {
+        leaveType: localEditForm.leaveType,
+        payStatus: localEditForm.payStatus,
+        startDate: localEditForm.startDate,
+        endDate: localEditForm.endDate,
+        reason: localEditForm.reason
+      };
+      
+      // Add status if admin is editing
+      if (isAdmin && localEditForm.status) {
+        updateData.status = localEditForm.status;
+        // If admin is changing status to Approved
+        if (localEditForm.status === "Approved" && selectedLeave?.status !== "Approved") {
+          updateData.autoApprove = true;
+        }
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/updateLeave/${selectedLeave._id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.status === 'success') {
+        toast.dismiss(loadingToast);
+        
+        let successMessage = "Leave updated successfully!";
+        if (isAdmin && localEditForm.status === "Approved" && selectedLeave?.status !== "Approved") {
+          successMessage = "Leave updated and approved successfully!";
+        } else if (isAdmin && localEditForm.status === "Rejected" && selectedLeave?.status !== "Rejected") {
+          successMessage = "Leave updated and rejected successfully!";
+        }
+        
+        toast.success(successMessage, {
+          icon: '✅',
+          duration: 3000,
+        });
+        
+        // Update in state with denormalized data
+        const updatedLeave = data.data || data.leave;
+        const enrichedLeave = transformLeaveData({
+          ...updatedLeave,
+          employeeName: selectedLeave.employeeName,
+          employeeId: selectedLeave.employeeId,
+          department: selectedLeave.department,
+          profilePicture: selectedLeave.profilePicture,
+          // Update approved info if admin approved
+          ...(isAdmin && localEditForm.status === "Approved" && selectedLeave?.status !== "Approved" && {
+            approvedAt: new Date().toISOString(),
+            approvedByName: currentUser?.name || "Admin"
+          }),
+          // Update rejected info if admin rejected
+          ...(isAdmin && localEditForm.status === "Rejected" && selectedLeave?.status !== "Rejected" && {
+            rejectedAt: new Date().toISOString(),
+            rejectedByName: currentUser?.name || "Admin"
+          })
+        });
+        
+        setLeaves(prev => prev.map(leave => 
+          leave._id === selectedLeave._id ? enrichedLeave : leave
+        ));
+        
+        // Update stats if status changed
+        if (selectedLeave?.status !== localEditForm.status) {
+          setStats(prev => ({
+            ...prev,
+            [selectedLeave?.status.toLowerCase()]: prev[selectedLeave?.status.toLowerCase()] - 1,
+            [localEditForm.status.toLowerCase()]: prev[localEditForm.status.toLowerCase()] + 1
+          }));
+        }
+        
+        // Update cache
+        const cached = localStorage.getItem('cachedLeaves');
+        if (cached) {
+          const parsedData = JSON.parse(cached);
+          const cachedData = parsedData.data || parsedData;
+          const updatedCache = cachedData.map(leave => 
+            leave._id === selectedLeave._id ? enrichedLeave : leave
+          );
+          localStorage.setItem('cachedLeaves', JSON.stringify({
+            data: updatedCache,
+            timestamp: new Date().getTime()
+          }));
+        }
+        
+        // Close modal
+        setShowEditModal(false);
+        setSelectedLeave(null);
+        
+        // Refresh data
+        setTimeout(() => {
+          fetchLeaves();
+          fetchLeaveBalance();
+        }, 500);
+        
+      } else {
+        toast.dismiss(loadingToast);
+        toast.error(data.message || "Error updating leave");
+      }
+      
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error("Network error. Please try again.");
+      console.error("Update leave error:", error);
+    } finally {
+      setFormLoading(false);
+    }
+  };
 
+  // Handle modal close
+  const handleCloseModal = () => {
+    setShowEditModal(false);
+    setSelectedLeave(null);
+  };
+
+  if (!canEdit && !isAdmin) {
     return (
       <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {isAdmin ? "Admin Edit Leave" : "Edit Leave"}
-                </h2>
-                <p className="text-gray-500 text-sm mt-1">
-                  {isAdmin 
-                    ? "Edit leave request details (admin override)"
-                    : "Update leave request details"}
-                </p>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="p-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="text-red-600" size={24} />
               </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Cannot Edit Leave</h3>
+              <p className="text-gray-600 mb-6">
+                {selectedLeave?.status === 'Approved' 
+                  ? "Approved leaves cannot be edited. Please contact admin for changes."
+                  : "You don't have permission to edit this leave."}
+              </p>
               <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setSelectedLeave(null);
-                }}
-                className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+                onClick={handleCloseModal}
+                className="px-4 py-2 bg-gray-600 text-white rounded-xl font-medium hover:bg-gray-700 transition-all duration-300"
               >
-                <X size={20} />
+                Close
               </button>
-            </div>
-          </div>
-          
-          <div className="p-6 space-y-4">
-            {/* Admin can edit status */}
-            {isAdmin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status *
-                </label>
-                <select
-                  name="status"
-                  value={editForm.status || selectedLeave?.status}
-                  onChange={handleEditChange}
-                  required
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
-                {editForm.status === "Approved" && selectedLeave?.status !== "Approved" && (
-                  <p className="text-xs text-green-600 mt-1">
-                    This leave will be automatically approved
-                  </p>
-                )}
-              </div>
-            )}
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Leave Type *
-              </label>
-              <select
-                name="leaveType"
-                value={editForm.leaveType}
-                onChange={handleEditChange}
-                required
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              >
-                {leaveTypeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Pay Status *
-              </label>
-              <select
-                name="payStatus"
-                value={editForm.payStatus}
-                onChange={handleEditChange}
-                required
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-              >
-                {payStatusOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Start Date *
-                </label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={editForm.startDate}
-                  onChange={handleEditChange}
-                  required
-                  min={calculateMinDate()}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                />
-                {!isAdmin && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Must be at least 24 hours from now
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  End Date *
-                </label>
-                <input
-                  type="date"
-                  name="endDate"
-                  value={editForm.endDate}
-                  onChange={handleEditChange}
-                  required
-                  min={editForm.startDate}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Reason *
-              </label>
-              <textarea
-                name="reason"
-                value={editForm.reason}
-                onChange={handleEditChange}
-                placeholder="Brief reason for leave..."
-                required
-                rows="3"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 resize-none"
-              />
-            </div>
-            
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setSelectedLeave(null);
-                  }}
-                  className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpdateLeave}
-                  disabled={formLoading}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {formLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Updating...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      Update Leave
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
           </div>
         </div>
       </div>
     );
-  };
+  }
+
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                {isAdmin ? "Admin Edit Leave" : "Edit Leave"}
+              </h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {isAdmin 
+                  ? "Edit leave request details (admin override)"
+                  : "Update leave request details"}
+              </p>
+            </div>
+            <button
+              onClick={handleCloseModal}
+              className="text-gray-500 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          {/* Admin can edit status */}
+          {isAdmin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status *
+              </label>
+              <select
+                name="status"
+                value={localEditForm.status || selectedLeave?.status}
+                onChange={handleLocalEditChange}
+                required
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+              >
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+              {localEditForm.status === "Approved" && selectedLeave?.status !== "Approved" && (
+                <p className="text-xs text-green-600 mt-1">
+                  This leave will be automatically approved
+                </p>
+              )}
+            </div>
+          )}
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Leave Type *
+            </label>
+            <select
+              name="leaveType"
+              value={localEditForm.leaveType}
+              onChange={handleLocalEditChange}
+              required
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+            >
+              {leaveTypeOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Pay Status *
+            </label>
+            <select
+              name="payStatus"
+              value={localEditForm.payStatus}
+              onChange={handleLocalEditChange}
+              required
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+            >
+              {payStatusOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Start Date *
+              </label>
+              <input
+                type="date"
+                name="startDate"
+                value={localEditForm.startDate}
+                onChange={handleLocalEditChange}
+                required
+                min={calculateMinDate()}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+              />
+              {!isAdmin && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Must be at least 24 hours from now
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                End Date *
+              </label>
+              <input
+                type="date"
+                name="endDate"
+                value={localEditForm.endDate}
+                onChange={handleLocalEditChange}
+                required
+                min={localEditForm.startDate}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason *
+            </label>
+            <textarea
+              name="reason"
+              value={localEditForm.reason}
+              onChange={handleLocalEditChange}
+              placeholder="Brief reason for leave..."
+              required
+              rows="3"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 resize-none"
+            />
+          </div>
+          
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLocalUpdateLeave}
+                disabled={formLoading}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {formLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Check size={18} />
+                    Update Leave
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
   const ApproveLeaveModal = () => (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">

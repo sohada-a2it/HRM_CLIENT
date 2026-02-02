@@ -1988,45 +1988,48 @@ export default function page() {
                         </div>
                       </div>
 
-                      {/* Salary Info Card */}
-                      {(isEmployee() || isModerator()) && user?.salaryType && (
-                        <div className="bg-gradient-to-r from-green-50/80 to-emerald-50/80 backdrop-blur-sm rounded-2xl p-6 border border-green-100 shadow-sm">
-                          <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
-                              <CreditCard className="text-green-600" size={22} />
-                            </div>
-                            Salary Information
-                          </h4>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div>
-                              <p className="text-sm text-gray-500 mb-1">Salary Type</p>
-                              <div className="flex items-center gap-2">
-                                <CreditCard className="text-gray-400" size={16} />
-                                <p className="text-lg font-semibold text-gray-900 capitalize">{user?.salaryType}</p>
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <p className="text-sm text-gray-500 mb-1">Daily Rate</p>
-                              <div className="flex items-center gap-2"> 
-                                <p className="text-lg font-semibold text-gray-900">
-                                  ৳{Math.round(user.rate / 23).toLocaleString()}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <p className="text-sm text-gray-500 mb-1">Basic Salary</p>
-                              <div className="flex items-center gap-2"> 
-                                <p className="text-lg font-semibold text-gray-900">
-                                  ৳{formatCurrency(user?.basicSalary || user?.salary)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      {/* Salary Info Card */} 
+{(isEmployee() || isModerator()) && user?.salaryType && (
+  <div className="bg-gradient-to-r from-green-50/80 to-emerald-50/80 backdrop-blur-sm rounded-2xl p-6 border border-green-100 shadow-sm">
+    <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
+      <div className="w-10 h-10 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm">
+        <CreditCard className="text-green-600" size={22} />
+      </div>
+      Salary Information
+    </h4>
+    
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <p className="text-sm text-gray-500 mb-1">Salary Type</p>
+        <div className="flex items-center gap-2">
+          <CreditCard className="text-gray-400" size={16} />
+          <p className="text-lg font-semibold text-gray-900 capitalize">{user?.salaryType}</p>
+        </div>
+      </div>
+      
+      <div>
+        <p className="text-sm text-gray-500 mb-1">Basic Salary</p>
+        <div className="flex items-center gap-2"> 
+          <p className="text-lg font-semibold text-gray-900">
+            ৳{formatCurrency(user?.basicSalary || user?.salary)}
+          </p>
+        </div>
+      </div>
+      
+      <div>
+        <p className="text-sm text-gray-500 mb-1">Daily Rate</p>
+        <div className="flex items-center gap-2"> 
+          <div className="flex items-center gap-2">
+            <p className="text-lg font-bold text-green-600">
+              ৳{Math.round((parseFloat(user.basicSalary || user.salary) || 0) / 23)}
+            </p>
+            <p className="text-xs text-gray-500">per day</p>
+          </div>
+        </div>
+      </div>
+    </div> 
+  </div>
+)}
 
                       {/* Bank Details Card - Only for non-admin users */}
                       {!isAdmin() && (isEmployee() || isModerator()) && user?.bankDetails?.bankName && (
@@ -2828,61 +2831,153 @@ export default function page() {
                         </div>
                       )}
 
-                      {/* Salary Info Section */}
-                      {(isEmployee() || isModerator()) && (
-                        <div className="bg-gradient-to-r from-green-50/80 to-emerald-50/80 backdrop-blur-sm rounded-xl p-4 border border-green-100 shadow-sm">
-                          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
-                            <CreditCard size={18} />
-                            Salary Information
-                          </h4>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Salary Type
-                              </label>
-                              <select
-                                value={profileForm.salaryType}
-                                onChange={(e) => setProfileForm({...profileForm, salaryType: e.target.value})}
-                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
-                              >
-                                <option value="">Select Type</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="hourly">Hourly</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="yearly">Yearly</option>
-                                <option value="project">Project</option>
-                                <option value="commission">Commission</option>
-                                <option value="fixed">Fixed</option>
-                              </select>
-                            </div>
+                      {/* Salary Info Section */} 
+{(isEmployee() || isModerator()) && (
+  <div className="bg-gradient-to-r from-green-50/80 to-emerald-50/80 backdrop-blur-sm rounded-xl p-4 border border-green-100 shadow-sm">
+    <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
+      <CreditCard size={18} />
+      Salary Information
+    </h4>
+    
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Salary Type
+        </label>
+        <select
+          value={profileForm.salaryType}
+          onChange={(e) => {
+            const newSalaryType = e.target.value;
+            const basicSalary = parseFloat(profileForm.basicSalary) || 0;
+            let newRate = profileForm.rate;
+            
+            if (newSalaryType === 'monthly' && basicSalary > 0) {
+              // Calculate rate when changing to monthly
+              newRate = Math.round(basicSalary / 23).toString();
+            }
+            
+            setProfileForm({
+              ...profileForm, 
+              salaryType: newSalaryType,
+              rate: newRate
+            });
+          }}
+          className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
+        >
+          <option value="">Select Type</option>
+          <option value="monthly">Monthly</option>
+          <option value="hourly">Hourly</option>
+          <option value="weekly">Weekly</option>
+          <option value="yearly">Yearly</option>
+          <option value="project">Project</option>
+          <option value="commission">Commission</option>
+          <option value="fixed">Fixed</option>
+        </select>
+      </div>
 
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Rate (৳)
-                              </label>
-                              <input
-                                type="number"
-                                value={profileForm.rate}
-                                onChange={(e) => setProfileForm({...profileForm, rate: e.target.value})}
-                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
-                              />
-                            </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Basic Salary (৳)
+        </label>
+        <input
+          type="number"
+          value={profileForm.basicSalary}
+          onChange={(e) => {
+            const basicSalary = parseFloat(e.target.value) || 0;
+            let newRate = profileForm.rate;
+            
+            // Auto-calculate rate for monthly salary
+            if (profileForm.salaryType === 'monthly') {
+              newRate = Math.round(basicSalary / 23).toString();
+            }
+            
+            setProfileForm({
+              ...profileForm, 
+              basicSalary: e.target.value,
+              rate: newRate
+            });
+          }}
+          onBlur={(e) => {
+            const basicSalary = parseFloat(e.target.value) || 0;
+            if (profileForm.salaryType === 'monthly') {
+              // Final calculation on blur
+              const newRate = Math.round(basicSalary / 23).toString();
+              setProfileForm({
+                ...profileForm, 
+                rate: newRate
+              });
+            }
+          }}
+          className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
+        />
+        {profileForm.basicSalary && profileForm.salaryType === 'monthly' && (
+          <p className="text-xs text-gray-500 mt-1">
+            Rate will auto-calculate: {profileForm.basicSalary} ÷ 23 = ৳{Math.round(parseFloat(profileForm.basicSalary) / 23)}
+          </p>
+        )}
+      </div>
 
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Basic Salary (৳)
-                              </label>
-                              <input
-                                type="number"
-                                value={profileForm.basicSalary}
-                                onChange={(e) => setProfileForm({...profileForm, basicSalary: e.target.value})}
-                                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Rate (৳)
+          {profileForm.salaryType === 'monthly' && (
+            <span className="text-green-600 ml-1">(Auto-calculated)</span>
+          )}
+        </label>
+        <div className="relative">
+          <input
+            type="number"
+            value={profileForm.rate}
+            onChange={(e) => {
+              // Allow manual editing only if not monthly
+              if (profileForm.salaryType !== 'monthly') {
+                setProfileForm({...profileForm, rate: e.target.value});
+              }
+            }}
+            className={`w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200 ${
+              profileForm.salaryType === 'monthly' ? 'bg-gray-50 text-gray-700' : ''
+            }`}
+            readOnly={profileForm.salaryType === 'monthly'}
+          />
+          {profileForm.salaryType === 'monthly' && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                Auto
+              </span>
+            </div>
+          )}
+        </div>
+        {profileForm.salaryType === 'monthly' && profileForm.basicSalary && (
+          <p className="text-xs text-gray-500 mt-1">
+            Daily Rate: ৳{Math.round(parseFloat(profileForm.basicSalary) / 23)}
+          </p>
+        )}
+      </div>
+    </div>
+    
+    {/* Explanation for monthly salary */}
+    {profileForm.salaryType === 'monthly' && profileForm.basicSalary && (
+      <div className="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-blue-700 font-medium">
+              Auto Calculation
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              {profileForm.basicSalary} ÷ 23 = ৳{Math.round(parseFloat(profileForm.basicSalary) / 23)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-blue-700">
+              ৳<span className="text-lg font-bold">{Math.round(parseFloat(profileForm.basicSalary) / 23)}</span>
+            </p>
+            <p className="text-xs text-blue-600">per day</p>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
                       {/* Employee-specific fields */}
                       {isEmployee() && (
