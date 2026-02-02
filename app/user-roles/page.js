@@ -159,59 +159,59 @@ const [form, setForm] = useState({
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
 
   // ✅ Welcome Email পাঠানোর ফাংশন
-  const sendWelcomeEmailToUser = async (userData, generatedPassword = null) => {
-    setSendingEmail(true);
+  // const sendWelcomeEmailToUser = async (userData, generatedPassword = null) => {
+  //   setSendingEmail(true);
     
-    const toastId = toast.loading(`Processing email for ${userData.email}...`, {
-      position: 'top-center'
-    });
+  //   const toastId = toast.loading(`Processing email for ${userData.email}...`, {
+  //     position: 'top-center'
+  //   });
 
-    try {
-      console.log('📧 Email recipient:', userData.email);
+  //   try {
+  //     console.log('📧 Email recipient:', userData.email);
       
-      const result = await sendWelcomeEmail({
-        to: userData.email,
-        subject: `Welcome to A2IT HRM System`,
-        userName: `${userData.firstName} ${userData.lastName}`,
-        userEmail: userData.email,
-        password: generatedPassword || form.password,
-        role: userData.role,
-        department: userData.department || 'General',
-        joiningDate: userData.joiningDate || new Date().toISOString().split('T')[0],
-        salary: userData.salary || '0',
-        loginUrl: window.location.origin + '/login'
-      });
+  //     const result = await sendWelcomeEmail({
+  //       to: userData.email,
+  //       subject: `Welcome to A2IT HRM System`,
+  //       userName: `${userData.firstName} ${userData.lastName}`,
+  //       userEmail: userData.email,
+  //       password: generatedPassword || form.password,
+  //       role: userData.role,
+  //       department: userData.department || 'General',
+  //       joiningDate: userData.joiningDate || new Date().toISOString().split('T')[0],
+  //       salary: userData.salary || '0',
+  //       loginUrl: window.location.origin + '/login'
+  //     });
 
-      toast.dismiss(toastId);
+  //     toast.dismiss(toastId);
 
-      if (result?.success) {
-        const message = result.simulated 
-          ? `✅ User created! (Email simulation: ${userData.email})`
-          : `✅ Welcome email sent to ${userData.email}!`;
+  //     if (result?.success) {
+  //       const message = result.simulated 
+  //         ? `✅ User created! (Email simulation: ${userData.email})`
+  //         : `✅ Welcome email sent to ${userData.email}!`;
         
-        toast.success(message, {
-          duration: 4000,
-          position: 'top-center'
-        });
-        return true;
-      }
+  //       toast.success(message, {
+  //         duration: 4000,
+  //         position: 'top-center'
+  //       });
+  //       return true;
+  //     }
       
-      return false;
+  //     return false;
 
-    } catch (error) {
-      toast.dismiss(toastId);
-      console.warn('📧 Email sending skipped (backend issue):', error.message);
+  //   } catch (error) {
+  //     toast.dismiss(toastId);
+  //     console.warn('📧 Email sending skipped (backend issue):', error.message);
       
-      toast.success(`✅ User created successfully!`, {
-        duration: 4000,
-        position: 'top-center'
-      });
+  //     toast.success(`✅ User created successfully!`, {
+  //       duration: 4000,
+  //       position: 'top-center'
+  //     });
       
-      return true;
-    } finally {
-      setSendingEmail(false);
-    }
-  };
+  //     return true;
+  //   } finally {
+  //     setSendingEmail(false);
+  //   }
+  // };
 
   // useEffect-এর মধ্যে admin email সেট করুন 
   useEffect(() => {
