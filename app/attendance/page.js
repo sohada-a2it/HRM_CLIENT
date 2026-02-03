@@ -309,7 +309,7 @@ const generatePDFReport = () => {
     start: "09:00",
     end: "18:00",
     lateThreshold: 5,
-    earlyThreshold: -1,
+    earlyThreshold: 1,
     autoClockOutDelay: 10,
     isNightShift: false
   });
@@ -553,7 +553,20 @@ const handleDeleteAttendance = async () => {
     }
   };
 
-  const calculateLateEarlyMinutes = (clockInTime, shiftStart, lateThreshold = 5, earlyThreshold = 1) => {
+const calculateLateEarlyMinutes = (clockInTime, shiftStart, recordStatus, lateThreshold = 5, earlyThreshold = 1) => {
+  // ✅ যদি record status Absent, Leave, Holiday ইত্যাদি হয়
+  const nonWorkingStatuses = ['Absent', 'Leave', 'Govt Holiday', 'Weekly Off', 'Off Day', 'Holiday'];
+  
+  if (nonWorkingStatuses.includes(recordStatus)) {
+    return {
+      isLate: false,
+      isEarly: false,
+      minutes: 0,
+      details: '',
+      status: recordStatus // ✅ আসল স্ট্যাটাস রিটার্ন করুন
+    };
+  }
+  
   if (!clockInTime || !shiftStart) return { 
     isLate: false, 
     isEarly: false, 
@@ -568,59 +581,36 @@ const handleDeleteAttendance = async () => {
     // Parse shift start time (e.g., "09:00")
     const [shiftHour, shiftMinute] = shiftStart.split(':').map(Number);
     
-    // Get only hours and minutes from clockIn (ignore seconds, milliseconds)
+    // Get only hours and minutes from clockIn (সেকেন্ড ignore)
     const clockInHour = clockIn.getHours();
     const clockInMinute = clockIn.getMinutes();
+    // const clockInSecond = clockIn.getSeconds(); // সেকেন্ড ignore
     
     // Convert both to total minutes
     const clockInTotalMinutes = clockInHour * 60 + clockInMinute;
-    let shiftTotalMinutes = shiftHour * 60 + shiftMinute;
-    
-    // Adjust for night shift
-    if (clockInHour < 4 && shiftHour >= 18) {
-      // Previous day
-      shiftTotalMinutes -= 24 * 60; // Subtract 24 hours
-    }
+    const shiftTotalMinutes = shiftHour * 60 + shiftMinute;
     
     // Calculate difference in minutes
     const diffMinutes = clockInTotalMinutes - shiftTotalMinutes;
     
     console.log("🔍 Late/Early Calculation:");
     console.log("Clock In:", `${clockInHour}:${clockInMinute.toString().padStart(2, '0')}`);
-    console.log("Shift:", `${shiftHour}:${shiftMinute.toString().padStart(2, '0')}`);
-    console.log("Diff:", diffMinutes, "minutes");
-    console.log("Late Threshold:", lateThreshold);
-    console.log("Early Threshold:", earlyThreshold);
+    console.log("Shift Start:", `${shiftHour}:${shiftMinute.toString().padStart(2, '0')}`);
+    console.log("Difference:", diffMinutes, "minutes");
     
-    // ✅ Case 1: LATE - যদি clock-in shift time এর 5+ minute পর হয় (diffMinutes > 5)
-    if (diffMinutes > lateThreshold) {
-      const lateMinutes = diffMinutes - lateThreshold;
-      const hours = Math.floor(lateMinutes / 60);
-      const minutes = lateMinutes % 60;
-      let details = '';
-      
-      if (hours > 0) details = `${hours}h ${minutes}m late`;
-      else details = `${minutes}m late`;
-      
-      console.log("✅ Result: LATE -", details);
-      
-      return { 
-        isLate: true, 
-        isEarly: false, 
-        minutes: lateMinutes, 
-        details,
-        status: 'Late'
-      };
-    } 
-    // ✅ Case 2: EARLY - যদি clock-in shift time এর 1+ minute আগে হয় (diffMinutes <= -1)
-    else if (diffMinutes < 0 && Math.abs(diffMinutes) >= earlyThreshold) {
+    // ✅ Case 1: EARLY - যদি shift start time এর 1+ minute আগে হয়
+    // 08:59 বা তার আগে হলে Early (diffMinutes = -1 বা তার বেশি নেগেটিভ)
+    if (diffMinutes < 0 && Math.abs(diffMinutes) >= earlyThreshold) {
       const earlyMinutes = Math.abs(diffMinutes);
-      const hours = Math.floor(earlyMinutes / 60);
-      const minutes = earlyMinutes % 60;
       let details = '';
       
-      if (hours > 0) details = `${hours}h ${minutes}m early`;
-      else details = `${minutes}m early`;
+      if (earlyMinutes >= 60) {
+        const hours = Math.floor(earlyMinutes / 60);
+        const mins = earlyMinutes % 60;
+        details = mins > 0 ? `${hours}h ${mins}m early` : `${hours}h early`;
+      } else {
+        details = `${earlyMinutes}m early`;
+      }
       
       console.log("✅ Result: EARLY -", details);
       
@@ -629,19 +619,45 @@ const handleDeleteAttendance = async () => {
         isEarly: true, 
         minutes: earlyMinutes, 
         details,
-        status: 'Early'
+        status: `Present (Early)`
+      };
+    } 
+    // ✅ Case 2: LATE - যদি shift start time এর 5+ minute পরে হয়
+    // 09:06 বা তার পরে হলে Late (diffMinutes > 5)
+    else if (diffMinutes > lateThreshold) {
+      const lateMinutes = diffMinutes - lateThreshold;
+      let details = '';
+      
+      if (lateMinutes >= 60) {
+        const hours = Math.floor(lateMinutes / 60);
+        const mins = lateMinutes % 60;
+        details = mins > 0 ? `${hours}h ${mins}m late` : `${hours}h late`;
+      } else {
+        details = `${lateMinutes}m late`;
+      }
+      
+      console.log("✅ Result: LATE -", details);
+      
+      return { 
+        isLate: true, 
+        isEarly: false, 
+        minutes: lateMinutes, 
+        details,
+        status: `Present (Late)`
       };
     }
-    // ✅ Case 3: ON TIME PRESENT - যদি clock-in shift time এর 0 থেকে +5 minute এর মধ্যে হয়
+    // ✅ Case 3: ON TIME PRESENT - 09:00 থেকে 09:05 পর্যন্ত
     else {
       let details = '';
       
       if (diffMinutes === 0) {
         details = 'Exactly on time';
       } else if (diffMinutes > 0) {
-        details = `${diffMinutes}m after shift (On time)`;
+        // 1-5 minute পরে clock-in করলে
+        details = `${diffMinutes}m after shift start`;
       } else {
-        details = `${Math.abs(diffMinutes)}m before shift (On time)`;
+        // 1 minute এর কম আগে clock-in করলে (08:59:30 এর মতো সেকেন্ড difference)
+        details = `${Math.abs(diffMinutes)}m before shift start (On time)`;
       }
       
       console.log("✅ Result: ON TIME PRESENT -", details);
@@ -651,7 +667,7 @@ const handleDeleteAttendance = async () => {
         isEarly: false, 
         minutes: Math.abs(diffMinutes), 
         details,
-        status: 'Present'
+        status: `Present (On Time)`
       };
     }
   } catch (error) {
@@ -1836,41 +1852,39 @@ const handleClockIn = async () => {
     });
   };
   
-  const getStatusColor = (status) => {
-    const statusMap = {
-      'Present': 'bg-gradient-to-r from-emerald-500 to-green-500 text-white',
-      'Absent': 'bg-gradient-to-r from-rose-600 to-pink-600 text-white',
-      'Leave': 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
-      'Late': 'bg-gradient-to-r from-amber-500 to-orange-500 text-white',
-      'Early': 'bg-gradient-to-r from-violet-500 to-purple-500 text-white',
-      'Govt Holiday': 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white',
-      'Weekly Off': 'bg-gradient-to-r from-slate-500 to-gray-600 text-white',
-      'Off Day': 'bg-gradient-to-r from-gray-500 to-slate-600 text-white',
-      'Half Day': 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white',
-      'Unpaid Leave': 'bg-gradient-to-r from-red-500 to-rose-600 text-white',
-      'Half Paid Leave': 'bg-gradient-to-r from-yellow-400 to-amber-400 text-white',
-      'Clocked In': 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white',
-      'Not Clocked': 'bg-gradient-to-r from-slate-400 to-gray-500 text-white'
-    };
-    return statusMap[status] || 'bg-gradient-to-r from-gray-400 to-slate-500 text-white';
+const getStatusColor = (status) => {
+  const statusMap = {
+    'Present (Early)': 'bg-gradient-to-r from-violet-500 to-purple-500 text-white',
+    'Present (Late)': 'bg-gradient-to-r from-amber-500 to-orange-500 text-white',
+    'Present (On Time)': 'bg-gradient-to-r from-emerald-500 to-green-500 text-white',
+    'Present': 'bg-gradient-to-r from-emerald-500 to-green-500 text-white',
+    'Absent': 'bg-gradient-to-r from-rose-600 to-pink-600 text-white',
+    'Leave': 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
+    'Late': 'bg-gradient-to-r from-amber-500 to-orange-500 text-white', // পুরানো Late
+    'Early': 'bg-gradient-to-r from-violet-500 to-purple-500 text-white', // পুরানো Early
+    'Govt Holiday': 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white',
+    'Weekly Off': 'bg-gradient-to-r from-slate-500 to-gray-600 text-white',
+    'Off Day': 'bg-gradient-to-r from-gray-500 to-slate-600 text-white',
   };
-  
-  const getStatusIcon = (status) => {
-    const iconMap = {
-      'Present': CheckCircle,
-      'Absent': XCircle,
-      'Leave': CalendarX,
-      'Late': Clock,
-      'Early': TrendingDown,
-      'Govt Holiday': Calendar,
-      'Weekly Off': CalendarDays,
-      'Off Day': CalendarRange,
-      'Half Day': Clock12,
-      'Clocked In': LogIn,
-      'Not Clocked': Clock
-    };
-    return iconMap[status] || AlertCircle;
+  return statusMap[status] || 'bg-gradient-to-r from-gray-400 to-slate-500 text-white';
+};
+
+const getStatusIcon = (status) => {
+  const iconMap = {
+    'Present (Early)': TrendingDown,
+    'Present (Late)': Clock,
+    'Present (On Time)': CheckCircle,
+    'Present': CheckCircle,
+    'Absent': XCircle,
+    'Leave': CalendarX,
+    'Late': Clock, // পুরানো Late
+    'Early': TrendingDown, // পুরানো Early
+    'Govt Holiday': Calendar,
+    'Weekly Off': CalendarDays,
+    'Off Day': CalendarRange,
   };
+  return iconMap[status] || AlertCircle;
+};
   
   const getDeviceIcon = (deviceType) => {
     switch(deviceType?.toLowerCase()) {
@@ -2765,25 +2779,7 @@ const handleClockIn = async () => {
     Showing data from {formatDateShort(dateRange.startDate)} to {formatDateShort(dateRange.endDate)}
   </div>
   
-  <div className="flex gap-2">
-    {/* PDF জেনারেট বাটন */}
-    <button
-      onClick={generatePDFReport}
-      disabled={attendance.length === 0 || pdfLoading}
-      className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm flex items-center gap-2 disabled:opacity-50"
-    >
-      {pdfLoading ? (
-        <>
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Generating...
-        </>
-      ) : (
-        <>
-          <FileText size={16} />
-          Generate PDF
-        </>
-      )}
-    </button>
+  <div className="flex gap-2"> 
     
     {/* ডাউনলোড লিঙ্ক (বিকল্প) */}
     {attendance.length > 0 && (
@@ -3044,8 +3040,14 @@ const handleClockIn = async () => {
                   </thead>
                   <tbody className="divide-y divide-purple-100">
                     {attendance.map((record) => {
-                      const lateEarly = calculateLateEarlyMinutes(record.clockIn, record.shift?.start);
-                      const StatusIcon = getStatusIcon(record.status);
+                        const lateEarly = calculateLateEarlyMinutes(
+    record.clockIn, 
+    record.shift?.start, 
+    record.status, // এখানে যোগ করুন
+    5, 
+    1
+  );
+                      const StatusIcon = getStatusIcon(lateEarly.status);
                       const date = new Date(record.date);
                       
                       return (
@@ -3152,10 +3154,13 @@ const handleClockIn = async () => {
                           
                           <td className="py-4 px-4">
                             <div className="flex flex-col gap-2">
-                              <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold shadow-sm ${getStatusColor(record.status)}`}>
-                                <StatusIcon size={14} className="mr-2" />
-                                {record.status}
-                              </div>
+                                <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold shadow-sm ${getStatusColor(lateEarly.status)}`}> {/* ✅ lateEarly.status ব্যবহার করুন */}
+      <StatusIcon size={14} className="mr-2" />
+      {lateEarly.status} {/* ✅ lateEarly.status ব্যবহার করুন */}
+    </div>
+    <div className="text-xs text-gray-600">
+      {lateEarly.details}
+    </div>
                               <div className="text-xs space-y-1">
                                 {record.remarks && (
                                   <div className="text-gray-600 truncate max-w-[150px]" title={record.remarks}>
