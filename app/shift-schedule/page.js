@@ -391,7 +391,30 @@ function AssignShiftModal({ isOpen, onClose, users, shift, onAssign, loading, cu
                         </div>
                         <p className="text-sm text-gray-600">{user.department} • {user.employeeId || 'No ID'}</p>
                         <p className="text-xs text-gray-500">
-                          Current: {user.currentShiftDisplay || 'Default Shift'}
+                          <span className="font-medium">Current Shift:</span> 
+                          {(() => {
+                            const shiftTiming = user.shiftTiming || {};
+                            const today = new Date().toISOString().split('T')[0];
+                            
+                            const todaysActiveShift = shiftTiming.currentShift?.isActive && 
+                                                      shiftTiming.currentShift.effectiveDate === today 
+                                                      ? shiftTiming.currentShift 
+                                                      : null;
+                            
+                            const todaysShiftFromHistory = shiftTiming.shiftHistory?.find(shift => 
+                              shift.effectiveDate === today
+                            );
+                            
+                            const activeShift = todaysActiveShift || todaysShiftFromHistory;
+                            
+                            if (activeShift) {
+                              return `${activeShift.start || activeShift.startTime} - ${activeShift.end || activeShift.endTime} (Active)`;
+                            }
+                            
+                            return shiftTiming.assignedShift?.start && shiftTiming.assignedShift?.end 
+                              ? `${shiftTiming.assignedShift.start} - ${shiftTiming.assignedShift.end}`
+                              : 'Default Shift';
+                          })()}
                         </p>
                       </div>
                       {selectedUser?._id === user._id && (
@@ -431,33 +454,32 @@ function AssignShiftModal({ isOpen, onClose, users, shift, onAssign, loading, cu
                         <p className="text-sm text-gray-600">
                           {selectedUser.department} • {selectedUser.employeeId || 'No ID'}
                         </p>
-                        // AssignShiftModal-এর মধ্যে selected user display-এও একই logic apply করুন
-<p className="text-xs text-gray-500 mt-1">
-  <span className="font-medium">Current Shift:</span> 
-  {(() => {
-    const shiftTiming = selectedUser.shiftTiming || {};
-    const today = new Date().toISOString().split('T')[0];
-    
-    const todaysActiveShift = shiftTiming.currentShift?.isActive && 
-                              shiftTiming.currentShift.effectiveDate === today 
-                              ? shiftTiming.currentShift 
-                              : null;
-    
-    const todaysShiftFromHistory = shiftTiming.shiftHistory?.find(shift => 
-      shift.effectiveDate === today
-    );
-    
-    const activeShift = todaysActiveShift || todaysShiftFromHistory;
-    
-    if (activeShift) {
-      return `${activeShift.start || activeShift.startTime} - ${activeShift.end || activeShift.endTime} (Active)`;
-    }
-    
-    return shiftTiming.assignedShift?.start && shiftTiming.assignedShift?.end 
-      ? `${shiftTiming.assignedShift.start} - ${shiftTiming.assignedShift.end}`
-      : 'Default Shift';
-  })()}
-</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          <span className="font-medium">Current Shift:</span> 
+                          {(() => {
+                            const shiftTiming = selectedUser.shiftTiming || {};
+                            const today = new Date().toISOString().split('T')[0];
+                            
+                            const todaysActiveShift = shiftTiming.currentShift?.isActive && 
+                                                      shiftTiming.currentShift.effectiveDate === today 
+                                                      ? shiftTiming.currentShift 
+                                                      : null;
+                            
+                            const todaysShiftFromHistory = shiftTiming.shiftHistory?.find(shift => 
+                              shift.effectiveDate === today
+                            );
+                            
+                            const activeShift = todaysActiveShift || todaysShiftFromHistory;
+                            
+                            if (activeShift) {
+                              return `${activeShift.start || activeShift.startTime} - ${activeShift.end || activeShift.endTime} (Active)`;
+                            }
+                            
+                            return shiftTiming.assignedShift?.start && shiftTiming.assignedShift?.end 
+                              ? `${shiftTiming.assignedShift.start} - ${shiftTiming.assignedShift.end}`
+                              : 'Default Shift';
+                          })()}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -552,7 +574,371 @@ function AssignShiftModal({ isOpen, onClose, users, shift, onAssign, loading, cu
   );
 }
 
-// ====================== COMPONENT 3: Shift History Modal ======================
+// ====================== COMPONENT 3: Bulk Assign Modal ======================
+function BulkAssignModal({ isOpen, onClose, users, onBulkAssign, loading }) {
+  const [formData, setFormData] = useState({
+    startTime: '09:00',
+    endTime: '18:00',
+    effectiveDate: new Date().toISOString().split('T')[0],
+    shiftType: 'regular',
+    reason: 'Bulk assigned by admin',
+    makeDefault: false
+  });
+  
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterRole, setFilterRole] = useState('all');
+  const [filterDepartment, setFilterDepartment] = useState('all');
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedUserIds([]);
+      setFormData({
+        startTime: '09:00',
+        endTime: '18:00',
+        effectiveDate: new Date().toISOString().split('T')[0],
+        shiftType: 'regular',
+        reason: 'Bulk assigned by admin',
+        makeDefault: false
+      });
+    }
+  }, [isOpen]);
+
+  const handleUserToggle = (userId) => {
+    setSelectedUserIds(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedUserIds.length === filteredUsers.length) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(filteredUsers.map(user => user._id));
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    if (selectedUserIds.length === 0) {
+      toast.error('Please select at least one user');
+      return;
+    }
+    
+    if (!formData.startTime || !formData.endTime) {
+      toast.error('Start time and end time are required');
+      return;
+    }
+    
+    const start = new Date(`2000-01-01T${formData.startTime}`);
+    const end = new Date(`2000-01-01T${formData.endTime}`);
+    
+    if (start >= end) {
+      toast.error('Start time must be before end time');
+      return;
+    }
+    
+    onBulkAssign({
+      ...formData,
+      userIds: selectedUserIds
+    });
+  };
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      const matchesSearch = !searchTerm || 
+        user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesRole = filterRole === 'all' || user.role === filterRole;
+      const matchesDept = filterDepartment === 'all' || 
+        (user.department && user.department.toLowerCase() === filterDepartment.toLowerCase());
+      
+      return matchesSearch && matchesRole && matchesDept;
+    });
+  }, [users, searchTerm, filterRole, filterDepartment]);
+
+  const uniqueDepartments = useMemo(() => {
+    const depts = [...new Set(users.map(user => user.department).filter(Boolean))];
+    return depts;
+  }, [users]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Bulk Assign Shift</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Assign same shift to multiple users at once
+              </p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex h-[calc(90vh-180px)]">
+          {/* Left Panel - User Selection */}
+          <div className="w-1/2 border-r border-gray-200 overflow-y-auto">
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="relative flex-1 mr-3">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search users..."
+                    className="w-full pl-10 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                
+                <button
+                  onClick={handleSelectAll}
+                  className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
+                >
+                  {selectedUserIds.length === filteredUsers.length ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+              
+              <div className="flex flex-wrap gap-2 pb-2">
+                <button
+                  onClick={() => setFilterRole('all')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${filterRole === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  All Roles
+                </button>
+                <button
+                  onClick={() => setFilterRole('employee')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${filterRole === 'employee' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  Employees
+                </button>
+                <button
+                  onClick={() => setFilterRole('admin')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${filterRole === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  Admins
+                </button>
+                <button
+                  onClick={() => setFilterRole('moderator')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${filterRole === 'moderator' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  Moderators
+                </button>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Filter by Department
+                </label>
+                <select
+                  value={filterDepartment}
+                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                >
+                  <option value="all">All Departments</option>
+                  {uniqueDepartments.map(dept => (
+                    <option key={dept} value={dept.toLowerCase()}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="space-y-2">
+                {filteredUsers.map((user) => (
+                  <div
+                    key={user._id}
+                    onClick={() => handleUserToggle(user._id)}
+                    className={`p-3 rounded-lg cursor-pointer transition-all ${
+                      selectedUserIds.includes(user._id) 
+                        ? 'bg-blue-50 border-2 border-blue-200' 
+                        : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.includes(user._id)}
+                          onChange={() => {}}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </div>
+                      
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        user.role === 'admin' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
+                        user.role === 'moderator' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
+                        'bg-gradient-to-r from-green-500 to-emerald-500'
+                      }`}>
+                        {user.firstName?.[0]}{user.lastName?.[0]}
+                      </div>
+                      
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-gray-900">
+                            {user.firstName} {user.lastName}
+                          </h4>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
+                            {getRoleIcon(user.role)}
+                            {user.role}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{user.department} • {user.employeeId || 'No ID'}</p>
+                        <p className="text-xs text-gray-500">
+                          Current: {user.currentShiftDisplay || 'Default Shift'}
+                        </p>
+                      </div>
+                      
+                      {selectedUserIds.includes(user._id) && (
+                        <Check className="text-green-500" size={18} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Right Panel - Shift Form */}
+          <div className="w-1/2 p-6 overflow-y-auto">
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-900 mb-2">
+                Selected Users: {selectedUserIds.length}
+              </h3>
+              {selectedUserIds.length > 0 && (
+                <div className="text-sm text-gray-600">
+                  {selectedUserIds.slice(0, 3).map(id => {
+                    const user = users.find(u => u._id === id);
+                    return user ? `${user.firstName} ${user.lastName}` : '';
+                  }).join(', ')}
+                  {selectedUserIds.length > 3 && ` and ${selectedUserIds.length - 3} more`}
+                </div>
+              )}
+            </div>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start Time *
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.startTime}
+                    onChange={(e) => setFormData({...formData, startTime: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    End Time *
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.endTime}
+                    onChange={(e) => setFormData({...formData, endTime: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Effective Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.effectiveDate}
+                  onChange={(e) => setFormData({...formData, effectiveDate: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Shift Type
+                </label>
+                <select
+                  value={formData.shiftType}
+                  onChange={(e) => setFormData({...formData, shiftType: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="regular">Regular</option>
+                  <option value="morning">Morning</option>
+                  <option value="evening">Evening</option>
+                  <option value="night">Night</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason (Optional)
+                </label>
+                <textarea
+                  value={formData.reason}
+                  onChange={(e) => setFormData({...formData, reason: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  rows="2"
+                  placeholder="Reason for bulk assignment..."
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="bulkMakeDefault"
+                  checked={formData.makeDefault}
+                  onChange={(e) => setFormData({...formData, makeDefault: e.target.checked})}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="bulkMakeDefault" className="text-sm text-gray-700">
+                  Make this the default shift for all selected users
+                </label>
+              </div>
+              
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={loading || selectedUserIds.length === 0}
+                  className="w-full py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" size={16} />
+                      Assigning to {selectedUserIds.length} users...
+                    </>
+                  ) : (
+                    <>
+                      <Users size={16} />
+                      Assign to {selectedUserIds.length} Users
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ====================== COMPONENT 4: Shift History Modal ======================
 function ShiftHistoryModal({ isOpen, onClose, user, history }) {
   if (!isOpen) return null;
 
@@ -626,12 +1012,13 @@ function ShiftHistoryModal({ isOpen, onClose, user, history }) {
 }
 
 // ====================== MAIN COMPONENT ======================
-export default function page() {
+export default function Page() {
   const [viewMode, setViewMode] = useState('overview');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedShift, setSelectedShift] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -645,76 +1032,81 @@ export default function page() {
   
   const router = useRouter();
 
-  // Improved getCurrentShiftInfo function
-// Enhanced getCurrentShiftInfo function with better debugging
-const getCurrentShiftInfo = (user) => {
-  if (!user) return { 
-    display: 'N/A', 
-    isActive: false, 
-    start: '09:00', 
-    end: '18:00' 
-  };
-  
-  console.log('🔍 Parsing shift for user:', user.firstName);
-  
-  // Check multiple sources for shift data
-  const shiftTiming = user.shiftTiming || {};
-  
-  // Priority 1: Check assignedShift with explicit isActive check
-  if (shiftTiming.assignedShift && shiftTiming.assignedShift.isActive === true) {
-    console.log('✅ Using assignedShift for', user.firstName);
-    return {
-      display: `${shiftTiming.assignedShift.start || '09:00'} - ${shiftTiming.assignedShift.end || '18:00'}`,
-      isActive: true,
-      start: shiftTiming.assignedShift.start,
-      end: shiftTiming.assignedShift.end,
-      effectiveDate: shiftTiming.assignedShift.effectiveDate,
-      assignedAt: shiftTiming.assignedShift.assignedAt,
-      type: 'assigned'
+  // Updated getCurrentShiftInfo function
+  const getCurrentShiftInfo = (user) => {
+    if (!user) return { 
+      display: 'N/A', 
+      isActive: false, 
+      start: '09:00', 
+      end: '18:00' 
     };
-  }
-  
-  // Priority 2: Check currentShift
-  if (shiftTiming.currentShift && shiftTiming.currentShift.isActive === true) {
-    console.log('✅ Using currentShift for', user.firstName);
-    return {
-      display: `${shiftTiming.currentShift.start || '09:00'} - ${shiftTiming.currentShift.end || '18:00'}`,
-      isActive: true,
-      start: shiftTiming.currentShift.start,
-      end: shiftTiming.currentShift.end,
-      effectiveDate: shiftTiming.currentShift.effectiveDate,
-      type: 'current'
-    };
-  }
-  
-  // Priority 3: Check if there's any history with today's date
-  const today = new Date().toISOString().split('T')[0];
-  if (shiftTiming.shiftHistory && shiftTiming.shiftHistory.length > 0) {
-    const latestShift = shiftTiming.shiftHistory[0];
-    if (latestShift.effectiveDate && 
-        new Date(latestShift.effectiveDate).toISOString().split('T')[0] === today) {
-      console.log('✅ Using today\'s shift from history for', user.firstName);
+    
+    const shiftTiming = user.shiftTiming || {};
+    
+    // If assignedShift is explicitly set to null (after reset), show default
+    if (shiftTiming.assignedShift === null) {
+      const defaultShift = shiftTiming.defaultShift || { start: '09:00', end: '18:00' };
       return {
-        display: `${latestShift.start || latestShift.startTime || '09:00'} - ${latestShift.end || latestShift.endTime || '18:00'}`,
-        isActive: true,
-        start: latestShift.start || latestShift.startTime,
-        end: latestShift.end || latestShift.endTime,
-        effectiveDate: latestShift.effectiveDate,
-        type: 'history'
+        display: `${defaultShift.start} - ${defaultShift.end} (Default)`,
+        isActive: false,
+        start: defaultShift.start,
+        end: defaultShift.end,
+        type: 'default',
+        isReset: true
       };
     }
-  }
-  
-  // Priority 4: Use defaultShift
-  console.log('ℹ️ Using defaultShift for', user.firstName);
-  return {
-    display: `${shiftTiming.defaultShift?.start || '09:00'} - ${shiftTiming.defaultShift?.end || '18:00'}`,
-    isActive: false,
-    start: shiftTiming.defaultShift?.start || '09:00',
-    end: shiftTiming.defaultShift?.end || '18:00',
-    type: 'default'
+    
+    // Check if assignedShift exists and isActive is true
+    if (shiftTiming.assignedShift && shiftTiming.assignedShift.isActive === true) {
+      return {
+        display: `${shiftTiming.assignedShift.start || '09:00'} - ${shiftTiming.assignedShift.end || '18:00'}`,
+        isActive: true,
+        start: shiftTiming.assignedShift.start,
+        end: shiftTiming.assignedShift.end,
+        effectiveDate: shiftTiming.assignedShift.effectiveDate,
+        assignedAt: shiftTiming.assignedShift.assignedAt,
+        type: 'assigned'
+      };
+    }
+    
+    // Check currentShift
+    if (shiftTiming.currentShift && shiftTiming.currentShift.isActive === true) {
+      return {
+        display: `${shiftTiming.currentShift.start || '09:00'} - ${shiftTiming.currentShift.end || '18:00'}`,
+        isActive: true,
+        start: shiftTiming.currentShift.start,
+        end: shiftTiming.currentShift.end,
+        effectiveDate: shiftTiming.currentShift.effectiveDate,
+        type: 'current'
+      };
+    }
+    
+    // Check if there's any active shift in history
+    const today = new Date().toISOString().split('T')[0];
+    if (shiftTiming.shiftHistory && shiftTiming.shiftHistory.length > 0) {
+      const latestShift = shiftTiming.shiftHistory[0];
+      if (latestShift.effectiveDate && 
+          new Date(latestShift.effectiveDate).toISOString().split('T')[0] === today) {
+        return {
+          display: `${latestShift.start || latestShift.startTime || '09:00'} - ${latestShift.end || latestShift.endTime || '18:00'}`,
+          isActive: true,
+          start: latestShift.start || latestShift.startTime,
+          end: latestShift.end || latestShift.endTime,
+          effectiveDate: latestShift.effectiveDate,
+          type: 'history'
+        };
+      }
+    }
+    
+    // If no active shift, show DEFAULT shift
+    return {
+      display: `${shiftTiming.defaultShift?.start || '09:00'} - ${shiftTiming.defaultShift?.end || '18:00'} (Default)`,
+      isActive: false,
+      start: shiftTiming.defaultShift?.start || '09:00',
+      end: shiftTiming.defaultShift?.end || '18:00',
+      type: 'default'
+    };
   };
-};
 
   // Initialize token and role from localStorage
   useEffect(() => {
@@ -829,60 +1221,36 @@ const getCurrentShiftInfo = (user) => {
     }
   };
 
-  // Handle shift update 
-// Handle shift update with proper optimistic update
-const handleShiftUpdate = async (formData) => {
-  if (!selectedUser) return;
-  
-  setLoading(true);
-  try {
-    console.log('📝 Updating shift for user:', selectedUser._id);
-    console.log('Update data:', formData);
+  // Handle shift update with proper optimistic update
+  const handleShiftUpdate = async (formData) => {
+    if (!selectedUser) return;
     
-    // Create axios instance with token
-    const axiosInstance = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    // Optimistic update: Update UI immediately
-    setUsers(prevUsers => 
-      prevUsers.map(user => {
-        if (user._id === selectedUser._id) {
-          // Create updated user object with new shift
-          const updatedUser = {
-            ...user,
-            shiftTiming: {
-              // Keep existing structure
-              ...user.shiftTiming,
-              // Force update assignedShift with isActive: true
-              assignedShift: {
-                name: formData.shiftType === 'morning' ? 'Morning Shift' : 
-                      formData.shiftType === 'evening' ? 'Evening Shift' : 
-                      formData.shiftType === 'night' ? 'Night Shift' : 'Regular Shift',
-                start: formData.startTime,
-                end: formData.endTime,
-                lateThreshold: 5,
-                earlyThreshold: -1,
-                autoClockOutDelay: 10,
-                assignedBy: userId, // Use actual admin ID
-                assignedAt: new Date().toISOString(),
-                effectiveDate: formData.effectiveDate,
-                isActive: true // THIS IS CRITICAL
-              },
-              // Also update currentShift
-              currentShift: {
-                start: formData.startTime,
-                end: formData.endTime,
-                effectiveDate: formData.effectiveDate,
-                isActive: true
-              },
-              // Add to shiftHistory
-              shiftHistory: [
-                {
+    setLoading(true);
+    try {
+      console.log('📝 Updating shift for user:', selectedUser._id);
+      console.log('Update data:', formData);
+      
+      // Create axios instance with token
+      const axiosInstance = axios.create({
+        baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Optimistic update: Update UI immediately
+      setUsers(prevUsers => 
+        prevUsers.map(user => {
+          if (user._id === selectedUser._id) {
+            // Create updated user object with new shift
+            const updatedUser = {
+              ...user,
+              shiftTiming: {
+                // Keep existing structure
+                ...user.shiftTiming,
+                // Force update assignedShift with isActive: true
+                assignedShift: {
                   name: formData.shiftType === 'morning' ? 'Morning Shift' : 
                         formData.shiftType === 'evening' ? 'Evening Shift' : 
                         formData.shiftType === 'night' ? 'Night Shift' : 'Regular Shift',
@@ -891,65 +1259,47 @@ const handleShiftUpdate = async (formData) => {
                   lateThreshold: 5,
                   earlyThreshold: -1,
                   autoClockOutDelay: 10,
-                  assignedBy: userId,
+                  assignedBy: userId, // Use actual admin ID
                   assignedAt: new Date().toISOString(),
                   effectiveDate: formData.effectiveDate,
-                  reason: formData.reason || 'Shift updated by admin',
+                  isActive: true // THIS IS CRITICAL
+                },
+                // Also update currentShift
+                currentShift: {
+                  start: formData.startTime,
+                  end: formData.endTime,
+                  effectiveDate: formData.effectiveDate,
                   isActive: true
                 },
-                ...(user.shiftTiming?.shiftHistory || [])
-              ],
-              // Update defaultShift if requested
-              ...(formData.makeDefault && {
-                defaultShift: {
-                  ...user.shiftTiming?.defaultShift,
-                  start: formData.startTime,
-                  end: formData.endTime
-                }
-              })
-            },
-            // Update display info
-            currentShiftDisplay: `${formData.startTime} - ${formData.endTime}`,
-            shiftInfo: {
-              display: `${formData.startTime} - ${formData.endTime}`,
-              isActive: true,
-              start: formData.startTime,
-              end: formData.endTime,
-              effectiveDate: formData.effectiveDate,
-              type: 'assigned'
-            }
-          };
-          
-          console.log('🔄 Optimistic update applied to:', updatedUser.firstName);
-          console.log('New assignedShift:', updatedUser.shiftTiming.assignedShift);
-          return updatedUser;
-        }
-        return user;
-      })
-    );
-    
-    // Now make the API call
-    const response = await axiosInstance.put(`/employee/${selectedUser._id}/shift`, {
-      startTime: formData.startTime,
-      endTime: formData.endTime,
-      effectiveDate: formData.effectiveDate,
-      reason: formData.reason || 'Shift updated by admin',
-      shiftType: formData.shiftType,
-      makeDefault: formData.makeDefault
-    });
-    
-    console.log('✅ API Update response:', response.data);
-    
-    if (response.data.success) {
-      toast.success('✅ Shift updated successfully!');
-      
-      // Update with actual API response data
-      setUsers(prevUsers => 
-        prevUsers.map(user => {
-          if (user._id === selectedUser._id) {
-            return {
-              ...user,
-              shiftTiming: response.data.employee.shiftTiming || user.shiftTiming,
+                // Add to shiftHistory
+                shiftHistory: [
+                  {
+                    name: formData.shiftType === 'morning' ? 'Morning Shift' : 
+                          formData.shiftType === 'evening' ? 'Evening Shift' : 
+                          formData.shiftType === 'night' ? 'Night Shift' : 'Regular Shift',
+                    start: formData.startTime,
+                    end: formData.endTime,
+                    lateThreshold: 5,
+                    earlyThreshold: -1,
+                    autoClockOutDelay: 10,
+                    assignedBy: userId,
+                    assignedAt: new Date().toISOString(),
+                    effectiveDate: formData.effectiveDate,
+                    reason: formData.reason || 'Shift updated by admin',
+                    isActive: true
+                  },
+                  ...(user.shiftTiming?.shiftHistory || [])
+                ],
+                // Update defaultShift if requested
+                ...(formData.makeDefault && {
+                  defaultShift: {
+                    ...user.shiftTiming?.defaultShift,
+                    start: formData.startTime,
+                    end: formData.endTime
+                  }
+                })
+              },
+              // Update display info
               currentShiftDisplay: `${formData.startTime} - ${formData.endTime}`,
               shiftInfo: {
                 display: `${formData.startTime} - ${formData.endTime}`,
@@ -960,47 +1310,88 @@ const handleShiftUpdate = async (formData) => {
                 type: 'assigned'
               }
             };
+            
+            console.log('🔄 Optimistic update applied to:', updatedUser.firstName);
+            console.log('New assignedShift:', updatedUser.shiftTiming.assignedShift);
+            return updatedUser;
           }
           return user;
         })
       );
       
-      setShowUpdateModal(false);
-      setSelectedUser(null);
+      // Now make the API call
+      const response = await axiosInstance.put(`/employee/${selectedUser._id}/shift`, {
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        effectiveDate: formData.effectiveDate,
+        reason: formData.reason || 'Shift updated by admin',
+        shiftType: formData.shiftType,
+        makeDefault: formData.makeDefault
+      });
       
-    } else {
-      toast.error(response.data.message || 'Failed to update shift');
+      console.log('✅ API Update response:', response.data);
+      
+      if (response.data.success) {
+        toast.success('✅ Shift updated successfully!');
+        
+        // Update with actual API response data
+        setUsers(prevUsers => 
+          prevUsers.map(user => {
+            if (user._id === selectedUser._id) {
+              return {
+                ...user,
+                shiftTiming: response.data.employee.shiftTiming || user.shiftTiming,
+                currentShiftDisplay: `${formData.startTime} - ${formData.endTime}`,
+                shiftInfo: {
+                  display: `${formData.startTime} - ${formData.endTime}`,
+                  isActive: true,
+                  start: formData.startTime,
+                  end: formData.endTime,
+                  effectiveDate: formData.effectiveDate,
+                  type: 'assigned'
+                }
+              };
+            }
+            return user;
+          })
+        );
+        
+        setShowUpdateModal(false);
+        setSelectedUser(null);
+        
+      } else {
+        toast.error(response.data.message || 'Failed to update shift');
+        
+        // Revert optimistic update on error
+        setTimeout(() => {
+          fetchAllData();
+          toast.info('Reverting to previous data...');
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('❌ Update shift error:', error);
+      
+      if (error.response) {
+        if (error.response.status === 403) {
+          toast.error('Access denied. Admin only.');
+        } else if (error.response.status === 404) {
+          toast.error('User not found');
+        } else {
+          toast.error(error.response.data?.message || 'Failed to update shift');
+        }
+      } else {
+        toast.error('Network error. Please check your connection.');
+      }
       
       // Revert optimistic update on error
       setTimeout(() => {
         fetchAllData();
-        toast.info('Reverting to previous data...');
+        toast.info('Reverting to previous data due to error...');
       }, 1000);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('❌ Update shift error:', error);
-    
-    if (error.response) {
-      if (error.response.status === 403) {
-        toast.error('Access denied. Admin only.');
-      } else if (error.response.status === 404) {
-        toast.error('User not found');
-      } else {
-        toast.error(error.response.data?.message || 'Failed to update shift');
-      }
-    } else {
-      toast.error('Network error. Please check your connection.');
-    }
-    
-    // Revert optimistic update on error
-    setTimeout(() => {
-      fetchAllData();
-      toast.info('Reverting to previous data due to error...');
-    }, 1000);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // Handle shift assignment
   const handleShiftAssign = async (formData) => {
@@ -1120,213 +1511,253 @@ const handleShiftUpdate = async (formData) => {
     }
   };
 
-  // Fetch shift history function
-  // Fix the shift history function - userId undefined problem
-const fetchShiftHistory = async (userId) => {
-  // Check if userId is valid
-  if (!userId || userId === 'undefined') {
-    toast.error('Invalid user ID');
-    return;
-  }
-
-  try {
-    const axiosInstance = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+  // Handle bulk assign
+  const handleBulkAssign = async (formData) => {
+    setLoading(true);
+    
+    try {
+      const axiosInstance = axios.create({
+        baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('📦 Bulk assigning to users:', formData.userIds.length);
+      console.log('Bulk data:', formData);
+      
+      const response = await axiosInstance.post('/admin/bulk-assign-shifts', formData);
+      
+      if (response.data.success) {
+        toast.success(`✅ Shift assigned to ${response.data.results.successful.length} users successfully!`);
+        
+        // Optimistic update
+        setUsers(prevUsers => 
+          prevUsers.map(user => {
+            if (formData.userIds.includes(user._id)) {
+              return {
+                ...user,
+                shiftTiming: {
+                  ...user.shiftTiming,
+                  assignedShift: {
+                    name: formData.shiftType === 'morning' ? 'Morning Shift' : 
+                          formData.shiftType === 'evening' ? 'Evening Shift' : 
+                          formData.shiftType === 'night' ? 'Night Shift' : 'Regular Shift',
+                    start: formData.startTime,
+                    end: formData.endTime,
+                    assignedBy: userId,
+                    assignedAt: new Date().toISOString(),
+                    effectiveDate: formData.effectiveDate,
+                    isActive: true,
+                    reason: formData.reason
+                  },
+                  currentShift: {
+                    start: formData.startTime,
+                    end: formData.endTime,
+                    effectiveDate: formData.effectiveDate,
+                    isActive: true
+                  },
+                  shiftHistory: [
+                    {
+                      name: formData.shiftType === 'morning' ? 'Morning Shift' : 
+                            formData.shiftType === 'evening' ? 'Evening Shift' : 
+                            formData.shiftType === 'night' ? 'Night Shift' : 'Regular Shift',
+                      start: formData.startTime,
+                      end: formData.endTime,
+                      assignedBy: userId,
+                      assignedAt: new Date().toISOString(),
+                      effectiveDate: formData.effectiveDate,
+                      reason: formData.reason
+                    },
+                    ...(user.shiftTiming?.shiftHistory || [])
+                  ],
+                  ...(formData.makeDefault && {
+                    defaultShift: {
+                      start: formData.startTime,
+                      end: formData.endTime,
+                      updatedAt: new Date().toISOString()
+                    }
+                  })
+                },
+                currentShiftDisplay: `${formData.startTime} - ${formData.endTime}`,
+                shiftInfo: {
+                  display: `${formData.startTime} - ${formData.endTime}`,
+                  isActive: true,
+                  start: formData.startTime,
+                  end: formData.endTime,
+                  effectiveDate: formData.effectiveDate,
+                  type: 'assigned'
+                }
+              };
+            }
+            return user;
+          })
+        );
+        
+        setShowBulkAssignModal(false);
+        
+        // Refresh data after 1 second
+        setTimeout(() => {
+          fetchAllData();
+        }, 1000);
+        
+      } else {
+        toast.error(response.data.message || 'Failed to bulk assign shift');
       }
-    });
-    
-    console.log('📊 Fetching shift history for userId:', userId);
-    
-    // Try to find the user first
-    const user = users.find(u => u._id === userId);
-    if (!user) {
-      toast.error('User not found in local data');
+      
+    } catch (error) {
+      console.error('Bulk assign error:', error);
+      
+      if (error.response) {
+        toast.error(error.response.data?.message || 'Failed to bulk assign shift');
+      } else {
+        toast.error('Network error. Please check your connection.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch shift history function
+  const fetchShiftHistory = async (userId) => {
+    // Check if userId is valid
+    if (!userId || userId === 'undefined') {
+      toast.error('Invalid user ID');
       return;
     }
-    
-    // Use employeeId if available, otherwise use userId
-    const identifier = user.employeeId || userId;
-    
-    const response = await axiosInstance.get(`/admin/shift-history/${identifier}`);
-    
-    if (response.data.success) {
-      setShiftHistory(response.data.shiftHistory || []);
-      setSelectedUser(response.data.employee || user);
-      setShowHistoryModal(true);
-    } else {
-      toast.error(response.data.message || 'Failed to load history');
+
+    try {
+      const axiosInstance = axios.create({
+        baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('📊 Fetching shift history for userId:', userId);
+      
+      // Try to find the user first
+      const user = users.find(u => u._id === userId);
+      if (!user) {
+        toast.error('User not found in local data');
+        return;
+      }
+      
+      // Use employeeId if available, otherwise use userId
+      const identifier = user.employeeId || userId;
+      
+      const response = await axiosInstance.get(`/admin/shift-history/${identifier}`);
+      
+      if (response.data.success) {
+        setShiftHistory(response.data.shiftHistory || []);
+        setSelectedUser(response.data.employee || user);
+        setShowHistoryModal(true);
+      } else {
+        toast.error(response.data.message || 'Failed to load history');
+      }
+    } catch (error) {
+      console.error('Fetch history error:', error);
+      
+      // Fallback: Show local history
+      const user = users.find(u => u._id === userId);
+      if (user?.shiftTiming?.shiftHistory) {
+        setShiftHistory(user.shiftTiming.shiftHistory);
+        setSelectedUser(user);
+        setShowHistoryModal(true);
+        toast.success('Loaded local shift history');
+      } else {
+        toast.error('No shift history available');
+      }
     }
-  } catch (error) {
-    console.error('Fetch history error:', error);
-    
-    // Fallback: Show local history
-    const user = users.find(u => u._id === userId);
-    if (user?.shiftTiming?.shiftHistory) {
-      setShiftHistory(user.shiftTiming.shiftHistory);
-      setSelectedUser(user);
-      setShowHistoryModal(true);
-      toast.success('Loaded local shift history');
-    } else {
-      toast.error('No shift history available');
-    }
-  }
-};
+  };
 
   // Handle shift reset
-const handleShiftReset = async (userId) => {
-  // Find the user
-  const user = users.find(u => u._id === userId);
-  if (!user) {
-    toast.error('User not found');
-    return;
-  }
+  const handleShiftReset = async (userId) => {
+    const user = users.find(u => u._id === userId);
+    if (!user) {
+      toast.error('User not found');
+      return;
+    }
 
-  if (!confirm(`Are you sure you want to reset ${user.firstName}'s shift to default?`)) return;
-  
-  setLoading(true);
-  try {
-    const axiosInstance = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    if (!confirm(`Are you sure you want to reset ${user.firstName}'s shift to default?`)) return;
     
-    // Use employeeId if available, otherwise use userId
-    const identifier = user.employeeId || user._id;
+    setLoading(true);
     
-    console.log('🔄 Resetting shift:', {
-      userId: user._id,
-      employeeId: user.employeeId,
-      identifier,
-      name: user.firstName
-    });
-    
-    const response = await axiosInstance.post(`/admin/reset-shift/${identifier}`, {
-      reason: 'Shift reset by admin'
-    });
-    
-    console.log('✅ Reset response:', response.data);
-    
-    if (response.data.success) {
-      toast.success(`✅ ${user.firstName}'s shift reset to default!`);
-      
-      // Update UI with response data
-      const resetUser = response.data.user;
-      
-      // OPTIMISTIC UPDATE
-      setUsers(prevUsers => 
-        prevUsers.map(u => {
-          if (u._id === userId) {
-            const defaultShift = resetUser.shiftTiming?.defaultShift || 
-                                { start: '09:00', end: '18:00' };
-            
-            const updatedUser = {
-              ...u,
-              shiftTiming: {
-                ...u.shiftTiming,
-                // Clear assigned shift
-                assignedShift: null,
-                // Reset to default
-                currentShift: {
-                  start: defaultShift.start,
-                  end: defaultShift.end,
-                  isActive: false,
-                  type: 'default'
-                },
-                // Ensure defaultShift exists
-                defaultShift: defaultShift,
-                // Update history
-                shiftHistory: resetUser.shiftTiming?.shiftHistory || 
-                            u.shiftTiming?.shiftHistory || []
-              },
-              // Update display
-              currentShiftDisplay: `${defaultShift.start} - ${defaultShift.end}`,
-              shiftInfo: {
-                display: `${defaultShift.start} - ${defaultShift.end}`,
-                isActive: false,
-                start: defaultShift.start,
-                end: defaultShift.end,
-                type: 'default'
-              }
-            };
-            
-            console.log('🔄 Updated user:', updatedUser.firstName, updatedUser.currentShiftDisplay);
-            return updatedUser;
-          }
-          return u;
-        })
-      );
-      
-    } else {
-      toast.error(response.data.message || 'Failed to reset shift');
-    }
-  } catch (error) {
-    console.error('❌ Reset shift error:', error);
-    
-    // Detailed error handling
-    if (error.response) {
-      const { status, data } = error.response;
-      
-      switch (status) {
-        case 400:
-          toast.error(data.message || 'Bad request');
-          break;
-        case 401:
-          toast.error('Session expired. Please login again.');
-          localStorage.clear();
-          router.push('/login');
-          break;
-        case 403:
-          toast.error('Access denied. Admin only.');
-          break;
-        case 404:
-          toast.error(`User not found: ${user.employeeId || user._id}`);
-          break;
-        case 500:
-          toast.error('Server error: ' + (data.message || 'Please try again later.'));
-          console.error('Server error details:', data);
-          break;
-        default:
-          toast.error(data?.message || 'Failed to reset shift');
-      }
-    } else if (error.request) {
-      toast.error('No response from server. Check your connection.');
-    } else {
-      toast.error('Request error: ' + error.message);
-    }
-    
-    // Even if API fails, update UI locally (use toast.success, not toast.info)
-    toast.success('Updating UI locally...');
-    setUsers(prev => prev.map(u => 
-      u._id === userId ? {
-        ...u,
-        shiftTiming: {
-          ...u.shiftTiming,
-          assignedShift: null,
-          currentShift: {
-            start: '09:00',
-            end: '18:00',
-            isActive: false
-          }
-        },
-        currentShiftDisplay: '09:00 - 18:00',
-        shiftInfo: { 
-          display: '09:00 - 18:00', 
-          isActive: false,
-          start: '09:00',
-          end: '18:00'
+    try {
+      const axiosInstance = axios.create({
+        baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      } : u
-    ));
-  } finally {
-    setLoading(false);
-  }
-};
+      });
+      
+      // Use the reset endpoint
+        const response = await axiosInstance.post(`/admin/reset-shift/${user.employeeId}`, {
+        userId: user._id,
+        reason: 'Shift reset by admin'
+      });
+      
+      if (response.data.success) {
+        toast.success(`✅ ${user.firstName}'s shift reset to default!`);
+        
+        // Optimistic update
+        setUsers(prevUsers => 
+          prevUsers.map(u => {
+            if (u._id === userId) {
+              const defaultStart = u.shiftTiming?.defaultShift?.start || '09:00';
+              const defaultEnd = u.shiftTiming?.defaultShift?.end || '18:00';
+              
+              return {
+                ...u,
+                shiftTiming: {
+                  ...u.shiftTiming,
+                  assignedShift: null, // Explicitly set to null
+                  currentShift: {
+                    start: defaultStart,
+                    end: defaultEnd,
+                    isActive: false,
+                    effectiveDate: new Date().toISOString().split('T')[0],
+                    type: 'default'
+                  }
+                },
+                currentShiftDisplay: `${defaultStart} - ${defaultEnd} (Default)`,
+                shiftInfo: {
+                  display: `${defaultStart} - ${defaultEnd} (Default)`,
+                  isActive: false,
+                  start: defaultStart,
+                  end: defaultEnd,
+                  type: 'default',
+                  isReset: true
+                }
+              };
+            }
+            return u;
+          })
+        );
+        
+      } else {
+        toast.error(response.data.message || 'Failed to reset shift');
+      }
+      
+    } catch (error) {
+      console.error('Reset shift error:', error);
+      
+      if (error.response) {
+        if (error.response.status === 404) {
+          toast.error('User not found');
+        } else {
+          toast.error(error.response.data?.message || 'Failed to reset shift');
+        }
+      } else {
+        toast.error('Network error. Please check your connection.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter users
   const filteredUsers = useMemo(() => {
@@ -1442,98 +1873,98 @@ const handleShiftReset = async (userId) => {
                     <p className="text-sm text-gray-600">Your active working schedule</p>
                   </div>
                 </div>
-                <button
+                {/* <button
                   onClick={() => fetchShiftHistory(currentUser._id)}
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
                 >
                   <History size={14} />
                   View History
-                </button>
+                </button> */}
               </div>
             </div>
              
-<div className="p-6">
-  {loading ? (
-    <div className="text-center py-8">
-      <Loader2 className="animate-spin text-blue-500 mx-auto" size={24} />
-      <p className="text-gray-500 mt-2">Loading your shift...</p>
-    </div>
-  ) : currentUser.shiftInfo?.isActive ? (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-4">
-            <h3 className="text-xl font-bold text-gray-900">Assigned Shift</h3>
-            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
-              ACTIVE
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Clock size={14} className="text-gray-500" />
-                <span className="text-sm text-gray-700">
-                  <span className="font-semibold">Time:</span> {currentUser.shiftInfo.display}
-                </span>
-              </div>
-              {currentUser.shiftInfo.effectiveDate && (
-                <div className="flex items-center gap-2">
-                  <CalendarDays size={14} className="text-gray-500" />
-                  <span className="text-sm text-gray-700">
-                    <span className="font-semibold">Effective:</span> {new Date(currentUser.shiftInfo.effectiveDate).toLocaleDateString()}
-                  </span>
+            <div className="p-6">
+              {loading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="animate-spin text-blue-500 mx-auto" size={24} />
+                  <p className="text-gray-500 mt-2">Loading your shift...</p>
+                </div>
+              ) : currentUser.shiftInfo?.isActive ? (
+                <div className="space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-4">
+                        <h3 className="text-xl font-bold text-gray-900">Assigned Shift</h3>
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                          ACTIVE
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Clock size={14} className="text-gray-500" />
+                            <span className="text-sm text-gray-700">
+                              <span className="font-semibold">Time:</span> {currentUser.shiftInfo.display}
+                            </span>
+                          </div>
+                          {currentUser.shiftInfo.effectiveDate && (
+                            <div className="flex items-center gap-2">
+                              <CalendarDays size={14} className="text-gray-500" />
+                              <span className="text-sm text-gray-700">
+                                <span className="font-semibold">Effective:</span> {new Date(currentUser.shiftInfo.effectiveDate).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Building size={14} className="text-gray-500" />
+                            <span className="text-sm text-gray-700">
+                              <span className="font-semibold">Department:</span> {currentUser.department || 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <User size={14} className="text-gray-500" />
+                            <span className="text-sm text-gray-700">
+                              <span className="font-semibold">Employee ID:</span> {currentUser.employeeId || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="md:text-right">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {currentUser.shiftInfo.start} - {currentUser.shiftInfo.end}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">Working Hours</div>
+                      {currentUser.shiftInfo.effectiveDate && (
+                        <div className="text-xs text-gray-500">
+                          Since: {new Date(currentUser.shiftInfo.effectiveDate).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="text-gray-400" size={24} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">Default Shift Timing</h3>
+                  <p className="text-gray-500">You are currently on the company default shift</p>
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <span className="font-semibold">Default Timing:</span> {currentUser.shiftInfo?.display || '09:00 - 18:00'}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Contact admin to request a custom shift
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Building size={14} className="text-gray-500" />
-                <span className="text-sm text-gray-700">
-                  <span className="font-semibold">Department:</span> {currentUser.department || 'N/A'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <User size={14} className="text-gray-500" />
-                <span className="text-sm text-gray-700">
-                  <span className="font-semibold">Employee ID:</span> {currentUser.employeeId || 'N/A'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="md:text-right">
-          <div className="text-2xl font-bold text-blue-600">
-            {currentUser.shiftInfo.start} - {currentUser.shiftInfo.end}
-          </div>
-          <div className="text-sm text-gray-600 mt-1">Working Hours</div>
-          {currentUser.shiftInfo.effectiveDate && (
-            <div className="text-xs text-gray-500">
-              Since: {new Date(currentUser.shiftInfo.effectiveDate).toLocaleDateString()}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  ) : (
-    <div className="text-center py-8">
-      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <Clock className="text-gray-400" size={24} />
-      </div>
-      <h3 className="text-lg font-semibold text-gray-700 mb-2">Default Shift Timing</h3>
-      <p className="text-gray-500">You are currently on the company default shift</p>
-      <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
-        <p className="text-sm text-blue-700">
-          <span className="font-semibold">Default Timing:</span> {currentUser.shiftInfo?.display || '09:00 - 18:00'}
-        </p>
-        <p className="text-xs text-blue-600 mt-1">
-          Contact admin to request a custom shift
-        </p>
-      </div>
-    </div>
-  )}
-</div>
           </div>
         </div>
       </div>
@@ -1567,6 +1998,14 @@ const handleShiftReset = async (userId) => {
         onAssign={handleShiftAssign}
         loading={loading}
         currentUserRole={userRole}
+      />
+      
+      <BulkAssignModal
+        isOpen={showBulkAssignModal}
+        onClose={() => setShowBulkAssignModal(false)}
+        users={users}
+        onBulkAssign={handleBulkAssign}
+        loading={loading}
       />
       
       <ShiftHistoryModal
@@ -1603,6 +2042,14 @@ const handleShiftReset = async (userId) => {
               >
                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                 Refresh
+              </button>
+              
+              <button
+                onClick={() => setShowBulkAssignModal(true)}
+                className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:opacity-90 flex items-center gap-2 font-medium"
+              >
+                <Users size={16} />
+                Bulk Assign Shift
               </button>
             </div>
           </div>
@@ -1754,75 +2201,43 @@ const handleShiftReset = async (userId) => {
                               <td className="p-3">
                                 <div className="text-gray-700">{user.department || 'N/A'}</div>
                               </td> 
-<td className="p-3">
-  <div className="font-medium">
-    {(() => {
-      const today = new Date().toISOString().split('T')[0];
-      const shiftTiming = user.shiftTiming || {};
-      
-      // Check for today's active shift
-      const todaysActiveShift = shiftTiming.currentShift?.isActive && 
-                                shiftTiming.currentShift.effectiveDate === today 
-                                ? shiftTiming.currentShift 
-                                : null;
-      
-      // Check shift history for today
-      const todaysShiftFromHistory = shiftTiming.shiftHistory?.find(shift => 
-        shift.effectiveDate === today
-      );
-      
-      // Use whichever is available
-      const activeShift = todaysActiveShift || todaysShiftFromHistory;
-      
-      if (activeShift) {
-        return (
-          <div>
-            <div className="text-gray-900 font-semibold">
-              {activeShift.start || activeShift.startTime} - {activeShift.end || activeShift.endTime}
-            </div>
-            <div className="text-xs text-green-600 font-medium">
-              ✓ Active Shift
-            </div>
-            {activeShift.effectiveDate && (
-              <div className="text-xs text-gray-500">
-                Effective: {new Date(activeShift.effectiveDate).toLocaleDateString()}
-              </div>
-            )}
-          </div>
-        );
-      }
-      
-      // Check for assigned shift (for other days)
-      if (shiftTiming.assignedShift && shiftTiming.assignedShift.start) {
-        return (
-          <div>
-            <div className="text-gray-900">
-              {shiftTiming.assignedShift.start} - {shiftTiming.assignedShift.end}
-            </div>
-            <div className="text-xs text-blue-600 font-medium">
-              Assigned Shift
-            </div>
-            {shiftTiming.assignedShift.effectiveDate && (
-              <div className="text-xs text-gray-500">
-                Effective: {new Date(shiftTiming.assignedShift.effectiveDate).toLocaleDateString()}
-              </div>
-            )}
-          </div>
-        );
-      }
-      
-      // Default shift
-      return (
-        <div>
-          <div className="text-gray-700">
-            {shiftTiming.defaultShift?.start || '09:00'} - {shiftTiming.defaultShift?.end || '18:00'}
-          </div>
-          <div className="text-xs text-gray-500">Default Shift</div>
-        </div>
-      );
-    })()}
-  </div>
-</td>
+                              <td className="p-3">
+                                <div className="font-medium">
+                                  {(() => {
+                                    const shiftInfo = user.shiftInfo || getCurrentShiftInfo(user);
+                                    
+                                    if (shiftInfo.isActive) {
+                                      return (
+                                        <div>
+                                          <div className="text-gray-900 font-semibold">
+                                            {shiftInfo.start} - {shiftInfo.end}
+                                          </div>
+                                          <div className="text-xs text-green-600 font-medium">
+                                            ✓ Active Shift
+                                          </div>
+                                          {shiftInfo.effectiveDate && (
+                                            <div className="text-xs text-gray-500">
+                                              Effective: {new Date(shiftInfo.effectiveDate).toLocaleDateString()}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <div>
+                                          <div className="text-gray-700">
+                                            {shiftInfo.start} - {shiftInfo.end}
+                                          </div>
+                                          <div className="text-xs text-gray-500">Default Shift</div>
+                                          {shiftInfo.isReset && (
+                                            <div className="text-xs text-orange-600">Recently Reset</div>
+                                          )}
+                                        </div>
+                                      );
+                                    }
+                                  })()}
+                                </div>
+                              </td>
                               <td className="p-3">
                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                   user.isActive 
@@ -1870,14 +2285,14 @@ const handleShiftReset = async (userId) => {
                                   >
                                     <History size={14} />
                                   </button>
-                                  {/* <button
+                                  <button
                                     onClick={() => handleShiftReset(user._id)}
                                     className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                                     title="Reset to Default"
                                     disabled={!user.shiftInfo?.isActive}
                                   >
                                     <RotateCcw size={14} className={!user.shiftInfo?.isActive ? 'opacity-30' : ''} />
-                                  </button> */}
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -1895,32 +2310,7 @@ const handleShiftReset = async (userId) => {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Debug panel for development */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-6 p-4 bg-gray-100 rounded-xl">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Debug Information</h3>
-                <button
-                  onClick={() => {
-                    console.log('All Users:', users);
-                    console.log('First User Shift Structure:', users[0]?.shiftTiming);
-                    toast.success('Check console for debug info');
-                  }}
-                  className="px-3 py-1 bg-blue-500 text-white text-xs rounded"
-                >
-                  Log Data
-                </button>
-              </div>
-              <div className="text-sm space-y-1">
-                <div>Total Users: {users.length}</div>
-                <div>Token Present: {token ? '✅' : '❌'}</div>
-                <div>User Role: {userRole}</div>
-                <div>API Base URL: {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}</div>
-              </div>
-            </div>
-          )}
+          </div> 
         </div>
       </div>
     </div>

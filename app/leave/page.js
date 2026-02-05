@@ -1551,11 +1551,16 @@ const fetchDepartmentsAndEmployees = useCallback(async () => {
 
   // Check if user can edit this leave
   const canEditLeave = (leave) => {
-    if (isAdmin) return true;
-    if (!currentUser) return false;
-    const employeeId = leave.employeeId;
-    return employeeId === currentUser.employeeId && leave.status === 'Pending';
-  };
+  if (isAdmin) return true;
+  if (!currentUser) return false;
+  
+  // Multiple ways to check
+  const employeeIdMatch = leave.employeeId === currentUser.employeeId;
+  const employeeObjMatch = leave.employee && leave.employee._id === currentUser._id;
+  const employeeEmailMatch = leave.employee && leave.employee.email === currentUser.email;
+  
+  return leave.status === 'Pending' && (employeeIdMatch || employeeObjMatch || employeeEmailMatch);
+};
 
   // Check if user can delete this leave
   const canDeleteLeave = (leave) => {
@@ -3513,64 +3518,64 @@ const getInitials = (name) => {
                             <div className="text-xs text-gray-500">
                               {formatDateTime(leave.createdAt || leave.appliedDate)}
                             </div>
-                            <div className="flex items-center gap-2">
-                              {/* View Button - Always visible for all users */}
-                              <button
-                                onClick={() => handleViewDetails(leave._id)}
-                                className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                                title="View Details"
-                              >
-                                <Eye size={14} />
-                              </button>
-                              
-                              {/* Edit Button */}
-                              {canEdit && (
-                                <button
-                                  onClick={() => handleEditLeave(leave)}
-                                  className="p-1.5 text-blue-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                  title="Edit Leave"
-                                >
-                                  <Edit size={14} />
-                                </button>
-                              )}
-                              
-                              {/* Delete Button */}
-                              {canDelete && (
-                                <button
-                                  onClick={() => handleDeleteLeave(leave._id)}
-                                  className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Delete Leave"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              )}
-                              
-                              {/* Admin can approve/reject PENDING leaves */}
-                              {isAdmin && leave.status === 'Pending' && (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      setSelectedLeave(leave);
-                                      setShowApproveModal(true);
-                                    }}
-                                    className="p-1.5 text-green-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                    title="Approve"
-                                  >
-                                    <Check size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setSelectedLeave(leave);
-                                      setShowRejectModal(true);
-                                    }}
-                                    className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                    title="Reject"
-                                  >
-                                    <X size={14} />
-                                  </button>
-                                </>
-                              )}
-                            </div>
+<div className="flex items-center gap-2">
+  {/* View Button - Always visible for all users */}
+  <button
+    onClick={() => handleViewDetails(leave._id)}
+    className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+    title="View Details"
+  >
+    <Eye size={14} />
+  </button>
+  
+  {/* ✅ এখানে EDIT BUTTON বসাবে - এটা REPLACE করবে পুরানো canEdit condition টা */}
+  {canEditLeave(leave) && (
+    <button
+      onClick={() => handleEditLeave(leave)}
+      className="p-1.5 text-blue-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+      title="Edit Leave"
+    >
+      <Edit size={14} />
+    </button>
+  )}
+  
+  {/* Delete Button */}
+  {canDelete && (
+    <button
+      onClick={() => handleDeleteLeave(leave._id)}
+      className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+      title="Delete Leave"
+    >
+      <Trash2 size={14} />
+    </button>
+  )}
+  
+  {/* Admin can approve/reject PENDING leaves */}
+  {isAdmin && leave.status === 'Pending' && (
+    <>
+      <button
+        onClick={() => {
+          setSelectedLeave(leave);
+          setShowApproveModal(true);
+        }}
+        className="p-1.5 text-green-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+        title="Approve"
+      >
+        <Check size={14} />
+      </button>
+      <button
+        onClick={() => {
+          setSelectedLeave(leave);
+          setShowRejectModal(true);
+        }}
+        className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+        title="Reject"
+      >
+        <X size={14} />
+      </button>
+    </>
+  )}
+</div>
                           </div>
                         </div>
                       </div>

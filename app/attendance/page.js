@@ -19,33 +19,16 @@ import {
   BatteryCharging, Calendar as CalendarIcon, CalendarCheck,
   CalendarX, CalendarClock, Timer, Clock8, Clock9, Clock10,
   TrendingDown, Percent, Thermometer, Target, Bell, BellOff,
-  Lock, Unlock, AlertOctagon, CheckSquare, Square, Clock12,
-  RotateCcw, GitPullRequest, GitCommit, GitBranch, Layers2,
-  PieChart, LineChart, ScatterChart, Grid, List, Layout,
-  Grid3x3, Columns, Rows, Sidebar, Menu, CornerUpRight,
-  CornerUpLeft, CornerDownRight, CornerDownLeft, ArrowUpDown,
-  ChevronsUpDown, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle,
-  ArrowDownCircle, MinusCircle, PlusCircle, DivideCircle,
-  Hash, DollarSign, CreditCard, Package, Box, Container,
-  Truck, Ship, Plane, Car, Bike, Walk, Run, ActivitySquare,
-  ActivityHeart, Heart, HeartPulse, Brain, Cpu, DatabaseZap,
-  Cloud, CloudRain, CloudSnow, CloudLightning, CloudSun,
-  CloudMoon, SunDim, SunMedium, SunSnow, MoonStar, Sparkles,
+  Lock, Unlock, AlertOctagon, CheckSquare, Square, Clock12, 
+  ArrowDownCircle, MinusCircle, PlusCircle, DivideCircle, 
   Star, Award, Trophy, Medal, Crown, Flag, Target as TargetIcon,
   Crosshair, Navigation, Compass, Map, MapPinned, Navigation2,
   NavigationOff, Route, Satellite, Globe2, Earth, World,
-  WifiOff, Wifi as WifiIcon, Radio, RadioTower, Signal,
-  SignalHigh, SignalMedium, SignalLow, SignalZero, BatteryFull,
-  BatteryMedium, BatteryLow, BatteryWarning, BatteryChargingIcon,
+  WifiOff, Wifi as WifiIcon, Radio, RadioTower, Signal, 
   Plug, PlugZap, Plug2, Zap as ZapIcon, ZapOff, Lightning,
-  Thunderstorm, Hurricane, Tornado, Volcano, Fire, Flame,
-  Droplets, Waves, Wind, ThermometerSun, ThermometerSnowflake,
-  Thermometer as ThermometerIcon, Waves as WavesIcon,
-  Umbrella, CloudFog, CloudDrizzle, CloudHail, CloudSunRain,
-  CloudMoonRain, CloudMoonSnow, CloudWind,
-  Wind as WindIcon, Snowflake, Cloudy, CloudRainWind, Haze,
-  Sunrise, Sunset, Moonrise, Moonset, Telescope, SatelliteDish,
-  Orbit, Rocket, Space, UFO, Alien, Ghost, Skull, Cross,
+  Thunderstorm, Hurricane, Tornado, Volcano, Fire, Flame, 
+  Thermometer as ThermometerIcon, Waves as WavesIcon,  
+  Wind as WindIcon, Snowflake, Cloudy, CloudRainWind, Haze, 
   Church, Mosque, Synagogue, Temple, Castle, Home as HomeIcon,
   Building, Building2, Factory, Warehouse, Store, Shop,
   ShoppingCart, ShoppingBag, Package2, Boxes, Palette,
@@ -155,7 +138,7 @@ export default function page() {
 // state এ যোগ করুন:
 const [showPDFPreview, setShowPDFPreview] = useState(false);
 const [pdfLoading, setPdfLoading] = useState(false);
-
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 // PDF জেনারেট ফাংশন:
 const generatePDFReport = () => {
   if (attendance.length === 0) {
@@ -194,12 +177,12 @@ const generatePDFReport = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userData, setUserData] = useState(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-  const [recordToDelete, setRecordToDelete] = useState(null); 
-  // Date range state - ডিফল্টভাবে LAST 30 DAYS রাখা
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
-  });
+  const [recordToDelete, setRecordToDelete] = useState(null);  
+// Date range state - ডিফল্টভাবে TODAY রাখা
+const [dateRange, setDateRange] = useState({
+  startDate: new Date().toISOString().split('T')[0],
+  endDate: new Date().toISOString().split('T')[0]
+});
   
   // Today's status state
   const [todayStatus, setTodayStatus] = useState({
@@ -240,7 +223,7 @@ const generatePDFReport = () => {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(31);
   const [totalRecords, setTotalRecords] = useState(0);
   
   // Admin states
@@ -323,39 +306,47 @@ const generatePDFReport = () => {
 
   // ===================== INITIALIZATION =====================
   
-  // Initialize component
-  useEffect(() => {
-    initializeData();
+// page.js - Replace your useEffect with this:
+
+// Initialize component 
+useEffect(() => {
+  const initializePage = async () => {
+    // ✅ শুধুমাত্র initial data fetch করুন, date range সেট করবেন না
+    await initializeData();
     getDetailedDeviceInfo();
     getUserDetailedLocation();
     getRealIPAddress();
-    
-    // Update current time every second
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    
-    // Check auto clock out timer
-    const checkAutoClockOut = () => {
-      if (todayStatus.clockedIn && !todayStatus.clockedOut && !isAdmin) {
-        calculateAutoClockOutTimer();
-      }
-    };
-    
-    const autoCheckInterval = setInterval(checkAutoClockOut, 30000);
-    
-    return () => {
-      clearInterval(timer);
-      clearInterval(autoCheckInterval);
-    };
-  }, []);
-
-  // Fetch attendance when filters or pagination changes
-  useEffect(() => {
-    if (userRole) {
-      fetchAttendanceData();
+  };
+  
+  initializePage();
+  
+  // Update current time every second
+  const timer = setInterval(() => {
+    setCurrentTime(new Date());
+  }, 1000);
+  
+  // Check auto clock out timer
+  const checkAutoClockOut = () => {
+    if (todayStatus.clockedIn && !todayStatus.clockedOut && !isAdmin) {
+      calculateAutoClockOutTimer();
     }
-  }, [currentPage, dateRange, filters, userRole]);
+  };
+  
+  const autoCheckInterval = setInterval(checkAutoClockOut, 30000);
+  
+  return () => {
+    clearInterval(timer);
+    clearInterval(autoCheckInterval);
+  };
+}, []); // Empty dependency array
+
+// Fetch attendance when filters or pagination changes
+useEffect(() => {
+  if (userRole) {
+    console.log("🔄 Fetching data with date range:", dateRange);
+    fetchAttendanceData();
+  }
+}, [currentPage, dateRange, filters, userRole]);
 
   // ===================== HELPER FUNCTIONS =====================
   
@@ -681,10 +672,62 @@ const calculateLateEarlyMinutes = (clockInTime, shiftStart, recordStatus, lateTh
     };
   }
 };
+ // Today button এর জন্য নতুন ফাংশন
+const handleTodayButton = () => {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
   
+  console.log(`📅 Setting date range to TODAY: ${todayStr}`);
+  
+  setDateRange({
+    startDate: todayStr,
+    endDate: todayStr
+  });
+  
+  setFilters(prev => ({
+    ...prev,
+    date: todayStr,
+    month: '',
+    year: ''
+  }));
+  
+  setCurrentPage(1);
+  
+  // ডেটা ফেচ করুন
+  fetchAttendanceData();
+  
+  toast.success("Showing today's records");
+};
+
+// Yesterday button এর জন্য
+const handleYesterdayButton = () => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  
+  console.log(`📅 Setting date range to YESTERDAY: ${yesterdayStr}`);
+  
+  setDateRange({
+    startDate: yesterdayStr,
+    endDate: yesterdayStr
+  });
+  
+  setFilters(prev => ({
+    ...prev,
+    date: yesterdayStr,
+    month: '',
+    year: ''
+  }));
+  
+  setCurrentPage(1);
+  
+  fetchAttendanceData();
+  
+  toast.success("Showing yesterday's records");
+}; 
   // ===================== DATA FETCHING =====================
   
-  const initializeData = async () => {
+const initializeData = async () => {
   setLoading(true);
   try {
     const tokenInfo = getToken();
@@ -713,6 +756,11 @@ const calculateLateEarlyMinutes = (clockInTime, shiftStart, recordStatus, lateTh
       setIsAdmin(tokenInfo.type === "admin");
       setUserData(userData);
       
+      console.log(`✅ User role set: ${tokenInfo.type}`);
+      
+      // ✅ শুধুমাত্র যদি dateRange ডিফল্ট না থাকে (কিন্তু ডিফল্ট ইতিমধ্যে আজকের তারিখ)
+      // আমরা dateRange সেট করব না কারণ ইতিমধ্যে ডিফল্ট আছে
+      
       // If admin, load employees immediately
       if (tokenInfo.type === "admin") {
         await fetchEmployees();
@@ -724,7 +772,8 @@ const calculateLateEarlyMinutes = (clockInTime, shiftStart, recordStatus, lateTh
         await fetchShiftTiming();
       }
       
-      // Fetch attendance data
+      // ✅ ফেচ অ্যাটেনডেন্স ডেটা
+      console.log(`📅 Fetching data for date range: ${dateRange.startDate} to ${dateRange.endDate}`);
       await fetchAttendanceData();
       
     } else {
@@ -894,212 +943,192 @@ const triggerDuplicateCleanup = async () => {
   }
 };
   // ফিক্সড ফেচ অ্যাটেনডেন্স ফাংশন 
+// page.js - fetchAttendanceData ফাংশন সম্পূর্ণ পরিবর্তন
+
 const fetchAttendanceData = async () => {
+  setLoading(true);
+  console.log("🔄 fetchAttendanceData called");
+  
   try {
     const tokenInfo = getToken();
-    if (!tokenInfo) return;
-
-    console.log("=== FETCHING ATTENDANCE ===");
-    console.log("Start Date:", dateRange.startDate);
-    console.log("End Date:", dateRange.endDate);
-    console.log("Filters:", filters);
-    console.log("Is Admin:", isAdmin);
-    
-    // ✅ Build query parameters
-    const queryParams = new URLSearchParams();
-    
-    // Date range handling
-    if (filters.date) {
-      queryParams.append('date', filters.date);
-    } 
-    else if (filters.month && filters.year) {
-      queryParams.append('month', filters.month);
-      queryParams.append('year', filters.year);
-    }
-    else {
-      // Default to date range
-      queryParams.append('startDate', dateRange.startDate);
-      queryParams.append('endDate', dateRange.endDate);
-    }
-    
-    queryParams.append('page', currentPage.toString());
-    queryParams.append('limit', itemsPerPage.toString());
-
-    // ✅ Employee filtering
-    if (!isAdmin) {
-      // For regular employees, always filter by their own ID
-      if (userData?._id) {
-        queryParams.append('employeeId', userData._id);
-      }
-    } 
-    else if (isAdmin && filters.employeeId) {
-      // Admin can filter by specific employee
-      queryParams.append('employeeId', filters.employeeId);
-    }
-    // Admin without employee filter gets all records
-
-    // Other filters
-    if (filters.status !== 'all') {
-      queryParams.append('status', filters.status);
-    }
-    
-    if (filters.search && filters.search.trim()) {
-      queryParams.append('search', filters.search.trim());
+    if (!tokenInfo) {
+      toast.error("Authentication required");
+      return;
     }
 
-    const query = queryParams.toString();
+    // ✅ ALWAYS send date range
+    const params = {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      page: currentPage.toString(),
+      limit: itemsPerPage.toString()
+    };
+
+    // ✅ Add filters
+    if (filters.status && filters.status !== 'all') {
+      params.status = filters.status;
+    }
     
-    // Determine endpoint based on role
-    let endpoint;
-    if (isAdmin) {
-      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${query}`;
+    if (filters.employeeId && filters.employeeId !== 'all') {
+      params.employeeId = filters.employeeId;
+    }
+    
+    if (filters.search) {
+      params.search = filters.search;
+    }
+
+    // ✅ Build URL
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = isAdmin 
+      ? `${process.env.NEXT_PUBLIC_API_URL}/admin/all-records?${queryString}`
+      : `${process.env.NEXT_PUBLIC_API_URL}/records?${queryString}`;
+
+    console.log("📡 Calling API:", endpoint);
+
+    // ✅ Fetch with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${tokenInfo.token}`,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    console.log("📥 Response Status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ API Error:", errorText);
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("✅ API Response Structure:", Object.keys(data));
+    console.log("📊 Records Count:", data.records?.length || 0);
+    console.log("📅 Sample Dates:", 
+      data.records?.slice(0, 3).map(r => r.date)
+    );
+
+    // ✅ Extract records from ANY possible response structure
+    let records = [];
+    
+    if (Array.isArray(data)) {
+      records = data;
+    } else if (data.records && Array.isArray(data.records)) {
+      records = data.records;
+    } else if (data.data?.records && Array.isArray(data.data.records)) {
+      records = data.data.records;
+    } else if (data.data && Array.isArray(data.data)) {
+      records = data.data;
+    } else if (data.attendance && Array.isArray(data.attendance)) {
+      records = data.attendance;
     } else {
-      endpoint = `${process.env.NEXT_PUBLIC_API_URL}/records?${query}`;
+      // Try to find ANY array in response
+      Object.keys(data).forEach(key => {
+        if (Array.isArray(data[key])) {
+          console.log(`Found array in key: ${key}`);
+          records = data[key];
+        }
+      });
+    }
+
+    console.log(`🎯 Final records extracted: ${records.length}`);
+
+    if (records.length === 0) {
+      console.log("No records found for selected filters");
+      setAttendance([]);
+      setTotalRecords(0);
+      return;
+    }
+
+    // ✅ Sort by date (newest first)
+    records.sort((a, b) => {
+      const dateA = new Date(a.date || a.createdAt);
+      const dateB = new Date(b.date || b.createdAt);
+      return dateB - dateA;
+    });
+
+    // ✅ Set state
+    setAttendance(records);
+    setTotalRecords(data.total || records.length);
+
+    // ✅ Show success message
+    if (records.length > 0) {
+      const oldest = records[records.length - 1]?.date;
+      const newest = records[0]?.date;
+      console.log(`📅 Data range: ${oldest} to ${newest}`);
+    }
+
+  } catch (error) {
+    console.error("❌ Fetch error:", error);
+    
+    if (error.name === 'AbortError') {
+      toast.error("Request timeout. Please try again.");
+    } else {
+      toast.error(error.message || "Failed to fetch data");
     }
     
-    console.log("📡 API URL:", endpoint.replace(process.env.NEXT_PUBLIC_API_URL, '[API_URL]'));
+    // Keep old data if available
+    if (attendance.length === 0) {
+      setAttendance([]);
+      setTotalRecords(0);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+  // page.js - নতুন ফাংশন যোগ করুন
+
+const fetchDateRangeFromDatabase = async () => {
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo) return null;
+
+    const endpoint = isAdmin 
+      ? `${process.env.NEXT_PUBLIC_API_URL}/admin/date-range`
+      : `${process.env.NEXT_PUBLIC_API_URL}/date-range`;
 
     const response = await fetch(endpoint, {
       headers: { 
         Authorization: `Bearer ${tokenInfo.token}`,
         "Content-Type": "application/json"
-      },
-      cache: 'no-cache' // Prevent caching issues
+      }
     });
 
-    console.log("Response Status:", response.status);
-    
     if (response.ok) {
       const data = await response.json();
-      console.log("API Response Structure:", Object.keys(data));
-      
-      // ✅ Handle different response structures
-      let records = [];
-      let total = 0;
-      
-      if (Array.isArray(data)) {
-        records = data;
-        total = data.length;
-      } 
-      else if (data.records && Array.isArray(data.records)) {
-        records = data.records;
-        total = data.total || data.records.length;
-      } 
-      else if (data.data?.records && Array.isArray(data.data.records)) {
-        records = data.data.records;
-        total = data.data.total || data.data.records.length;
-      } 
-      else if (data.data && Array.isArray(data.data)) {
-        records = data.data;
-        total = data.total || data.data.length;
-      } 
-      else if (data.attendance && Array.isArray(data.attendance)) {
-        records = data.attendance;
-        total = data.total || data.attendance.length;
-      }
-      else {
-        console.warn("Unexpected data structure, trying to extract records...", data);
-        // Try to find any array in the response
-        for (const key in data) {
-          if (Array.isArray(data[key])) {
-            records = data[key];
-            total = records.length;
-            break;
-          }
-        }
-      }
-      
-      console.log(`✅ Fetched ${records.length} records, Total: ${total}`);
-      
-      // ✅ Remove duplicates by date and employee (important fix)
-      const uniqueRecords = [];
-      const seenRecords = new Set();
-      let duplicateCount = 0;
-      
-      records.forEach(record => {
-        // Create a unique key using employee ID and date
-        const employeeId = record.employee?._id || record.employee || 'unknown';
-        const dateStr = new Date(record.date).toISOString().split('T')[0];
-        const key = `${employeeId}_${dateStr}`;
-        
-        if (!seenRecords.has(key)) {
-          seenRecords.add(key);
-          uniqueRecords.push(record);
-        } else {
-          duplicateCount++;
-          console.warn(`⚠️ Duplicate record found: ${key}`);
-          console.warn(`   Employee: ${employeeId}, Date: ${dateStr}, Status: ${record.status}`);
-          
-          // If duplicate is auto-generated, skip it
-          if (record.autoGenerated) {
-            console.warn(`   ⏭️ Skipping auto-generated duplicate`);
-          }
-        }
-      });
-
-      console.log(`✅ After deduplication: ${uniqueRecords.length} unique records, ${duplicateCount} duplicates removed`);
-      
-      // Sort records by date descending
-      uniqueRecords.sort((a, b) => {
-        const dateA = new Date(a.date || a.createdAt);
-        const dateB = new Date(b.date || b.createdAt);
-        return dateB - dateA;
-      });
-      
-      setAttendance(uniqueRecords);
-      setTotalRecords(total - duplicateCount); // Adjust total count
-      
-      // Fetch summary with deduplicated count
-      await fetchSummary();
-      
-      // Show warning if duplicates found
-      if (duplicateCount > 0) {
-        console.log(`Found ${duplicateCount} duplicate records. Showing only unique records.`);
-       }
-      
-    } else {
-      const errorText = await response.text();
-      console.error("❌ API Error Response:", errorText);
-      
-      let errorMessage = "Failed to fetch attendance data";
-      try {
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.message || errorMessage;
-      } catch (e) {
-        // Not JSON response
-      }
-      
-      if (errorMessage.includes('No records found') || errorMessage.includes('not found')) {
-        setAttendance([]);
-        setTotalRecords(0);
-        toast.info("No records found for the selected filters");
-      } else {
-        toast.error(errorMessage);
-      }
+      return data;
     }
   } catch (error) {
-    console.error("❌ Fetch attendance error:", error);
-    toast.error("Network error. Please check your connection.");
-    
-    // Keep existing data on network error
-    if (attendance.length === 0) {
-      setAttendance([]);
-      setTotalRecords(0);
-    }
+    console.error("Error fetching date range:", error);
   }
+  return null;
 };
-  
   // ফিল্টার রিসেট ফাংশন
-  const resetToDefaultRange = () => {
+const resetToDefaultRange = async () => {
+  setLoading(true);
+  
+  try {
+    // ✅ শুধুমাত্র আজকের তারিখে সেট করুন
     const today = new Date();
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(today.getDate() - 30);
+    const todayStr = today.toISOString().split('T')[0];
+    
+    console.log(`🔄 Reset to TODAY: ${todayStr}`);
     
     setDateRange({
-      startDate: thirtyDaysAgo.toISOString().split('T')[0],
-      endDate: today.toISOString().split('T')[0]
+      startDate: todayStr,
+      endDate: todayStr
     });
     
+    // ফিল্টার রিসেট করুন
     setFilters({
       status: 'all',
       search: '',
@@ -1107,11 +1136,23 @@ const fetchAttendanceData = async () => {
       month: '',
       year: '',
       employeeId: '',
-      showAll: isAdmin ? false : true
+      showAll: false
     });
-    
+
     setCurrentPage(1);
-  };
+    
+    // ✅ ডেটা ফেচ করুন
+    await fetchAttendanceData();
+    
+    toast.success("Reset to today's records");
+    
+  } catch (error) {
+    console.error("Reset error:", error);
+    toast.error("Failed to reset");
+  } finally {
+    setLoading(false);
+  }
+};
   
   // মাস সিলেক্ট হ্যান্ডলার
   const handleMonthSelect = (monthOffset = 0) => {
@@ -1519,8 +1560,7 @@ const handleClockIn = async () => {
     }
   }
 
-  // Rest of the existing code...
-  // Get real-time device info
+  // ✅ Get real-time device info BEFORE sending request
   getDetailedDeviceInfo();
   getUserDetailedLocation();
   const ip = await getRealIPAddress();
@@ -1530,7 +1570,7 @@ const handleClockIn = async () => {
     const tokenInfo = getToken();
     if (!tokenInfo) return;
 
-    // Prepare device info for API
+    // ✅ Prepare device info for API
     const deviceInfoForAPI = {
       type: deviceInfo.type,
       os: deviceInfo.os,
@@ -1538,6 +1578,16 @@ const handleClockIn = async () => {
       browserVersion: deviceInfo.browserVersion,
       screen: deviceInfo.screen,
       userAgent: deviceInfo.userAgent
+    };
+
+    // ✅ Prepare location info
+    const locationInfo = {
+      address: userLocation.address,
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+      city: userLocation.city,
+      country: userLocation.country,
+      accuracy: userLocation.accuracy
     };
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clock-in`, {
@@ -1548,13 +1598,16 @@ const handleClockIn = async () => {
       },
       body: JSON.stringify({
         timestamp: new Date().toISOString(),
-        location: userLocation.address,
+        location: locationInfo, // ✅ Send complete location object
         ipAddress: ip,
-        device: deviceInfoForAPI,
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        city: userLocation.city,
-        country: userLocation.country
+        device: deviceInfoForAPI, // ✅ Send complete device object
+        realTimeData: {
+          capturedAt: new Date().toISOString(),
+          networkType: navigator.connection?.effectiveType || 'unknown',
+          platform: navigator.platform,
+          language: navigator.language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
       })
     });
 
@@ -1568,25 +1621,58 @@ const handleClockIn = async () => {
       shiftStart.setHours(shiftStartHour, shiftStartMinute, 0, 0);
       
       const diffMinutes = Math.round((clockInTime - shiftStart) / (1000 * 60));
-      let message = `Clocked in successfully!`;
+      let message = `✅ Clocked in successfully!`;
       
       if (diffMinutes > shiftTiming.lateThreshold) {
         const lateMinutes = diffMinutes;
-        message += ` ${lateMinutes} minutes late`;
+        message += ` ⏰ ${lateMinutes} minutes late`;
       } else if (diffMinutes < shiftTiming.earlyThreshold) {
         const earlyMinutes = Math.abs(diffMinutes);
-        message += ` ${earlyMinutes} minutes early`;
+        message += ` ⬇️ ${earlyMinutes} minutes early`;
       }
       
       toast.success(message);
       
-      // Show device and location info
-      toast.success(`📍 Location: ${userLocation.address}`, { duration: 4000 });
-      toast.success(`🖥️ Device: ${deviceInfo.type} | 🌐 Browser: ${deviceInfo.browser}`, { duration: 4000 });
+      // ✅ Show detailed device and location info
+      toast.success(`📍 Location: ${userLocation.address}`, { 
+        duration: 5000,
+        icon: '📍'
+      });
+      
+      toast.success(`🖥️ Device: ${deviceInfo.type} | ${deviceInfo.os}`, { 
+        duration: 5000,
+        icon: '💻'
+      });
+      
+      toast.success(`🌐 Browser: ${deviceInfo.browser} ${deviceInfo.browserVersion}`, { 
+        duration: 5000,
+        icon: '🌐'
+      });
+      
+      toast.success(`📡 IP: ${ip}`, { 
+        duration: 5000,
+        icon: '📡'
+      });
       
       // Refresh data
       await fetchTodayStatus();
       await fetchAttendanceData();
+      
+      // ✅ Immediately show the details in modal
+      const newRecord = {
+        ...data.attendance,
+        device: deviceInfoForAPI,
+        location: locationInfo.address,
+        ipAddress: ip,
+        realTimeData: {
+          capturedAt: new Date().toISOString(),
+          networkType: navigator.connection?.effectiveType || 'unknown'
+        }
+      };
+      
+      setClockDetails(newRecord);
+      setShowRecentDetails(true);
+      
     } else {
       const error = await response.json();
       toast.error(error.message || "Failed to clock in");
@@ -1719,39 +1805,53 @@ const handleClockIn = async () => {
     }
   };
   
-  const handleCorrectAttendance = async (recordId, updatedData) => {
-    setLoading(true);
-    try {
-      const tokenInfo = getToken();
-      if (!tokenInfo || !isAdmin) {
-        toast.error("Admin access required");
-        return;
-      }
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/correct/${recordId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${tokenInfo.token}`
-        },
-        body: JSON.stringify(updatedData)
-      });
-      
-      if (response.ok) {
-        toast.success("Attendance corrected!");
-        setSelectedAttendanceRecord(null);
-        await fetchAttendanceData();
-      } else {
-        const error = await response.json();
-        toast.error(error.message || "Failed to correct attendance");
-      }
-    } catch (error) {
-      console.error("Correct attendance error:", error);
-      toast.error("Failed to correct attendance");
-    } finally {
-      setLoading(false);
+ const handleCorrectAttendance = async (recordId, updatedData) => {
+  setLoading(true);
+  try {
+    const tokenInfo = getToken();
+    if (!tokenInfo || !isAdmin) {
+      toast.error("Admin access required");
+      return;
     }
-  };
+
+    // Backend code অনুযায়ী, এটি updateAttendance function
+    // আমাদের endpoint সঠিকভাবে সেট করতে হবে
+    const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/update/${recordId}`;
+    
+    console.log("🔧 Correcting attendance for record:", recordId);
+    console.log("📤 Sending data:", updatedData);
+
+    const response = await fetch(endpoint, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${tokenInfo.token}`
+      },
+      body: JSON.stringify(updatedData)
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      toast.success("Attendance corrected successfully!");
+      setSelectedAttendanceRecord(null);
+      
+      // Refresh data
+      await fetchAttendanceData();
+      
+      return result;
+    } else {
+      const error = await response.json();
+      console.error("❌ Correction failed:", error);
+      toast.error(error.message || "Failed to correct attendance");
+      throw new Error(error.message);
+    }
+  } catch (error) {
+    console.error("❌ Correct attendance error:", error);
+    toast.error(error.message || "Failed to correct attendance");
+  } finally {
+    setLoading(false);
+  }
+};
   
   const handleUpdateShift = async (employeeId, shiftData) => {
     setLoading(true);
@@ -1831,7 +1931,30 @@ const handleClockIn = async () => {
       minute: '2-digit',
       hour12: true 
     });
+    
   };
+  const calculateTotalHours = (clockIn, clockOut) => {
+  if (!clockIn || !clockOut) return 0;
+  
+  // সময় থেকে শুধু ঘণ্টা এবং মিনিট নিন
+  const start = new Date(clockIn);
+  const end = new Date(clockOut);
+  
+  // সেকেন্ড এবং মিলিসেকেন্ড ০ সেট করুন
+  start.setSeconds(0, 0);
+  end.setSeconds(0, 0);
+  
+  // পার্থক্য মিলিসেকেন্ডে
+  const diffMs = end - start;
+  
+  // মিনিটে রূপান্তর
+  const diffMinutes = diffMs / (1000 * 60);
+  
+  // ঘণ্টায় রূপান্তর (২ দশমিক পর্যন্ত)
+  const hours = diffMinutes / 60;
+  
+  return Math.round(hours * 100) / 100;
+};
   
   const formatDate = (dateString) => {
     if (!dateString) return "-";
@@ -2295,7 +2418,7 @@ const getStatusIcon = (status) => {
   disabled={
     todayStatus.clockedIn || 
     loading || 
-    (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay) ||
+    (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay) || // ✅ এই লাইন ঠিক আছে
     todayStatus.isMarkedAbsent
   }
   className={`px-8 py-4 rounded-xl font-bold flex items-center gap-3 transition-all shadow-lg ${
@@ -2303,7 +2426,7 @@ const getStatusIcon = (status) => {
       ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
       : todayStatus.isMarkedAbsent
       ? 'bg-gradient-to-r from-red-300 to-rose-300 text-red-500 cursor-not-allowed'
-      : (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)  // ✅ এই লাইন
+      : (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)  
       ? 'bg-gradient-to-r from-gray-300 to-slate-300 text-gray-500 cursor-not-allowed'
       : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl hover:scale-[1.02]'
   }`}
@@ -2313,7 +2436,7 @@ const getStatusIcon = (status) => {
     ? "✅ Clocked In" 
     : todayStatus.isMarkedAbsent
     ? "🚫 Marked Absent"
-    : (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)  // ✅ এই লাইন
+    : (todayStatus.dayStatus && !todayStatus.dayStatus.isWorkingDay)  
     ? `📅 ${todayStatus.dayStatus.status || "Non-Working Day"}`
     : "⏰ Clock In"}
 </button>
@@ -2461,27 +2584,33 @@ const getStatusIcon = (status) => {
               </p>
             </div>
             
-            {/* Quick Date Range Buttons */}
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => handleMonthSelect(0)}
-                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
-              >
-                This Month
-              </button>
-              <button
-                onClick={() => handleMonthSelect(-1)}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
-              >
-                Last Month
-              </button>
-              <button
-                onClick={resetToDefaultRange}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
-              >
-                Last 30 Days
-              </button>
-            </div>
+            {/* Quick Date Range Buttons */} 
+<div className="flex flex-wrap gap-2">
+  <button
+    onClick={handleTodayButton}
+    className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
+  >
+    Today
+  </button>
+  <button
+    onClick={handleYesterdayButton}
+    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
+  >
+    Yesterday
+  </button>
+  <button
+    onClick={() => handleMonthSelect(0)}
+    className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
+  >
+    This Month
+  </button>
+  <button
+    onClick={() => handleMonthSelect(-1)}
+    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90 text-sm font-medium"
+  >
+    Last Month
+  </button>
+</div>
           </div>
           
           {/* SIMPLIFIED FILTERS */}
@@ -2730,56 +2859,7 @@ const getStatusIcon = (status) => {
                 >
                   Reset
                 </button>
-              </div>
-            </div>
-            
-            {/* Active Filters Display */}
-            {(filters.status !== 'all' || filters.search || filters.date || (filters.month && filters.year) || (isAdmin && filters.employeeId)) && (
-              <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg">
-                <div className="text-sm font-medium text-blue-800 mb-2">Active Filters:</div>
-                <div className="flex flex-wrap gap-2">
-                  {filters.status !== 'all' && (
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                      Status: {filters.status}
-                    </span>
-                  )}
-                  {filters.search && (
-                    <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs">
-                      Search: "{filters.search}"
-                    </span>
-                  )}
-                  {filters.date && (
-                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                      Date: {formatDateShort(filters.date)}
-                    </span>
-                  )}
-                  {filters.month && filters.year && (
-                    <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
-                      {new Date(2000, parseInt(filters.month)-1, 1).toLocaleString('default', { month: 'long' })} {filters.year}
-                    </span>
-                  )}
-                  {isAdmin && filters.employeeId && (
-                    <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs">
-                      Employee: {employees.find(e => e._id === filters.employeeId)?.firstName || 'Selected'}
-                    </span>
-                  )}
-                  <button
-                    onClick={resetToDefaultRange}
-                    className="text-xs text-red-600 hover:text-red-800 px-2"
-                  >
-                    Clear All
-                  </button>
-                </div>
-              </div>
-            )} 
-
-{/* ফিল্টার সেকশনে Apply/Clear বাটনের পরে যোগ করুন: */}
-<div className="flex justify-between items-center pt-2">
-  <div className="text-sm text-gray-500">
-    Showing data from {formatDateShort(dateRange.startDate)} to {formatDateShort(dateRange.endDate)}
-  </div>
-  
-  <div className="flex gap-2"> 
+                  <div className="flex gap-2"> 
     
     {/* ডাউনলোড লিঙ্ক (বিকল্প) */}
     {attendance.length > 0 && (
@@ -2822,75 +2902,48 @@ const getStatusIcon = (status) => {
       </PDFDownloadLink>
     )}  
   </div>
-</div>
-
-{/* PDF প্রিভিউ মডাল (ঐচ্ছিক) */}
-{showPDFPreview && (
-  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl p-6 max-w-6xl w-full max-h-[90vh] flex flex-col shadow-2xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">PDF Preview</h2>
-          <p className="text-gray-500">Preview of generated attendance report</p>
-        </div>
-        <div className="flex gap-2">
-          <PDFDownloadLink
-            document={
-              <AttendanceReportPDF
-                attendance={attendance}
-                filters={filters}
-                dateRange={dateRange}
-                summary={summary}
-                userData={userData}
-                isAdmin={isAdmin}
-                selectedEmployeeName={filters.employeeId 
-                  ? employees.find(e => e._id === filters.employeeId)?.firstName + " " + 
-                    employees.find(e => e._id === filters.employeeId)?.lastName
-                  : null
-                }
-              />
-            }
-            fileName={`attendance-report-${new Date().toISOString().split("T")[0]}.pdf`}
-          >
-            {({ loading }) => (
-              <button
-                disabled={loading}
-                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:opacity-90 font-medium flex items-center gap-2"
-              >
-                <Download size={16} />
-                {loading ? "Preparing..." : "Download"}
-              </button>
-            )}
-          </PDFDownloadLink>
-          <button
-            onClick={() => setShowPDFPreview(false)}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-      
-      <div className="flex-1 overflow-hidden">
-        <PDFViewer width="100%" height="100%" className="rounded-lg">
-          <AttendanceReportPDF
-            attendance={attendance}
-            filters={filters}
-            dateRange={dateRange}
-            summary={summary}
-            userData={userData}
-            isAdmin={isAdmin}
-            selectedEmployeeName={filters.employeeId 
-              ? employees.find(e => e._id === filters.employeeId)?.firstName + " " + 
-                employees.find(e => e._id === filters.employeeId)?.lastName
-              : null
-            }
-          />
-        </PDFViewer>
-      </div>
-    </div>
-  </div>
-)}
+              </div>
+            </div>
+            
+            {/* Active Filters Display */}
+            {(filters.status !== 'all' || filters.search || filters.date || (filters.month && filters.year) || (isAdmin && filters.employeeId)) && (
+              <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg">
+                <div className="text-sm font-medium text-blue-800 mb-2">Active Filters:</div>
+                <div className="flex flex-wrap gap-2">
+                  {filters.status !== 'all' && (
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                      Status: {filters.status}
+                    </span>
+                  )}
+                  {filters.search && (
+                    <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs">
+                      Search: "{filters.search}"
+                    </span>
+                  )}
+                  {filters.date && (
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                      Date: {formatDateShort(filters.date)}
+                    </span>
+                  )}
+                  {filters.month && filters.year && (
+                    <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
+                      {new Date(2000, parseInt(filters.month)-1, 1).toLocaleString('default', { month: 'long' })} {filters.year}
+                    </span>
+                  )}
+                  {isAdmin && filters.employeeId && (
+                    <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs">
+                      Employee: {employees.find(e => e._id === filters.employeeId)?.firstName || 'Selected'}
+                    </span>
+                  )}
+                  <button
+                    onClick={resetToDefaultRange}
+                    className="text-xs text-red-600 hover:text-red-800 px-2"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+            )}   
           </div>
         </div>
         
@@ -3143,7 +3196,7 @@ const getStatusIcon = (status) => {
                           
                           <td className="py-4 px-4">
                             <div className="font-bold text-xl text-purple-700">
-                              {record.totalHours?.toFixed(2) || "0.00"} hrs
+                              {calculateTotalHours(record.clockIn, record.clockOut).toFixed(2)} hrs
                             </div>
                             <div className="text-xs text-gray-500">
                               {record.shift?.isNightShift && (
@@ -3461,7 +3514,7 @@ const getStatusIcon = (status) => {
               </div>
             </div>
           )}
-          {isAdmin && (
+          {/* {isAdmin && (
   <div className="mt-4 p-4 bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-xl">
     <div className="flex items-center justify-between">
       <div>
@@ -3498,7 +3551,7 @@ const getStatusIcon = (status) => {
       </div>
     </div>
   </div>
-)}
+)} */}
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="border-t border-purple-100 p-4">
@@ -3785,27 +3838,69 @@ const getStatusIcon = (status) => {
               </div>
               
               {/* Clock Times */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Clock In Time</label>
-                  <input
-                    type="time"
-                    value={manualAttendanceData.clockIn}
-                    onChange={(e) => setManualAttendanceData(prev => ({ ...prev, clockIn: e.target.value }))}
-                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Clock Out Time</label>
-                  <input
-                    type="time"
-                    value={manualAttendanceData.clockOut}
-                    onChange={(e) => setManualAttendanceData(prev => ({ ...prev, clockOut: e.target.value }))}
-                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
-              </div>
+              {/* Clock Times in Manual Attendance Modal */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">Clock In Time</label>
+    <input
+      type="time"
+      value={manualAttendanceData.clockIn}
+      onChange={(e) => {
+        const time = e.target.value; // "09:00"
+        setManualAttendanceData(prev => ({ 
+          ...prev, 
+          clockIn: time  // শুধু time string রাখুন, এখনই Date বানাবেন না
+        }));
+      }}
+      className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+    />
+  </div>
+  
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">Clock Out Time</label>
+    <input
+      type="time"
+      value={manualAttendanceData.clockOut}
+      onChange={(e) => {
+        const time = e.target.value;
+        setManualAttendanceData(prev => ({ 
+          ...prev, 
+          clockOut: time  // শুধু time string রাখুন
+        }));
+      }}
+      className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+    />
+  </div>
+</div>
+
+{/* Shift Timing in Manual Modal */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">Shift Start Time</label>
+    <input
+      type="time"
+      value={manualAttendanceData.shiftStart}
+      onChange={(e) => setManualAttendanceData(prev => ({ 
+        ...prev, 
+        shiftStart: e.target.value 
+      }))}
+      className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+    />
+  </div>
+  
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">Shift End Time</label>
+    <input
+      type="time"
+      value={manualAttendanceData.shiftEnd}
+      onChange={(e) => setManualAttendanceData(prev => ({ 
+        ...prev, 
+        shiftEnd: e.target.value 
+      }))}
+      className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+    />
+  </div>
+</div>
               
               {/* Remarks */}
               <div>
@@ -4208,39 +4303,140 @@ const getStatusIcon = (status) => {
               )}
               
               {/* Device and Location Info */}
-              <div className="p-4 border border-gray-100 rounded-xl">
-                <div className="text-sm font-medium text-gray-700 mb-2">Device & Location Info</div>
-                <div className="space-y-2 text-sm">
-                  {clockDetails.device && (
-                    <div className="flex items-center gap-2">
-                      <Smartphone size={14} className="text-blue-500" />
-                      <span className="font-medium">Device:</span>
-                      <span>{clockDetails.device.type} ({clockDetails.device.os})</span>
-                    </div>
-                  )}
-                  {clockDetails.browser && (
-                    <div className="flex items-center gap-2">
-                      <Globe size={14} className="text-green-500" />
-                      <span className="font-medium">Browser:</span>
-                      <span>{clockDetails.browser} {clockDetails.browserVersion}</span>
-                    </div>
-                  )}
-                  {clockDetails.location && (
-                    <div className="flex items-center gap-2">
-                      <MapPin size={14} className="text-purple-500" />
-                      <span className="font-medium">Location:</span>
-                      <span className="truncate">{clockDetails.location}</span>
-                    </div>
-                  )}
-                  {clockDetails.ipAddress && (
-                    <div className="flex items-center gap-2">
-                      <Wifi size={14} className="text-amber-500" />
-                      <span className="font-medium">IP Address:</span>
-                      <span>{clockDetails.ipAddress}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              {/* Device and Location Info - ENHANCED VERSION */}
+<div className="p-4 border border-gray-100 rounded-xl">
+  <div className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+    <Globe className="text-purple-500" size={18} />
+    Real-time Clock-in Information
+  </div>
+  
+  <div className="space-y-3">
+    {/* Location Details */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
+        <div className="flex items-center gap-2 mb-1">
+          <MapPin size={14} className="text-purple-500" />
+          <span className="font-medium text-gray-700">Location</span>
+        </div>
+        <div className="text-sm text-gray-600 truncate">
+          {clockDetails.location || 'Not available'}
+        </div>
+        {clockDetails.latitude && clockDetails.longitude && (
+          <div className="text-xs text-gray-500 mt-1">
+            Coordinates: {clockDetails.latitude?.toFixed(4)}, {clockDetails.longitude?.toFixed(4)}
+          </div>
+        )}
+      </div>
+      
+      <div className="p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg">
+        <div className="flex items-center gap-2 mb-1">
+          <Wifi size={14} className="text-blue-500" />
+          <span className="font-medium text-gray-700">IP Address</span>
+        </div>
+        <div className="text-sm text-gray-600 font-mono">
+          {clockDetails.ipAddress || 'Not available'}
+        </div>
+        <div className="text-xs text-gray-500 mt-1">
+          Captured at: {formatTime(clockDetails.createdAt || new Date())}
+        </div>
+      </div>
+    </div>
+    
+    {/* Device Details */}
+    <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg">
+      <div className="flex items-center gap-2 mb-2">
+        <Smartphone size={16} className="text-green-500" />
+        <span className="font-medium text-gray-700">Device Information</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-xs text-gray-500">Device Type</div>
+          <div className="text-sm font-medium text-gray-700">
+            {clockDetails.device?.type || deviceInfo.type}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Operating System</div>
+          <div className="text-sm font-medium text-gray-700">
+            {clockDetails.device?.os || deviceInfo.os}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Browser</div>
+          <div className="text-sm font-medium text-gray-700">
+            {clockDetails.device?.browser || deviceInfo.browser}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Browser Version</div>
+          <div className="text-sm font-medium text-gray-700">
+            {clockDetails.device?.browserVersion || deviceInfo.browserVersion}
+          </div>
+        </div>
+        {clockDetails.device?.screen && (
+          <div className="col-span-2">
+            <div className="text-xs text-gray-500">Screen Resolution</div>
+            <div className="text-sm font-medium text-gray-700">
+              {clockDetails.device.screen}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+    
+    {/* Network Information */}
+    <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg">
+      <div className="flex items-center gap-2 mb-2">
+        <Network size={16} className="text-amber-500" />
+        <span className="font-medium text-gray-700">Network Information</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-xs text-gray-500">Network Type</div>
+          <div className="text-sm font-medium text-gray-700">
+            {clockDetails.realTimeData?.networkType || 
+             navigator.connection?.effectiveType || 
+             'Unknown'}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Platform</div>
+          <div className="text-sm font-medium text-gray-700">
+            {navigator.platform}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Language</div>
+          <div className="text-sm font-medium text-gray-700">
+            {navigator.language}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Timezone</div>
+          <div className="text-sm font-medium text-gray-700">
+            {Intl.DateTimeFormat().resolvedOptions().timeZone}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    {/* User Agent (Collapsible) */}
+    {clockDetails.device?.userAgent && (
+      <div className="p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg">
+        <details>
+          <summary className="cursor-pointer flex items-center gap-2 text-sm font-medium text-gray-700">
+            <Code size={14} className="text-gray-500" />
+            User Agent Details
+            <ChevronDown size={14} className="ml-auto" />
+          </summary>
+          <div className="mt-2 p-2 bg-gray-100 rounded text-xs font-mono text-gray-600 overflow-x-auto">
+            {clockDetails.device.userAgent}
+          </div>
+        </details>
+      </div>
+    )}
+  </div>
+</div>
               
               {/* Additional Information */}
               {clockDetails.remarks && (
@@ -4294,95 +4490,242 @@ const getStatusIcon = (status) => {
       )}
       
       {/* Edit Attendance Modal - FIXED SCROLL */}
-      {selectedAttendanceRecord && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Edit Attendance Record</h2>
-                <p className="text-gray-500">Modify attendance details</p>
+      {/* Edit Attendance Modal */}
+{selectedAttendanceRecord && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Edit Attendance Record</h2>
+          <p className="text-gray-500">Modify attendance details</p>
+        </div>
+        <button
+          onClick={() => setSelectedAttendanceRecord(null)}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <X size={24} />
+        </button>
+      </div>
+      
+      <div className="space-y-4 overflow-y-auto flex-1 pr-2">
+        {/* Employee Info - Readonly */}
+        {selectedAttendanceRecord.employee && (
+          <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border">
+            <div className="text-sm font-medium text-gray-700 mb-2">Employee</div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                {selectedAttendanceRecord.employee.firstName?.[0]}{selectedAttendanceRecord.employee.lastName?.[0]}
               </div>
-              <button
-                onClick={() => setSelectedAttendanceRecord(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
-              {/* Clock Times */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Clock In Time</label>
-                  <input
-                    type="time"
-                    value={selectedAttendanceRecord.clockIn ? formatTime(selectedAttendanceRecord.clockIn).replace(' ', '').slice(0, 5) : ''}
-                    onChange={(e) => setSelectedAttendanceRecord(prev => ({ ...prev, clockIn: e.target.value }))}
-                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  />
+              <div>
+                <div className="font-semibold text-gray-900">
+                  {selectedAttendanceRecord.employee.firstName} {selectedAttendanceRecord.employee.lastName}
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Clock Out Time</label>
-                  <input
-                    type="time"
-                    value={selectedAttendanceRecord.clockOut ? formatTime(selectedAttendanceRecord.clockOut).replace(' ', '').slice(0, 5) : ''}
-                    onChange={(e) => setSelectedAttendanceRecord(prev => ({ ...prev, clockOut: e.target.value }))}
-                    className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  />
+                <div className="text-sm text-gray-500">
+                  {selectedAttendanceRecord.employee.employeeId} • {selectedAttendanceRecord.employee.department}
                 </div>
               </div>
-              
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select
-                  value={selectedAttendanceRecord.status}
-                  onChange={(e) => setSelectedAttendanceRecord(prev => ({ ...prev, status: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                >
-                  <option value="Present">Present</option>
-                  <option value="Absent">Absent</option>
-                  <option value="Late">Late</option>
-                  <option value="Early">Early</option>
-                  <option value="Leave">Leave</option>
-                  <option value="Govt Holiday">Govt Holiday</option>
-                  <option value="Weekly Off">Weekly Off</option>
-                  <option value="Off Day">Off Day</option>
-                </select>
-              </div>
-              
-              {/* Remarks */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
-                <textarea
-                  value={selectedAttendanceRecord.remarks || ''}
-                  onChange={(e) => setSelectedAttendanceRecord(prev => ({ ...prev, remarks: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                  rows="3"
-                  placeholder="Add remarks or correction reason..."
-                />
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
-              <button
-                onClick={() => setSelectedAttendanceRecord(null)}
-                className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleCorrectAttendance(selectedAttendanceRecord._id, selectedAttendanceRecord)}
-                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm"
-              >
-                Save Changes
-              </button>
             </div>
           </div>
+        )}
+
+        {/* Date - Readonly */}
+        <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border">
+          <div className="text-sm font-medium text-gray-700 mb-2">Date</div>
+          <div className="font-bold text-gray-900">
+            {formatDate(selectedAttendanceRecord.date)}
+          </div>
         </div>
-      )}
+
+        {/* Clock Times */} 
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">Clock In Time</label>
+    <input
+      type="time"
+      value={selectedAttendanceRecord.clockIn ? 
+        // শুধু HH:MM format-এ convert করুন
+        new Date(selectedAttendanceRecord.clockIn).toTimeString().slice(0, 5) 
+        : ''}
+      onChange={(e) => {
+        const time = e.target.value; // "09:00"
+        if (time && selectedAttendanceRecord.date) {
+          // Combine with original date
+          const datePart = selectedAttendanceRecord.date.split('T')[0]; // "2024-01-15"
+          const [hours, minutes] = time.split(':');
+          const newDate = new Date(datePart);
+          newDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          
+          setSelectedAttendanceRecord(prev => ({ 
+            ...prev, 
+            clockIn: newDate.toISOString() 
+          }));
+        }
+      }}
+      className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+    />
+  </div>
+  
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">Clock Out Time</label>
+    <input
+      type="time"
+      value={selectedAttendanceRecord.clockOut ? 
+        new Date(selectedAttendanceRecord.clockOut).toTimeString().slice(0, 5) 
+        : ''}
+      onChange={(e) => {
+        const time = e.target.value;
+        if (time && selectedAttendanceRecord.date) {
+          const datePart = selectedAttendanceRecord.date.split('T')[0];
+          const [hours, minutes] = time.split(':');
+          const newDate = new Date(datePart);
+          newDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          
+          setSelectedAttendanceRecord(prev => ({ 
+            ...prev, 
+            clockOut: newDate.toISOString() 
+          }));
+        }
+      }}
+      className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+    />
+  </div>
+</div>
+
+        {/* Shift Timing */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shift Start</label>
+            <input
+              type="time"
+              value={selectedAttendanceRecord.shift?.start || '09:00'}
+              onChange={(e) => setSelectedAttendanceRecord(prev => ({
+                ...prev,
+                shift: {
+                  ...prev.shift,
+                  start: e.target.value
+                }
+              }))}
+              className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shift End</label>
+            <input
+              type="time"
+              value={selectedAttendanceRecord.shift?.end || '18:00'}
+              onChange={(e) => setSelectedAttendanceRecord(prev => ({
+                ...prev,
+                shift: {
+                  ...prev.shift,
+                  end: e.target.value
+                }
+              }))}
+              className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+            />
+          </div>
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+          <select
+            value={selectedAttendanceRecord.status}
+            onChange={(e) => setSelectedAttendanceRecord(prev => ({ 
+              ...prev, 
+              status: e.target.value 
+            }))}
+            className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+          >
+            <option value="Present">Present</option>
+            <option value="Absent">Absent</option>
+            <option value="Late">Late</option>
+            <option value="Early">Early</option>
+            <option value="Leave">Leave</option>
+            <option value="Govt Holiday">Govt Holiday</option>
+            <option value="Weekly Off">Weekly Off</option>
+            <option value="Off Day">Off Day</option>
+          </select>
+        </div>
+
+        {/* Correction Reason (Admin Only) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Correction Reason
+          </label>
+          <textarea
+            value={selectedAttendanceRecord.correctionReason || ''}
+            onChange={(e) => setSelectedAttendanceRecord(prev => ({ 
+              ...prev, 
+              correctionReason: e.target.value 
+            }))}
+            className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+            rows="3"
+            placeholder="Why are you correcting this attendance?"
+          />
+          <div className="text-xs text-gray-500 mt-1">
+            This will be recorded in the audit log
+          </div>
+        </div>
+
+        {/* Remarks */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+          <textarea
+            value={selectedAttendanceRecord.remarks || ''}
+            onChange={(e) => setSelectedAttendanceRecord(prev => ({ 
+              ...prev, 
+              remarks: e.target.value 
+            }))}
+            className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+            rows="3"
+            placeholder="Add any additional remarks..."
+          />
+        </div>
+      </div>
+      
+      <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
+        <button
+          onClick={() => setSelectedAttendanceRecord(null)}
+          className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            // Prepare data according to backend structure
+            const updatedData = {
+              clockIn: selectedAttendanceRecord.clockIn ? 
+                new Date(selectedAttendanceRecord.clockIn).toISOString() : 
+                undefined,
+              clockOut: selectedAttendanceRecord.clockOut ? 
+                new Date(selectedAttendanceRecord.clockOut).toISOString() : 
+                undefined,
+              status: selectedAttendanceRecord.status,
+              shiftStart: selectedAttendanceRecord.shift?.start,
+              shiftEnd: selectedAttendanceRecord.shift?.end,
+              remarks: selectedAttendanceRecord.remarks || undefined,
+              correctionReason: selectedAttendanceRecord.correctionReason || undefined
+            };
+
+            // Remove undefined values
+            Object.keys(updatedData).forEach(key => {
+              if (updatedData[key] === undefined) {
+                delete updatedData[key];
+              }
+            });
+
+            await handleCorrectAttendance(selectedAttendanceRecord._id, updatedData);
+          }}
+          className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 font-medium shadow-sm flex items-center gap-2"
+        >
+          <Save size={18} />
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </>
   );
 }

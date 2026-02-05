@@ -623,43 +623,81 @@ const handleSubmitMealRequest = async () => {
 };
 
   // Handle subscription setup
-  const handleSetupSubscription = async () => {
-    try {
-      const data = await apiCall('/subscription/setup', 'POST', {
-        preference: subscriptionForm.mealPreference,
-        autoRenew: subscriptionForm.autoRenew
-      });
+// Handle subscription setup
+const handleSetupSubscription = async () => {
+  try {
+    // Check if user had a cancelled subscription before
+    if (mySubscription?.hasSubscription && mySubscription.data?.status === 'cancelled') {
+      toast.info("Your previous subscription was cancelled. New subscription requires admin approval.");
       
-      if (data) {
-        toast.success("Monthly subscription activated!");
-        setShowSubscriptionModal(false);
-        setSubscriptionForm({ mealPreference: "office", autoRenew: true });
-        fetchMySubscription();
-        if (isAdmin || isModerator) fetchAllSubscriptions();
-      }
-    } catch (error) {
-      console.error("Error setting up subscription:", error);
+      // Force auto-renew to false
+      subscriptionForm.autoRenew = false;
     }
-  };
+    
+    const data = await apiCall('/subscription/setup', 'POST', {
+      preference: subscriptionForm.mealPreference,
+      autoRenew: subscriptionForm.autoRenew,
+      note: mySubscription?.data?.status === 'cancelled' ? 
+        "New subscription after cancellation - Requires admin approval" : 
+        "New subscription"
+    });
+    
+    if (data) {
+      if (mySubscription?.data?.status === 'cancelled') {
+        toast.success("Subscription requested! Waiting for admin approval.");
+      } else {
+        toast.success("Monthly subscription activated!");
+      }
+      
+      setShowSubscriptionModal(false);
+      setSubscriptionForm({ mealPreference: "office", autoRenew: true });
+      fetchMySubscription();
+      if (isAdmin || isModerator) fetchAllSubscriptions();
+    }
+  } catch (error) {
+    console.error("Error setting up subscription:", error);
+    toast.error(error.message || "Failed to setup subscription");
+  }
+};
 
   // Handle cancel subscription
-  const handleCancelSubscription = async () => {
-    if (!window.confirm("Are you sure you want to cancel your subscription?")) return;
+// Handle cancel subscription - Updated
+const handleCancelSubscription = async () => {
+  if (!window.confirm("Are you sure you want to cancel your subscription? It will be immediately removed.")) return;
+  
+  try {
+    const data = await apiCall('/subscription/cancel', 'POST', {
+      reason: "Cancelled by user"
+    });
     
-    try {
-      const data = await apiCall('/subscription/cancel', 'POST', {
-        reason: "Cancelled by user"
-      });
+    if (data) {
+      toast.success("Subscription cancelled and removed from list!");
       
-      if (data) {
-        toast.success("Subscription cancelled successfully");
-        fetchMySubscription();
-        if (isAdmin || isModerator) fetchAllSubscriptions();
+      // Immediate removal from ALL states
+      
+      // For employee view
+      setMySubscription(null);
+      
+      // For admin/moderator view
+      if (isAdmin || isModerator) {
+        setAllSubscriptions(prev => 
+          prev.filter(sub => sub.userInfo?._id !== user?._id)
+        );
+        
+        setAdminStats(prev => ({
+          ...prev,
+          activeSubscriptions: prev.activeSubscriptions - 1,
+          totalSubscriptions: prev.totalSubscriptions - 1
+        }));
       }
-    } catch (error) {
-      console.error("Error cancelling subscription:", error);
+      
+      // Show message for next subscription
+      toast.info("For new subscription, you need to request again with admin approval.");
     }
-  };
+  } catch (error) {
+    console.error("Error cancelling subscription:", error);
+  }
+};
 
   // Handle update auto-renew
   const handleUpdateAutoRenew = async (autoRenew) => {
@@ -678,36 +716,52 @@ const handleSubmitMealRequest = async () => {
   };
 
   // Handle admin create subscription
-  const handleAdminCreateSubscription = async () => {
-    if (!adminCreateForm.userId) {
-      toast.error("Please select an employee");
-      return;
-    }
+ // Admin create subscription - force pending for cancelled users
+const handleAdminCreateSubscription = async () => {
+  if (!adminCreateForm.userId) {
+    toast.error("Please select an employee");
+    return;
+  }
+  
+  try {
+    // Check if user had cancelled subscription
+    const selectedUser = allUsers.find(u => u._id === adminCreateForm.userId);
+    const userSubscriptions = allSubscriptions.filter(s => 
+      s.userInfo?._id === adminCreateForm.userId
+    );
     
-    try {
-      const data = await apiCall('/admin/subscription/create', 'POST', {
-        userId: adminCreateForm.userId,
-        preference: adminCreateForm.preference,
-        autoRenew: adminCreateForm.autoRenew,
-        note: adminCreateForm.note
-      });
-      
-      if (data) {
+    const hadCancelled = userSubscriptions.some(sub => sub.status === 'cancelled');
+    
+    const data = await apiCall('/admin/subscription/create', 'POST', {
+      userId: adminCreateForm.userId,
+      preference: adminCreateForm.preference,
+      autoRenew: hadCancelled ? false : adminCreateForm.autoRenew, // Force false if cancelled
+      note: hadCancelled ? 
+        `New subscription after cancellation - ${adminCreateForm.note || ''}` : 
+        adminCreateForm.note,
+      forcePending: hadCancelled // Send flag to backend
+    });
+    
+    if (data) {
+      if (hadCancelled) {
+        toast.success("Subscription created! Requires approval.");
+      } else {
         toast.success("Meal subscription created successfully!");
-        setShowAdminCreateModal(false);
-        setAdminCreateForm({
-          userId: "",
-          preference: "office",
-          autoRenew: true,
-          note: ""
-        });
-        fetchAllSubscriptions();
-        fetchDashboardStats();
       }
-    } catch (error) {
-      console.error("Error creating subscription:", error);
+      setShowAdminCreateModal(false);
+      setAdminCreateForm({
+        userId: "",
+        preference: "office",
+        autoRenew: true,
+        note: ""
+      });
+      fetchAllSubscriptions();
+      fetchDashboardStats();
     }
-  };
+  } catch (error) {
+    console.error("Error creating subscription:", error);
+  }
+};
 
   // Handle admin create meal (single meal)
   const handleAdminCreateMeal = async () => {
@@ -773,25 +827,38 @@ const handleSubmitMealRequest = async () => {
   };
 
   // Handle delete subscription
-  const handleDeleteSubscription = async () => {
-    if (!selectedSubscription) return;
+// Handle delete subscription - Admin side
+const handleDeleteSubscription = async () => {
+  if (!selectedSubscription) return;
+  
+  if (!window.confirm(`Are you sure you want to delete subscription for ${selectedSubscription.userInfo?.firstName} ${selectedSubscription.userInfo?.lastName}? It will be immediately removed.`)) return;
+  
+  try {
+    const data = await apiCall(`/admin/subscription/${selectedSubscription._id}`, 'DELETE');
     
-    if (!window.confirm(`Are you sure you want to delete subscription for ${selectedSubscription.userInfo?.firstName} ${selectedSubscription.userInfo?.lastName}?`)) return;
-    
-    try {
-      const data = await apiCall(`/admin/subscription/${selectedSubscription._id}`, 'DELETE');
+    if (data) {
+      toast.success("Subscription deleted and removed from list!");
+      setShowDeleteModal(false);
       
-      if (data) {
-        toast.success("Subscription deleted successfully!");
-        setShowDeleteModal(false);
-        setSelectedSubscription(null);
-        fetchAllSubscriptions();
-        fetchDashboardStats();
-      }
-    } catch (error) {
-      console.error("Error deleting subscription:", error);
+      // Immediate removal from UI
+      setAllSubscriptions(prev => 
+        prev.filter(sub => sub._id !== selectedSubscription._id)
+      );
+      
+      // Update stats
+      setAdminStats(prev => ({
+        ...prev,
+        totalSubscriptions: prev.totalSubscriptions - 1,
+        activeSubscriptions: prev.activeSubscriptions - 
+          (selectedSubscription.status === 'active' ? 1 : 0)
+      }));
+      
+      setSelectedSubscription(null);
     }
-  };
+  } catch (error) {
+    console.error("Error deleting subscription:", error);
+  }
+};
 
   // Handle cancel meal request
   const handleCancelMealRequest = async () => {
@@ -2092,119 +2159,152 @@ const handleSubmitMealRequest = async () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                          {allSubscriptions.map((subscription, index) => {
-  // Check if should show approve/reject buttons
-  const shouldShowApproveReject = 
-    subscription.currentMonthStatus === 'pending' &&
-    !subscription.autoRenew; // Only show if auto-renew is OFF
-  
-  return (
-    <tr key={index} className="hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
-      <td className="py-4 px-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-            <span className="font-bold text-purple-600">
-              {subscription.userInfo?.firstName?.charAt(0) || "U"}
+{allSubscriptions
+  .filter(subscription => subscription.status !== 'cancelled') // Filter out cancelled subscriptions
+  .map((subscription, index) => {
+    // CORRECTED: Show approve/reject if subscription is pending OR if current month status is pending
+    const shouldShowApproveReject = 
+      subscription.status === 'pending' || 
+      (subscription.status === 'active' && subscription.currentMonthStatus === 'pending');
+    
+    return (
+      <tr key={index} className="hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
+        <td className="py-4 px-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+              <span className="font-bold text-purple-600">
+                {subscription.userInfo?.firstName?.charAt(0) || "U"}
+              </span>
+            </div>
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">
+                {subscription.userInfo?.firstName} {subscription.userInfo?.lastName}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{subscription.userInfo?.employeeId}</p>
+              <p className="text-xs text-gray-500">{subscription.userInfo?.department}</p>
+            </div>
+          </div>
+        </td>
+        <td className="py-4 px-6">
+          <div className="flex items-center gap-2">
+            {subscription.preference === 'office' ? (
+              <Coffee className="text-purple-600" size={16} />
+            ) : (
+              <Pizza className="text-orange-600" size={16} />
+            )}
+            <span className="capitalize">{subscription.preference}</span>
+          </div>
+        </td>
+        <td className="py-4 px-6">
+          {/* Show BOTH overall status AND current month status */}
+          <div className="flex flex-col gap-1">
+            {/* Overall subscription status */}
+            <span className={`px-2 py-1 text-xs rounded-full font-medium text-center ${
+              subscription.status === 'active'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                : subscription.status === 'pending'
+                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+            }`}>
+              Subscription: {subscription.status?.toUpperCase()}
             </span>
+            
+            {/* Current month status - Only show if exists */}
+            {subscription.currentMonthStatus && (
+              <span className={`px-2 py-1 text-xs rounded-full font-medium text-center ${
+                subscription.currentMonthStatus === 'approved'
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : subscription.currentMonthStatus === 'pending'
+                  ? 'bg-yellow-50 text-yellow-700 border border-yellow-200 animate-pulse'
+                  : 'bg-gray-50 text-gray-700 border border-gray-200'
+              }`}>
+                This Month: {subscription.currentMonthStatus?.toUpperCase()}
+              </span>
+            )}
           </div>
-          <div>
-            <p className="font-medium text-gray-900 dark:text-white">
-              {subscription.userInfo?.firstName} {subscription.userInfo?.lastName}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{subscription.userInfo?.employeeId}</p>
-            <p className="text-xs text-gray-500">{subscription.userInfo?.department}</p>
+        </td>
+        <td className="py-4 px-6">
+          <div className="flex items-center gap-2">
+            {subscription.autoRenew ? (
+              <CheckCircle className="text-green-500" size={16} />
+            ) : (
+              <XCircle className="text-red-500" size={16} />
+            )}
+            <span className="text-sm">{subscription.autoRenew ? 'Yes' : 'No'}</span>
+            {subscription.autoRenew && (
+              <span className="text-xs text-gray-500">(Auto-continues)</span>
+            )}
           </div>
-        </div>
-      </td>
-      <td className="py-4 px-6">
-        <div className="flex items-center gap-2">
-          {subscription.preference === 'office' ? (
-            <Coffee className="text-purple-600" size={16} />
-          ) : (
-            <Pizza className="text-orange-600" size={16} />
-          )}
-          <span className="capitalize">{subscription.preference}</span>
-        </div>
-      </td>
-      <td className="py-4 px-6">
-        <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-          subscription.status === 'active'
-            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-            : subscription.status === 'pending'
-            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-            : subscription.status === 'cancelled'
-            ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-        }`}>
-          {subscription.status?.toUpperCase()}
-        </span>
-      </td>
-      <td className="py-4 px-6">
-        <div className="flex items-center gap-2">
-          {subscription.autoRenew ? (
-            <CheckCircle className="text-green-500" size={16} />
-          ) : (
-            <XCircle className="text-red-500" size={16} />
-          )}
-          <span className="text-sm">{subscription.autoRenew ? 'Yes' : 'No'}</span>
-          {subscription.autoRenew && (
-            <span className="text-xs text-gray-500">(Auto-continues)</span>
-          )}
-        </div>
-      </td>
-      <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-400">
-        {formatDate(subscription.startDate)}
-      </td>
-      <td className="py-4 px-6">
-        <div className="flex items-center gap-2">
-          {shouldShowApproveReject ? (
-            <>
+        </td>
+        <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-400">
+          {formatDate(subscription.startDate)}
+        </td>
+        <td className="py-4 px-6">
+          <div className="flex items-center gap-2">
+            {shouldShowApproveReject ? (
+              <>
+                <button
+                  onClick={() => {
+                    setSelectedSubscription(subscription);
+                    setShowApproveModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors flex items-center gap-1 font-medium"
+                >
+                  <Check size={12} />
+                  Approve
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedSubscription(subscription);
+                    setShowRejectModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors flex items-center gap-1 font-medium"
+                >
+                  <X size={12} />
+                  Reject
+                </button>
+              </>
+            ) : subscription.currentMonthStatus === 'approved' ? (
+              <span className="text-xs text-green-600 px-3 py-1.5 bg-green-50 rounded-lg font-medium">
+                ✓ Approved
+              </span>
+            ) : subscription.autoRenew ? (
+              <span className="text-xs text-blue-600 px-3 py-1.5 bg-blue-50 rounded-lg">
+                Auto-renew enabled
+              </span>
+            ) : (
+              <span className="text-xs text-gray-400 px-3 py-1.5">No request</span>
+            )}
+            
+            {/* Edit button - Only for active/pending subscriptions */}
+            {(subscription.status === 'active' || subscription.status === 'pending') && (
+              <button
+                onClick={() => handleEditClick(subscription)}
+                className="p-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                title="Edit"
+              >
+                <Edit className="text-blue-500" size={14} />
+              </button>
+            )}
+            
+            {/* Delete button - Only for active/pending subscriptions */}
+            {(subscription.status === 'active' || subscription.status === 'pending') && (
               <button
                 onClick={() => {
                   setSelectedSubscription(subscription);
-                  setShowApproveModal(true);
+                  setShowDeleteModal(true);
                 }}
-                className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
+                className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                title="Delete"
               >
-                Approve
+                <Trash2 className="text-red-500" size={14} />
               </button>
-              <button
-                onClick={() => {
-                  setSelectedSubscription(subscription);
-                  setShowRejectModal(true);
-                }}
-                className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
-              >
-                Reject
-              </button>
-            </>
-          ) : subscription.autoRenew ? (
-            <span className="text-xs text-gray-500">Auto-renew enabled</span>
-          ) : null}
-          <button
-            onClick={() => handleEditClick(subscription)}
-            className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-            title="Edit"
-          >
-            <Edit className="text-blue-500" size={14} />
-          </button>
-          {(subscription.status === 'active' || subscription.status === 'pending') && (
-            <button
-              onClick={() => {
-                setSelectedSubscription(subscription);
-                setShowDeleteModal(true);
-              }}
-              className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-              title="Delete"
-            >
-              <Trash2 className="text-red-500" size={14} />
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-})}
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  })}
                         </tbody>
                       </table>
                     </div>
@@ -2904,7 +3004,181 @@ const handleSubmitMealRequest = async () => {
                     </button>
                   </div>
                 </div>
+{/* In subscription modal */}
+{showSubscriptionModal && (
+  <div className="fixed inset-0 bg-black/80 bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
+      <div className="p-6 border-b border-purple-100 dark:border-gray-700">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+            {mySubscription?.data?.status === 'cancelled' ? 
+              'New Subscription Request' : 
+              'Monthly Subscription'
+            }
+          </h3>
+          <button
+            onClick={() => setShowSubscriptionModal(false)}
+            className="p-2 hover:bg-purple-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <X className="text-gray-400" size={20} />
+          </button>
+        </div>
+      </div>
 
+      <div className="p-6">
+        <div className="space-y-6">
+          {/* Meal Preference Selection */}
+          <div>
+            <h4 className="font-medium text-gray-900 dark:text-white mb-4">Select Meal Preference</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setSubscriptionForm({...subscriptionForm, mealPreference: 'office'})}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  subscriptionForm.mealPreference === 'office'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                }`}
+              >
+                <div className="flex flex-col items-center">
+                  <Coffee className={`mb-2 ${
+                    subscriptionForm.mealPreference === 'office' ? 'text-purple-600' : 'text-gray-400'
+                  }`} size={24} />
+                  <span className="font-medium">Office Meal</span>
+                  <span className="text-sm text-gray-500 mt-1">Office kitchen</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setSubscriptionForm({...subscriptionForm, mealPreference: 'outside'})}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  subscriptionForm.mealPreference === 'outside'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                }`}
+              >
+                <div className="flex flex-col items-center">
+                  <Pizza className={`mb-2 ${
+                    subscriptionForm.mealPreference === 'outside' ? 'text-purple-600' : 'text-gray-400'
+                  }`} size={24} />
+                  <span className="font-medium">Outside Food</span>
+                  <span className="text-sm text-gray-500 mt-1">Partner restaurants</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* ========== ADD THIS SECTION HERE ========== */}
+          {/* Cancelled User Warning */}
+          {mySubscription?.data?.status === 'cancelled' && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+              <div className="flex items-start">
+                <AlertTriangle className="text-yellow-600 mt-0.5 mr-2 flex-shrink-0" size={16} />
+                <div>
+                  <p className="text-sm font-medium text-yellow-800">
+                    Previous subscription cancelled
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    New subscription requires admin approval. Auto-renew disabled.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* =========================================== */}
+
+          {/* ========== REPLACE AUTO-RENEW SECTION ========== */}
+          {/* Auto-renew toggle with forced false for cancelled */}
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Auto Renew</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {mySubscription?.data?.status === 'cancelled' ? 
+                    'Disabled for cancelled subscriptions' : 
+                    'Automatically renew subscription'
+                  }
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (mySubscription?.data?.status !== 'cancelled') {
+                    setSubscriptionForm({...subscriptionForm, autoRenew: !subscriptionForm.autoRenew});
+                  }
+                }}
+                disabled={mySubscription?.data?.status === 'cancelled'}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                  (mySubscription?.data?.status === 'cancelled') ? 
+                    'bg-gray-300 cursor-not-allowed' :
+                    subscriptionForm.autoRenew ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  (mySubscription?.data?.status === 'cancelled') ? 
+                    'translate-x-1' :
+                    subscriptionForm.autoRenew ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+          </div>
+          {/* ================================================= */}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowSubscriptionModal(false)}
+              className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSetupSubscription}
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all font-medium"
+            >
+              {mySubscription?.data?.status === 'cancelled' ? 
+                'Request Subscription' : 
+                'Activate Subscription'
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Auto-renew toggle with forced false for cancelled */}
+<div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="font-medium text-gray-900 dark:text-white">Auto Renew</p>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        {mySubscription?.data?.status === 'cancelled' ? 
+          'Disabled for cancelled subscriptions' : 
+          'Automatically renew subscription'
+        }
+      </p>
+    </div>
+    <button
+      onClick={() => {
+        if (mySubscription?.data?.status !== 'cancelled') {
+          setSubscriptionForm({...subscriptionForm, autoRenew: !subscriptionForm.autoRenew});
+        }
+      }}
+      disabled={mySubscription?.data?.status === 'cancelled'}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+        (mySubscription?.data?.status === 'cancelled') ? 
+          'bg-gray-300 cursor-not-allowed' :
+          subscriptionForm.autoRenew ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+      }`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+        (mySubscription?.data?.status === 'cancelled') ? 
+          'translate-x-1' :
+          subscriptionForm.autoRenew ? 'translate-x-6' : 'translate-x-1'
+      }`} />
+    </button>
+  </div>
+</div>
                 <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-700 dark:to-gray-800 rounded-xl">
                   <div className="flex items-center justify-between">
                     <div>
