@@ -2976,12 +2976,12 @@ const ShiftBadge = ({ user }) => {
                     <p className="text-gray-500 text-xs mt-1">
                       {isEditMode ? "Update user details" : "Add a new user to the system"}
                     </p>
-                    {!isEditMode && (
+                    {/* {!isEditMode && (
                       <div className="mt-1 flex items-center gap-1 text-xs text-blue-600">
                         <Send size={10} />
                         <span>Welcome email will be sent automatically</span>
                       </div>
-                    )}
+                    )} */}
                   </div>
                   {isEditMode && (
                     <div className="flex items-center gap-2">
@@ -3267,7 +3267,7 @@ const ShiftBadge = ({ user }) => {
                     )}
 
                     {/* Manager ID - for Employee */}
-                    {form.role === 'employee' && (
+                    {/* {form.role === 'employee' && (
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Manager ID (Optional)
@@ -3280,7 +3280,7 @@ const ShiftBadge = ({ user }) => {
                           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
                         />
                       </div>
-                    )}
+                    )} */}
 
                     {/* Admin specific fields */}
                     {(form.role === 'admin' || form.role === 'superAdmin') && (

@@ -175,6 +175,67 @@ const [editForm, setEditForm] = useState({
     note: "",
     mealDays: 0
   });
+  // Add this after your state declarations but before the useEffect
+const getUserName = (item) => {
+  // Check if item is valid
+  if (!item) return 'Unknown User';
+  
+  // Try different possible user field names
+  if (item.user && typeof item.user === 'object') {
+    if (item.user.firstName) {
+      return `${item.user.firstName} ${item.user.lastName || ''}`.trim();
+    }
+    if (item.user.name) {
+      return item.user.name;
+    }
+    if (item.user.email) {
+      return item.user.email.split('@')[0];
+    }
+  }
+  
+  if (item.userInfo && typeof item.userInfo === 'object') {
+    if (item.userInfo.firstName) {
+      return `${item.userInfo.firstName} ${item.userInfo.lastName || ''}`.trim();
+    }
+    if (item.userInfo.name) {
+      return item.userInfo.name;
+    }
+  }
+  
+  if (item.requestedBy && typeof item.requestedBy === 'object') {
+    if (item.requestedBy.firstName) {
+      return `${item.requestedBy.firstName} ${item.requestedBy.lastName || ''}`.trim();
+    }
+    if (item.requestedBy.name) {
+      return item.requestedBy.name;
+    }
+  }
+  
+  // If user is just an ID string
+  if (typeof item.user === 'string') {
+    // Try to find in allUsers array
+    const foundUser = allUsers.find(u => u._id === item.user || u.id === item.user);
+    if (foundUser) {
+      return `${foundUser.firstName || ''} ${foundUser.lastName || ''}`.trim() || 
+             foundUser.email || 
+             `User ${item.user.substring(0, 6)}...`;
+    }
+    return `User ID: ${item.user.substring(0, 6)}...`;
+  }
+  
+  // Last resort
+  if (item._id) {
+    return `Meal ${item._id.substring(0, 6)}...`;
+  }
+  
+  return 'User';
+};
+
+// Also add getUserInitial function
+const getUserInitial = (item) => {
+  const name = getUserName(item);
+  return name.charAt(0).toUpperCase();
+};
   // Handle approve/reject meal 
 // Handle approve/reject meal 
 const handleApproveRejectMeal = async (mealId, action) => {
@@ -189,13 +250,13 @@ const handleApproveRejectMeal = async (mealId, action) => {
     });
     
     if (data) {
-      toast.success(`Meal ${action} successfully!`);
+      alert(`Meal ${action} successfully!`);
       fetchAllMeals();
       fetchDashboardStats();
     }
   } catch (error) {
     console.error(`Error ${action}ing meal:`, error);
-    toast.error(error.message || `Failed to ${action} meal`);
+    alert(error.message || `Failed to ${action} meal`);
   } finally {
     setUpdating(false);
   }
@@ -213,7 +274,7 @@ const handleUpdateSubscription = async () => {
     });
     
     if (data) {
-      toast.success("Subscription updated successfully!");
+      alert("Subscription updated successfully!");
       setShowEditModal(false);
       setEditForm({
         preference: "",
@@ -224,7 +285,7 @@ const handleUpdateSubscription = async () => {
     }
   } catch (error) {
     console.error("Error updating subscription:", error);
-    toast.error(error.message || "Failed to update subscription");
+    alert(error.message || "Failed to update subscription");
   }
 };
 
@@ -242,7 +303,56 @@ const handleEditClick = (subscription) => {
   const [darkMode, setDarkMode] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [updating, setUpdating] = useState(false);
+  // Add these helper functions after your state declarations:
+
+// Helper to get user from meal
+const getUserFromMeal = (meal) => {
+  if (!meal) return null;
   
+  // Try all possible user field names
+  const possibleFields = ['userInfo', 'user', 'requestedBy', 'employee', 'userDetails'];
+  
+  for (const field of possibleFields) {
+    const userData = meal[field];
+    if (userData) {
+      // If it's an object with data
+      if (typeof userData === 'object') {
+        return userData;
+      }
+      // If it's a string ID, try to find in allUsers
+      if (typeof userData === 'string' && allUsers.length > 0) {
+        const foundUser = allUsers.find(u => u._id === userData || u.id === userData);
+        if (foundUser) return foundUser;
+      }
+    }
+  }
+  
+  return null;
+};
+
+// Helper to get display name
+const getDisplayNameFromUser = (user) => {
+  if (!user) return 'Unknown User';
+  
+  if (user.firstName && user.lastName) {
+    return `${user.firstName} ${user.lastName}`.trim();
+  }
+  if (user.firstName) {
+    return user.firstName;
+  }
+  if (user.name) {
+    return user.name;
+  }
+  if (user.email) {
+    return user.email.split('@')[0];
+  }
+  return 'User';
+};
+
+// Helper to get initial
+const getInitialFromName = (name) => {
+  return name.charAt(0).toUpperCase();
+};
   // Helper functions
   function getCurrentMonth() {
     const now = new Date();
@@ -295,7 +405,7 @@ const handleEditClick = (subscription) => {
   const apiCall = async (endpoint, method = 'GET', body = null) => {
     const token = getCurrentToken();
     if (!token) {
-      toast.error("Authentication required");
+      alert("Authentication required");
       router.push('/');
       return null;
     }
@@ -322,7 +432,7 @@ const handleEditClick = (subscription) => {
       return data;
     } catch (error) {
       console.error('API Error:', error);
-      toast.error(error.message);
+      alert(error.message);
       throw error;
     }
   };
@@ -366,11 +476,11 @@ const handleEditClick = (subscription) => {
                          userData.workLocationType === 'onsite';
         setIsEligible(eligible);
       } else {
-        toast.error("Failed to load user data");
+        alert("Failed to load user data");
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
-      toast.error("Failed to load user data");
+      alert("Failed to load user data");
     } finally {
       setLoading(false);
     }
@@ -436,49 +546,53 @@ const handleEditClick = (subscription) => {
     }
   };
 
-  // Fetch all meals (admin/moderator)
-  const fetchAllMeals = async () => {
-    if (!isAdmin && !isModerator) return;
+  // Fetch all meals (admin/moderator) 
+const fetchAllMeals = async () => {
+  if (!isAdmin && !isModerator) return;
+  
+  try {
+    setIsLoadingData(true);
     
-    try {
-      setIsLoadingData(true);
-      
-      // You'll need to create this endpoint in backend
-      const params = new URLSearchParams();
-      if (selectedMonth) {
-        const [year, month] = selectedMonth.split('-');
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0);
-        params.append('startDate', startDate.toISOString());
-        params.append('endDate', endDate.toISOString());
-      }
-      if (filterStatus !== 'all') params.append('status', filterStatus);
-      if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
-      
-      // This is a temporary implementation - you need to create this endpoint
-      const data = await apiCall(`/admin/meals/all?${params.toString()}`);
-      
-      if (data) {
-        setAllMeals(data.meals || []);
-        
-        // Update admin stats for meals
-        const today = new Date().toISOString().split('T')[0];
-        const todayMeals = data.meals?.filter(meal => 
-          meal.date && meal.date.split('T')[0] === today
-        ).length || 0;
-        
-        setAdminStats(prev => ({
-          ...prev,
-          todayMeals,
-          monthlyMeals: data.meals?.length || 0
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching all meals:', error);
-    } finally {
-      setIsLoadingData(false);
+    const params = new URLSearchParams();
+    if (selectedMonth) {
+      const [year, month] = selectedMonth.split('-');
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0);
+      params.append('startDate', startDate.toISOString());
+      params.append('endDate', endDate.toISOString());
     }
-  };
+    if (filterStatus !== 'all') params.append('status', filterStatus);
+    if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
+    
+    // Updated endpoint
+    const data = await apiCall(`/admin/meals/all?${params.toString()}`);
+    
+    if (data) {
+      console.log('All meals data:', data); // Debug log
+      
+      // Check data structure
+      const meals = data.meals || data.data || data;
+      setAllMeals(Array.isArray(meals) ? meals : []);
+      
+      // Update admin stats for meals
+      const today = new Date().toISOString().split('T')[0];
+      const todayMeals = meals.filter(meal => 
+        meal.date && new Date(meal.date).toISOString().split('T')[0] === today
+      ).length || 0;
+      
+      setAdminStats(prev => ({
+        ...prev,
+        todayMeals,
+        monthlyMeals: meals.length || 0
+      }));
+    }
+  } catch (error) {
+    console.error('Error fetching all meals:', error);
+    alert('Failed to load meals');
+  } finally {
+    setIsLoadingData(false);
+  }
+};
 
   // Fetch my subscription
   const fetchMySubscription = async () => {
@@ -586,7 +700,7 @@ const handleSubmitMealRequest = async () => {
     if (mySubscription?.hasSubscription && mySubscription.data?.status === 'active') {
       // Check auto-renew status
       if (mySubscription.data?.autoRenew) {
-        toast.error("You have auto-renew subscription. Please wait for automatic approval or cancel subscription first.");
+        alert("You have auto-renew subscription. Please wait for automatic approval or cancel subscription first.");
         return;
       }
       
@@ -594,7 +708,7 @@ const handleSubmitMealRequest = async () => {
       const currentMonth = getCurrentMonth();
       if (mySubscription.data?.currentMonth === currentMonth && 
           mySubscription.data?.currentStatus === 'approved') {
-        toast.error("You already have an approved subscription for this month.");
+        alert("You already have an approved subscription for this month.");
         return;
       }
     }
@@ -606,7 +720,7 @@ const handleSubmitMealRequest = async () => {
     });
     
     if (data) {
-      toast.success("Meal request submitted successfully!");
+      alert("Meal request submitted successfully!");
       setShowRequestModal(false);
       setRequestForm({
         mealPreference: "office",
@@ -618,7 +732,7 @@ const handleSubmitMealRequest = async () => {
     }
   } catch (error) {
     console.error("Error submitting request:", error);
-    toast.error(error.message || "Failed to submit meal request");
+    alert("You may already have a meal request for this date.");
   }
 };
 
@@ -644,9 +758,9 @@ const handleSetupSubscription = async () => {
     
     if (data) {
       if (mySubscription?.data?.status === 'cancelled') {
-        toast.success("Subscription requested! Waiting for admin approval.");
+        alert("Subscription requested! Waiting for admin approval.");
       } else {
-        toast.success("Monthly subscription activated!");
+        alert("Monthly subscription activated!");
       }
       
       setShowSubscriptionModal(false);
@@ -656,7 +770,7 @@ const handleSetupSubscription = async () => {
     }
   } catch (error) {
     console.error("Error setting up subscription:", error);
-    toast.error(error.message || "Failed to setup subscription");
+    alert("Already have an active subscription or request pending.");
   }
 };
 
@@ -671,7 +785,7 @@ const handleCancelSubscription = async () => {
     });
     
     if (data) {
-      toast.success("Subscription cancelled and removed from list!");
+      alert("Subscription cancelled and removed from list!");
       
       // Immediate removal from ALL states
       
@@ -707,7 +821,7 @@ const handleCancelSubscription = async () => {
       });
       
       if (data) {
-        toast.success(`Auto-renew ${autoRenew ? 'enabled' : 'disabled'} successfully`);
+        alert(`Auto-renew ${autoRenew ? 'enabled' : 'disabled'} successfully`);
         fetchMySubscription();
       }
     } catch (error) {
@@ -719,7 +833,7 @@ const handleCancelSubscription = async () => {
  // Admin create subscription - force pending for cancelled users
 const handleAdminCreateSubscription = async () => {
   if (!adminCreateForm.userId) {
-    toast.error("Please select an employee");
+    alert("Please select an employee");
     return;
   }
   
@@ -744,9 +858,9 @@ const handleAdminCreateSubscription = async () => {
     
     if (data) {
       if (hadCancelled) {
-        toast.success("Subscription created! Requires approval.");
+        alert("Subscription created! Requires approval.");
       } else {
-        toast.success("Meal subscription created successfully!");
+        alert("Meal subscription created successfully!");
       }
       setShowAdminCreateModal(false);
       setAdminCreateForm({
@@ -766,7 +880,7 @@ const handleAdminCreateSubscription = async () => {
   // Handle admin create meal (single meal)
   const handleAdminCreateMeal = async () => {
     if (!adminCreateMealForm.userId) {
-      toast.error("Please select an employee");
+      alert("Please select an employee");
       return;
     }
     
@@ -774,7 +888,7 @@ const handleAdminCreateSubscription = async () => {
       // First, check if user exists
       const user = allUsers.find(u => u._id === adminCreateMealForm.userId);
       if (!user) {
-        toast.error("Selected employee not found");
+        alert("Selected employee not found");
         return;
       }
       
@@ -787,7 +901,7 @@ const handleAdminCreateSubscription = async () => {
       });
       
       if (data) {
-        toast.success("Meal created successfully!");
+        alert("Meal created successfully!");
         setShowAdminCreateMealModal(false);
         setAdminCreateMealForm({
           userId: "",
@@ -814,7 +928,7 @@ const handleAdminCreateSubscription = async () => {
       });
       
       if (data) {
-        toast.success(`Subscription ${action}ed successfully!`);
+        alert(`Subscription ${action}ed successfully!`);
         setShowApproveModal(false);
         setShowRejectModal(false);
         setSelectedSubscription(null);
@@ -837,7 +951,7 @@ const handleDeleteSubscription = async () => {
     const data = await apiCall(`/admin/subscription/${selectedSubscription._id}`, 'DELETE');
     
     if (data) {
-      toast.success("Subscription deleted and removed from list!");
+      alert("Subscription deleted and removed from list!");
       setShowDeleteModal(false);
       
       // Immediate removal from UI
@@ -871,7 +985,7 @@ const handleDeleteSubscription = async () => {
       });
       
       if (data) {
-        toast.success("Meal request cancelled successfully!");
+        alert("Meal request cancelled successfully!");
         setShowDeleteModal(false);
         setSelectedMeal(null);
         fetchMyMeals();
@@ -1107,36 +1221,7 @@ const handleDeleteSubscription = async () => {
             </div>
 
             {/* Right side actions */}
-            <div className="flex items-center gap-3">
-              {/* Dark mode toggle */}
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className={`p-2 rounded-xl transition-colors ${
-                  darkMode 
-                    ? 'bg-gray-700 hover:bg-gray-600 text-yellow-300' 
-                    : 'bg-purple-100 hover:bg-purple-200 text-purple-600'
-                }`}
-              >
-                {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-
-              {/* Refresh button */}
-              <button
-                onClick={() => {
-                  if (activeTab === "dashboard") fetchDashboardStats();
-                  else if (activeTab === "subscriptions") fetchAllSubscriptions();
-                  else if (activeTab === "allMeals") fetchAllMeals();
-                  else if (activeTab === "reports") fetchMonthlyReport();
-                  else if (activeTab === "myMeal") {
-                    fetchMySubscription();
-                    fetchMyMeals();
-                  }
-                }}
-                className="p-2 rounded-xl bg-purple-100 dark:bg-gray-700 hover:bg-purple-200 dark:hover:bg-gray-600 transition-colors"
-                disabled={isLoadingData}
-              >
-                <RefreshCw className={`text-purple-600 dark:text-purple-400 ${isLoadingData ? 'animate-spin' : ''}`} size={20} />
-              </button>
+            <div className="flex items-center gap-3"> 
 
               {/* User profile */}
               <div className="relative group">
@@ -1180,20 +1265,7 @@ const handleDeleteSubscription = async () => {
                         </span>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="p-2">
-                    <button
-                      onClick={() => {
-                        localStorage.clear();
-                        router.push("/");
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
-                    >
-                      <LogOut size={18} />
-                      <span>Logout</span>
-                    </button>
-                  </div>
+                  </div> 
                 </div>
               </div>
             </div>
@@ -1735,84 +1807,96 @@ const handleDeleteSubscription = async () => {
                     </div>
                   </div>
 
-                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {isLoadingData ? (
-                      <div className="p-8 text-center">
-                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                        <p className="mt-2 text-gray-600">Loading activity...</p>
-                      </div>
-                    ) : (isAdmin || isModerator) ? (
-                      allMeals.slice(0, 5).map((meal, index) => (
-                        <div key={index} className="p-4 hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-                                <span className="font-bold text-purple-600">
-                                  {meal.userInfo?.firstName?.charAt(0) || "U"}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  {meal.userInfo?.firstName} {meal.userInfo?.lastName}
-                                </p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  {formatDate(meal.date)} • {meal.preference}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <div className="text-right">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                meal.status === 'approved'
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                  : meal.status === 'pending'
-                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                              }`}>
-                                {meal.status?.toUpperCase()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : myMeals.length > 0 ? (
-                      myMeals.slice(0, 5).map((meal, index) => (
-                        <div key={index} className="p-4 hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                meal.status === 'approved'
-                                  ? 'bg-green-100 text-green-600'
-                                  : meal.status === 'pending'
-                                  ? 'bg-yellow-100 text-yellow-600'
-                                  : 'bg-gray-100 text-gray-600'
-                              }`}>
-                                {meal.status === 'approved' ? (
-                                  <CheckCircle size={20} />
-                                ) : meal.status === 'pending' ? (
-                                  <Clock size={20} />
-                                ) : (
-                                  <XCircle size={20} />
-                                )}
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  {formatDate(meal.date)}
-                                </p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
-                                  {meal.preference} • {meal.status}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-8 text-center">
-                        <p className="text-gray-600">No recent activity found</p>
-                      </div>
-                    )}
-                  </div>
+                  {/* Recent Activity Section - Updated with debugging */}
+<div className="divide-y divide-gray-100 dark:divide-gray-700">
+  {isLoadingData ? (
+    <div className="p-8 text-center">
+      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      <p className="mt-2 text-gray-600">Loading activity...</p>
+    </div>
+  ) : (isAdmin || isModerator) ? (
+    allMeals.slice(0, 5).map((meal, index) => {
+      // Debug: Log meal data
+      console.log(`Meal ${index}:`, {
+        id: meal._id,
+        user: meal.user,
+        userInfo: meal.userInfo,
+        requestedBy: meal.requestedBy,
+        userName: getUserName(meal) // What our function returns
+      });
+      
+      return (
+        <div key={index} className="p-4 hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+                <span className="font-bold text-purple-600">
+                  {getUserInitial(meal)}
+                </span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  {getUserName(meal)}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatDate(meal.date)} • {meal.preference}
+                </p>
+              </div>
+            </div>
+            
+            <div className="text-right">
+              <span className={`px-2 py-1 text-xs rounded-full ${
+                meal.status === 'approved'
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                  : meal.status === 'pending'
+                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+              }`}>
+                {meal.status?.toUpperCase()}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    })
+  ) : myMeals.length > 0 ? (
+    myMeals.slice(0, 5).map((meal, index) => (
+      <div key={index} className="p-4 hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              meal.status === 'approved'
+                ? 'bg-green-100 text-green-600'
+                : meal.status === 'pending'
+                ? 'bg-yellow-100 text-yellow-600'
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              {meal.status === 'approved' ? (
+                <CheckCircle size={20} />
+              ) : meal.status === 'pending' ? (
+                <Clock size={20} />
+              ) : (
+                <XCircle size={20} />
+              )}
+            </div>
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">
+                {formatDate(meal.date)}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                {meal.preference} • {meal.status}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    ))
+  ) : (
+    <div className="p-8 text-center">
+      <p className="text-gray-600">No recent activity found</p>
+    </div>
+  )}
+</div>
                 </div>
               </div>
             )}
@@ -2173,7 +2257,7 @@ const handleDeleteSubscription = async () => {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
               <span className="font-bold text-purple-600">
-                {subscription.userInfo?.firstName?.charAt(0) || "U"}
+                {subscription.userInfo?.firstName?.charAt(0) || "User"}
               </span>
             </div>
             <div>
@@ -2410,136 +2494,167 @@ const handleDeleteSubscription = async () => {
                 </div>
 
                 {/* All Meals Table */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 overflow-hidden">
-                  <div className="p-6 border-b border-purple-50 dark:border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                        All Meal Requests ({allMeals.length})
-                      </h3>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        {getMonthName(selectedMonth)}
-                      </div>
-                    </div>
-                  </div>
+               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-100 dark:border-gray-700 overflow-hidden">
+  <div className="p-6 border-b border-purple-50 dark:border-gray-700">
+    <div className="flex items-center justify-between">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+        All Meal Requests ({allMeals.length})
+      </h3>
+      <div className="text-sm text-gray-600 dark:text-gray-400">
+        {getMonthName(selectedMonth)}
+      </div>
+    </div>
+  </div>
 
-                  {isLoadingData ? (
-                    <div className="p-12 text-center">
-                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-                      <p className="mt-4 text-gray-600">Loading meals...</p>
+  {isLoadingData ? (
+    <div className="p-12 text-center">
+      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      <p className="mt-4 text-gray-600">Loading meals...</p>
+    </div>
+  ) : allMeals.length > 0 ? (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-purple-50 dark:bg-gray-700">
+          <tr>
+            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Employee</th>
+            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Date</th>
+            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Preference</th>
+            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Status</th>
+            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+          {allMeals.map((meal, index) => {
+            // DIRECT SOLUTION - No helper functions needed
+            // Try all possible user field names
+            const userData = meal.userInfo || meal.user || meal.requestedBy || {};
+            
+            // Get display name from user data
+            let displayName = 'User';
+            if (userData.firstName && userData.lastName) {
+              displayName = `${userData.firstName} ${userData.lastName}`.trim();
+            } else if (userData.firstName) {
+              displayName = userData.firstName;
+            } else if (userData.name) {
+              displayName = userData.name;
+            } else if (userData.email) {
+              displayName = userData.email.split('@')[0];
+            }
+            
+            // Get initial from display name
+            const initial = displayName.charAt(0).toUpperCase();
+            
+            // Get department
+            const department = userData.department || 'No Department';
+            
+            // Get employee ID
+            const employeeId = userData.employeeId || userData._id?.substring(0, 8) || meal._id?.substring(0, 8) || 'No ID';
+            
+            return (
+              <tr key={index} className="hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
+                <td className="py-4 px-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+                      <span className="font-bold text-purple-600">
+                        {initial}
+                      </span>
                     </div>
-                  ) : allMeals.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-purple-50 dark:bg-gray-700">
-                          <tr>
-                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Employee</th>
-                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Date</th>
-                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Preference</th>
-                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Status</th>
-                            <th className="py-3 px-6 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                          {allMeals.map((meal, index) => (
-                            <tr key={index} className="hover:bg-purple-50 dark:hover:bg-gray-700 transition-colors">
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-                                    <span className="font-bold text-purple-600">
-                                      {meal.userInfo?.firstName?.charAt(0) || "U"}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-gray-900 dark:text-white">
-                                      {meal.userInfo?.firstName} {meal.userInfo?.lastName}
-                                    </p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">{meal.userInfo?.department}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="flex flex-col">
-                                  <span className="font-medium text-gray-900 dark:text-white">
-                                    {formatDate(meal.date)}
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    {meal.mealType === 'dinner' ? 'Dinner' : 'Lunch'}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-2">
-                                  {meal.preference === 'office' ? (
-                                    <Coffee className="text-purple-600" size={16} />
-                                  ) : (
-                                    <Pizza className="text-orange-600" size={16} />
-                                  )}
-                                  <span className="capitalize">{meal.preference}</span>
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-                                  meal.status === 'approved'
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                    : meal.status === 'pending'
-                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                                    : meal.status === 'cancelled'
-                                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                }`}>
-                                  {meal.status?.toUpperCase()}
-                                </span>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-2">
-                                  {/* In All Meals Tab - Actions buttons */}
-                                {meal.status === 'pending' && (
-                                  <>
-                                    <button
-                                      onClick={() => handleApproveRejectMeal(meal._id, 'approved')}
-                                      className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
-                                    >
-                                      Approve
-                                    </button>
-                                    <button
-                                      onClick={() => handleApproveRejectMeal(meal._id, 'rejected')}
-                                      className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
-                                    >
-                                      Reject
-                                    </button>
-                                  </>
-                                )}
-                                  {(meal.status === 'pending' || meal.status === 'approved') && (
-                                    <button
-                                      onClick={() => {
-                                        setSelectedMeal(meal);
-                                        setShowDeleteModal(true);
-                                      }}
-                                      className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="text-red-500" size={14} />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Utensils className="text-gray-400" size={24} />
-                      </div>
-                      <p className="text-gray-600 dark:text-gray-400">No meals found</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                        Change filters or create a new meal request
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {displayName}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {department}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        ID: {employeeId}
                       </p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                </td>
+                <td className="py-4 px-6">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {formatDate(meal.date)}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {meal.mealType === 'dinner' ? 'Dinner' : 'Lunch'}
+                    </span>
+                  </div>
+                </td>
+                <td className="py-4 px-6">
+                  <div className="flex items-center gap-2">
+                    {meal.preference === 'office' ? (
+                      <Coffee className="text-purple-600" size={16} />
+                    ) : (
+                      <Pizza className="text-orange-600" size={16} />
+                    )}
+                    <span className="capitalize">{meal.preference}</span>
+                  </div>
+                </td>
+                <td className="py-4 px-6">
+                  <span className={`px-3 py-1 text-xs rounded-full font-medium ${
+                    meal.status === 'approved'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                      : meal.status === 'pending'
+                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                      : meal.status === 'cancelled'
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                  }`}>
+                    {meal.status?.toUpperCase()}
+                  </span>
+                </td>
+                <td className="py-4 px-6">
+                  <div className="flex items-center gap-2">
+                    {meal.status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => handleApproveRejectMeal(meal._id, 'approved')}
+                          className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-xs transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleApproveRejectMeal(meal._id, 'rejected')}
+                          className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    {(meal.status === 'pending' || meal.status === 'approved') && (
+                      <button
+                        onClick={() => {
+                          setSelectedMeal(meal);
+                          setShowDeleteModal(true);
+                        }}
+                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="text-red-500" size={14} />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <div className="text-center py-12">
+      <div className="w-16 h-16 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+        <Utensils className="text-gray-400" size={24} />
+      </div>
+      <p className="text-gray-600 dark:text-gray-400">No meals found</p>
+      <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+        Change filters or create a new meal request
+      </p>
+    </div>
+  )}
+</div>
               </div>
             )}
 
@@ -2557,7 +2672,7 @@ const handleDeleteSubscription = async () => {
                       <select
                         value={selectedMonth}
                         onChange={(e) => setSelectedMonth(e.target.value)}
-                        className="px-4 py-2 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 text-white focus:outline-none"
+                        className="px-4 py-2 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 text-black focus:outline-none"
                       >
                         {getAvailableMonths().map(month => (
                           <option key={month} value={month}>
@@ -2580,7 +2695,7 @@ const handleDeleteSubscription = async () => {
                             document.body.appendChild(link);
                             link.click();
                             document.body.removeChild(link);
-                            toast.success("Report exported successfully!");
+                            alert("Report exported successfully!");
                           }
                         }}
                         className="px-6 py-2 bg-white text-purple-600 rounded-xl hover:bg-purple-50 font-medium transition-colors flex items-center gap-2"
@@ -3587,7 +3702,7 @@ const handleDeleteSubscription = async () => {
 
       {/* Delete Modal */}
       {showDeleteModal && (selectedSubscription || selectedMeal) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md">
             <div className="p-6 border-b border-purple-100 dark:border-gray-700">
               <div className="flex items-center justify-between">
@@ -3612,53 +3727,23 @@ const handleDeleteSubscription = async () => {
               </p>
               
               <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={selectedSubscription ? handleDeleteSubscription : handleCancelMealRequest}
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium"
-                >
-                  {selectedSubscription ? 'Delete' : 'Cancel'}
-                </button>
-              </div>
+  <button
+    onClick={() => setShowDeleteModal(false)}
+    className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+  >
+    No, Keep It
+  </button>
+  <button
+    onClick={selectedSubscription ? handleDeleteSubscription : handleCancelMealRequest}
+    className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium"
+  >
+    Yes, Cancel Meal
+  </button>
+</div>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Footer */}
-      <footer className={`mt-12 border-t ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-purple-100 bg-white'}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between">
-            <div className="mb-6 md:mb-0">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
-                  <Utensils className="text-white" size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    Meal Management System
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Office Meal Service</p>
-                </div>
-              </div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                © {new Date().getFullYear()} All rights reserved.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Version 1.0.0
-              </span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      )} 
     </div>
   );
 }

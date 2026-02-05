@@ -224,10 +224,6 @@ export default function page() {
       if (isAdmin && viewMode === 'all') {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/getAllAudits?${queryParams}`;
       } 
-      // User's own logs
-      // else if (viewMode === 'my' && userId) {
-      //   endpoint = `${process.env.NEXT_PUBLIC_API_URL}/my-logs`;
-      // }
       // Admin viewing specific user
       else if (isAdmin && filters.userId) {
         endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/getAllAudits/${filters.userId}?${queryParams}`;
@@ -520,12 +516,49 @@ export default function page() {
     });
   };
 
+  // ================== Test Functions ==================
+  const testAuditLog = async () => {
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error("Please login first");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/audit/test-audit`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success("Test logs created successfully! Check the list.", {
+          icon: '✅',
+          style: {
+            borderRadius: '10px',
+            background: '#10B981',
+            color: '#fff',
+          }
+        });
+        // Refresh logs after test
+        setTimeout(() => fetchAuditLogs(), 1000);
+      } else {
+        toast.error("Test failed: " + data.message);
+      }
+    } catch (error) {
+      console.error("Test error:", error);
+      toast.error("Test failed. Check console for details.");
+    }
+  };
+
   // Initialize on mount
   useEffect(() => {
     initializeData();
   }, [initializeData]);
 
-  // Helper functions for UI
+  // ================== UI Helper Functions ==================
   const getActionIcon = (action) => {
     if (!action) return <Activity className="w-5 h-5 text-gray-400" />;
     
@@ -565,20 +598,107 @@ export default function page() {
     return "bg-gray-50 text-gray-700 border-gray-100";
   };
 
-  const getDeviceIcon = (device) => {
-    if (!device) return <Smartphone className="w-4 h-4 text-gray-400" />;
+  // Improved device display functions
+  const getDeviceDisplay = (log) => {
+    if (!log) return 'Unknown Device';
     
-    const deviceLower = device.toLowerCase();
-    if (deviceLower.includes('mobile') || deviceLower.includes('android') || deviceLower.includes('iphone')) {
+    // First try to get device from log
+    if (log.device && log.device !== 'Unknown' && log.device !== 'Unknown Device') {
+      return log.device;
+    }
+    
+    // Then try deviceType
+    if (log.deviceType && log.deviceType !== 'unknown') {
+      const typeMap = {
+        'mobile': 'Mobile Phone',
+        'tablet': 'Tablet',
+        'desktop': 'Desktop/Laptop',
+        'bot': 'Bot/Crawler'
+      };
+      return typeMap[log.deviceType] || log.deviceType.charAt(0).toUpperCase() + log.deviceType.slice(1);
+    }
+    
+    // Finally try OS
+    if (log.os && log.os !== 'Unknown') {
+      return `${log.os} Device`;
+    }
+    
+    return 'Unknown Device';
+  };
+
+  const getBrowserDisplay = (log) => {
+    if (!log) return 'Unknown Browser';
+    
+    if (log.browser && log.browser !== 'Unknown') {
+      if (log.browserVersion && log.browserVersion !== 'Unknown') {
+        return `${log.browser} ${log.browserVersion}`;
+      }
+      return log.browser;
+    }
+    
+    return 'Unknown Browser';
+  };
+
+  const getOSDisplay = (log) => {
+    if (!log) return 'Unknown OS';
+    
+    if (log.os && log.os !== 'Unknown') {
+      if (log.osVersion && log.osVersion !== 'Unknown') {
+        return `${log.os} ${log.osVersion}`;
+      }
+      return log.os;
+    }
+    
+    return 'Unknown OS';
+  };
+
+  const getDeviceIcon = (device, deviceType) => {
+    const deviceLower = (device || '').toLowerCase();
+    const typeLower = (deviceType || '').toLowerCase();
+    
+    if (deviceLower.includes('iphone') || deviceLower.includes('mobile') || 
+        deviceLower.includes('android') || deviceLower.includes('phone') ||
+        typeLower === 'mobile') {
       return <Smartphone className="w-4 h-4 text-blue-500" />;
     }
-    if (deviceLower.includes('tablet') || deviceLower.includes('ipad')) {
+    if (deviceLower.includes('ipad') || deviceLower.includes('tablet') || 
+        typeLower === 'tablet') {
       return <Tablet className="w-4 h-4 text-purple-500" />;
     }
-    if (deviceLower.includes('desktop') || deviceLower.includes('windows') || deviceLower.includes('mac')) {
+    if (deviceLower.includes('mac') || deviceLower.includes('windows') || 
+        deviceLower.includes('desktop') || deviceLower.includes('laptop') ||
+        typeLower === 'desktop') {
       return <Laptop className="w-4 h-4 text-green-500" />;
     }
+    if (deviceLower.includes('bot') || typeLower === 'bot') {
+      return <Globe className="w-4 h-4 text-gray-500" />;
+    }
     return <Smartphone className="w-4 h-4 text-gray-400" />;
+  };
+
+  const getBrowserIcon = (browser) => {
+    if (!browser) return <Globe className="w-4 h-4 text-gray-400" />;
+    
+    const browserLower = browser.toLowerCase();
+    if (browserLower.includes('chrome')) {
+      return <Globe className="w-4 h-4 text-green-500" />;
+    }
+    if (browserLower.includes('firefox')) {
+      return <Globe className="w-4 h-4 text-orange-500" />;
+    }
+    if (browserLower.includes('safari')) {
+      return <Globe className="w-4 h-4 text-blue-500" />;
+    }
+    if (browserLower.includes('edge')) {
+      return <Globe className="w-4 h-4 text-indigo-500" />;
+    }
+    if (browserLower.includes('opera')) {
+      return <Globe className="w-4 h-4 text-red-500" />;
+    }
+    if (browserLower.includes('brave')) {
+      return <Globe className="w-4 h-4 text-yellow-500" />;
+    }
+    return <Globe className="w-4 h-4 text-gray-400" />;
   };
 
   const formatDate = (dateString) => {
@@ -651,8 +771,18 @@ export default function page() {
     );
   };
 
-  const safeString = (str, fallback = '') => {
-    return str || fallback;
+  const safeString = (str, fallback = '-') => {
+    if (str === undefined || str === null) return fallback;
+    if (typeof str === 'string' && str.trim() === '') return fallback;
+    if (typeof str === 'string' && str.toLowerCase() === 'unknown') return fallback;
+    if (typeof str === 'object') {
+      try {
+        return JSON.stringify(str).substring(0, 80) + '...';
+      } catch {
+        return 'Object';
+      }
+    }
+    return String(str);
   };
 
   // Loading state
@@ -707,7 +837,13 @@ export default function page() {
                 Refresh
               </button>
               
- 
+              <button
+                onClick={testAuditLog}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+              >
+                <Activity size={18} />
+                Test Tech Info
+              </button>
             </div>
           </div>
 
@@ -868,7 +1004,7 @@ export default function page() {
             <form onSubmit={handleSearch} className={`p-6 ${showFilters ? 'block' : 'hidden md:block'}`}>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {/* Search Input */}
-                <div>
+                {/* <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
                     <Search size={14} />
                     Quick Search
@@ -883,7 +1019,7 @@ export default function page() {
                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-300"
                     />
                   </div>
-                </div>
+                </div> */}
 
                 {/* Action Filter */}
                 <div>
@@ -941,7 +1077,7 @@ export default function page() {
                 <div className="mb-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* User ID Filter */}
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         User ID
                       </label>
@@ -952,10 +1088,10 @@ export default function page() {
                         placeholder="Enter user ID..."
                         className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-300"
                       />
-                    </div>
+                    </div> */}
 
                     {/* IP Address Filter */}
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         IP Address
                       </label>
@@ -966,10 +1102,10 @@ export default function page() {
                         placeholder="e.g., 192.168.1.1"
                         className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-300"
                       />
-                    </div>
+                    </div> */}
 
                     {/* Device Type Filter */}
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Device Type
                       </label>
@@ -984,7 +1120,7 @@ export default function page() {
                         <option value="desktop">Desktop</option>
                         <option value="unknown">Unknown</option>
                       </select>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               )}
@@ -1005,438 +1141,456 @@ export default function page() {
                 >
                   <XCircle size={18} />
                   Clear Filters
-                </button>
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const today = new Date().toISOString().split('T')[0];
-                      setFilters({
-                        ...filters,
-                        startDate: today,
-                        endDate: today
-                      });
-                    }}
-                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl font-semibold"
-                  >
-                    <Calendar size={18} />
-                    Today's Logs
-                  </button>
-                )}
+                </button> 
               </div>
             </form>
           </div>
 
           {/* Logs Table Section */}
-<div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-  <div className="p-4 md:p-6 border-b border-gray-100">
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <FileText className="text-indigo-600 flex-shrink-0" size={22} />
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 truncate">
-            Audit Logs
-          </h2>
-          <span className="text-sm font-normal text-gray-500 whitespace-nowrap">
-            ({logs.length} log{logs.length !== 1 ? 's' : ''} found)
-          </span>
-        </div>
-        <p className="text-gray-500 text-sm mt-1 truncate">
-          {viewMode === 'all' ? 'All system activities' : 'Your personal activity history'}
-        </p>
-      </div>
-      
-      <div className="flex items-center gap-2 md:gap-4 flex-wrap">
-        <div className="text-sm text-gray-500 bg-gray-50 px-2 md:px-3 py-1.5 rounded-lg whitespace-nowrap">
-          Page {currentPage} of {totalPages}
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-            className="p-2 md:p-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex-shrink-0"
-            title="Previous Page"
-          >
-            <ChevronRight className="rotate-180" size={18} />
-          </button>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-            className="p-2 md:p-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex-shrink-0"
-            title="Next Page"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {loading ? (
-    <div className="p-8 md:p-12 text-center">
-      <div className="inline-flex flex-col items-center">
-        <Loader2 size={48} className="animate-spin text-indigo-600 mb-4" />
-        <p className="text-gray-600 font-medium">Loading audit logs...</p>
-        <p className="text-gray-400 text-sm mt-2">Please wait while we fetch the data</p>
-      </div>
-    </div>
-  ) : logs.length === 0 ? (
-    <div className="p-8 md:p-12 text-center">
-      <div className="flex flex-col items-center justify-center">
-        <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
-          <FileText className="text-gray-400" size={24} />
-        </div>
-        <h3 className="text-lg font-semibold text-gray-700 mb-2">No audit logs found</h3>
-        <p className="text-gray-500 max-w-md mb-6 text-sm md:text-base">
-          {filters.search || filters.action || filters.startDate 
-            ? 'No logs match your filters. Try adjusting your search criteria.'
-            : 'No audit logs available for the selected view.'}
-        </p>
-        {(filters.search || filters.action || filters.startDate) && (
-          <button
-            onClick={clearFilters}
-            className="px-4 py-2 md:px-5 md:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 font-medium text-sm md:text-base"
-          >
-            Clear all filters
-          </button>
-        )}
-      </div>
-    </div>
-  ) : (
-    <>
-      {/* Mobile Card View for small screens */}
-      <div className="md:hidden p-4 space-y-4">
-        {logs.map((log) => (
-          <div key={log._id || Math.random()} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
-            {/* Header with Action and Actions */}
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex items-center gap-2">
-                {getActionIcon(safeString(log.action))}
-                <div>
-                  <h3 className="font-semibold text-gray-900 text-sm">
-                    {safeString(log.action, 'Unknown Action')}
-                  </h3>
-                  <div className="flex items-center gap-1 mt-1">
-                    <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getActionColor(safeString(log.action))}`}>
-                      {safeString(log.actionType, 'System')}
-                    </div>
-                    {getSeverityBadge(safeString(log.action))}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="p-4 md:p-6 border-b border-gray-100">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <FileText className="text-indigo-600 flex-shrink-0" size={22} />
+                    <h2 className="text-lg md:text-xl font-bold text-gray-900 truncate">
+                      Audit Logs
+                    </h2>
+                    <span className="text-sm font-normal text-gray-500 whitespace-nowrap">
+                      ({logs.length} log{logs.length !== 1 ? 's' : ''} found)
+                    </span>
+                  </div>
+                  <p className="text-gray-500 text-sm mt-1 truncate">
+                    {viewMode === 'all' ? 'All system activities' : 'Your personal activity history'}
+                  </p>
+                </div>
+                
+                <div className="flex items-center gap-2 md:gap-4 flex-wrap">
+                  <div className="text-sm text-gray-500 bg-gray-50 px-2 md:px-3 py-1.5 rounded-lg whitespace-nowrap">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 md:p-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex-shrink-0"
+                      title="Previous Page"
+                    >
+                      <ChevronRight className="rotate-180" size={18} />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 md:p-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex-shrink-0"
+                      title="Next Page"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => viewLogDetails(log)}
-                  className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                  title="View Details"
-                >
-                  <Eye size={16} />
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={() => deleteLog(log._id)}
-                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
-                    title="Delete Log"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
             </div>
 
-            {/* User Info (Admin only) */}
-            {isAdmin && viewMode === 'all' && log.userId && typeof log.userId === 'object' && (
-              <div className="mb-3 p-2 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <User size={14} className="text-gray-500" />
-                  <span className="text-xs font-medium text-gray-700">User:</span>
-                  <span className="text-xs text-gray-600 truncate">
-                    {safeString(log.userId.firstName)} {safeString(log.userId.lastName)}
-                  </span>
+            {loading ? (
+              <div className="p-8 md:p-12 text-center">
+                <div className="inline-flex flex-col items-center">
+                  <Loader2 size={48} className="animate-spin text-indigo-600 mb-4" />
+                  <p className="text-gray-600 font-medium">Loading audit logs...</p>
+                  <p className="text-gray-400 text-sm mt-2">Please wait while we fetch the data</p>
                 </div>
-                <div className="text-xs text-gray-500 truncate mt-1">
-                  {safeString(log.userId.email)}
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="p-8 md:p-12 text-center">
+                <div className="flex flex-col items-center justify-center">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
+                    <FileText className="text-gray-400" size={24} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">No audit logs found</h3>
+                  <p className="text-gray-500 max-w-md mb-6 text-sm md:text-base">
+                    {filters.search || filters.action || filters.startDate 
+                      ? 'No logs match your filters. Try adjusting your search criteria.'
+                      : 'No audit logs available for the selected view.'}
+                  </p>
+                  {(filters.search || filters.action || filters.startDate) && (
+                    <button
+                      onClick={clearFilters}
+                      className="px-4 py-2 md:px-5 md:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 font-medium text-sm md:text-base"
+                    >
+                      Clear all filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Mobile Card View for small screens */}
+                <div className="md:hidden p-4 space-y-4">
+                  {logs.map((log) => (
+                    <div key={log._id || Math.random()} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
+                      {/* Header with Action and Actions */}
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          {getActionIcon(safeString(log.action))}
+                          <div>
+                            <h3 className="font-semibold text-gray-900 text-sm">
+                              {safeString(log.action, 'Unknown Action')}
+                            </h3>
+                            <div className="flex items-center gap-1 mt-1">
+                              <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getActionColor(safeString(log.action))}`}>
+                                {safeString(log.actionType, 'System')}
+                              </div>
+                              {getSeverityBadge(safeString(log.action))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => viewLogDetails(log)}
+                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => deleteLog(log._id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                              title="Delete Log"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* User Info (Admin only) */}
+                      {isAdmin && viewMode === 'all' && log.userId && typeof log.userId === 'object' && (
+                        <div className="mb-3 p-2 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <User size={14} className="text-gray-500" />
+                            <span className="text-xs font-medium text-gray-700">User:</span>
+                            <span className="text-xs text-gray-600 truncate">
+                              {safeString(log.userId.firstName)} {safeString(log.userId.lastName)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 truncate mt-1">
+                            {safeString(log.userId.email)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Device, Browser, OS Info */}
+                      {/* <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="flex items-center gap-2">
+                          {getDeviceIcon(safeString(log.device), safeString(log.deviceType))}
+                          <div>
+                            <div className="text-xs font-medium text-gray-700">Device</div>
+                            <div className="text-xs text-gray-600 truncate">
+                              {getDeviceDisplay(log)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getBrowserIcon(safeString(log.browser))}
+                          <div>
+                            <div className="text-xs font-medium text-gray-700">Browser</div>
+                            <div className="text-xs text-gray-600 truncate">
+                              {getBrowserDisplay(log)}
+                            </div>
+                          </div>
+                        </div>
+                      </div> */}
+
+                      {/* OS and IP Info */}
+                      {/* <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="flex items-center gap-2">
+                          <HardDrive size={14} className="text-gray-400" />
+                          <div>
+                            <div className="text-xs font-medium text-gray-700">OS</div>
+                            <div className="text-xs text-gray-600 truncate">
+                              {getOSDisplay(log)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Wifi size={14} className="text-gray-400" />
+                          <div>
+                            <div className="text-xs font-medium text-gray-700">IP Address</div>
+                            <div className="text-xs text-gray-600 font-mono truncate">
+                              {safeString(log.ip, 'N/A')}
+                            </div>
+                          </div>
+                        </div>
+                      </div> */}
+
+                      {/* Details */}
+                      <div className="mb-3">
+                        <div className="text-xs font-medium text-gray-700 mb-1">Details:</div>
+                        <div className="text-sm text-gray-900 line-clamp-2">
+                          {typeof log.details === 'object' 
+                            ? JSON.stringify(log.details).substring(0, 100) + '...'
+                            : safeString(log.details, 'No details available').substring(0, 100)}
+                        </div>
+                      </div>
+
+                      {/* Timestamp */}
+                      <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                        <div>
+                          <div className="text-xs font-medium text-gray-900">
+                            {new Date(safeString(log.createdAt)).toLocaleDateString()}
+                          </div>
+                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                            <Clock size={10} />
+                            {new Date(safeString(log.createdAt)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {timeAgo(safeString(log.createdAt))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                  <div className="w-full">
+                    <div className="min-w-full divide-y divide-gray-200">
+                      {/* Table Header - Updated with new columns */}
+                      <div className="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <div className="grid grid-cols-12 gap-2 px-4 py-3">
+                          <div className="col-span-2">
+                            <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Action</div>
+                          </div>
+                          {isAdmin && viewMode === 'all' && (
+                            <div className="col-span-2">
+                              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">User</div>
+                            </div>
+                          )}
+                          {/* <div className="col-span-2">
+                            <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Device</div>
+                          </div>
+                          <div className="col-span-1">
+                            <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Browser</div>
+                          </div>
+                          <div className="col-span-1">
+                            <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">OS</div>
+                          </div>
+                          <div className="col-span-1">
+                            <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">IP</div>
+                          </div> */}
+                          <div className="col-span-1">
+                            <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Time</div>
+                          </div>
+                          <div className="col-span-1">
+                            <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Table Body */}
+                      <div className="divide-y divide-gray-100">
+                        {logs.map((log) => (
+                          <div key={log._id || Math.random()} className="hover:bg-gray-50 transition-colors duration-200">
+                            <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center">
+                              {/* Action Column */}
+                              <div className="col-span-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-shrink-0">
+                                    {getActionIcon(safeString(log.action))}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-medium text-gray-900 text-sm truncate" title={safeString(log.action)}>
+                                      {safeString(log.action, 'Unknown Action')}
+                                    </div>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <div className={`text-xs px-2 py-0.5 rounded-full ${getActionColor(safeString(log.action))}`}>
+                                        {safeString(log.actionType, 'System')}
+                                      </div>
+                                      {getSeverityBadge(safeString(log.action))}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* User Column (Admin only) */}
+                              {isAdmin && viewMode === 'all' && (
+                                <div className="col-span-2">
+                                  {log.userId && typeof log.userId === 'object' ? (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-8 h-8 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <User className="text-indigo-600" size={14} />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="font-medium text-gray-900 text-sm truncate">
+                                          {safeString(log.userId.firstName)} {safeString(log.userId.lastName)}
+                                        </div>
+                                        <div className="text-xs text-gray-500 truncate">
+                                          {safeString(log.userId.email)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-gray-400 italic">System Action</div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Device Column */}
+                              {/* <div className="col-span-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-shrink-0">
+                                    {getDeviceIcon(safeString(log.device), safeString(log.deviceType))}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-medium text-gray-900 text-sm truncate" title={getDeviceDisplay(log)}>
+                                      {getDeviceDisplay(log)}
+                                    </div>
+                                    <div className="text-xs text-gray-500 truncate">
+                                      {safeString(log.deviceType)}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div> */}
+
+                              {/* Browser Column */}
+                              {/* <div className="col-span-1">
+                                <div className="flex items-center gap-1">
+                                  {getBrowserIcon(safeString(log.browser))}
+                                  <div className="text-xs text-gray-700 truncate" title={getBrowserDisplay(log)}>
+                                    {safeString(log.browser).substring(0, 10)}
+                                  </div>
+                                </div>
+                              </div> */}
+
+                              {/* OS Column */}
+                              {/* <div className="col-span-1">
+                                <div className="text-xs text-gray-700 truncate" title={getOSDisplay(log)}>
+                                  {safeString(log.os).substring(0, 8)}
+                                </div>
+                              </div> */}
+
+                              {/* IP Column */}
+                              {/* <div className="col-span-1">
+                                <div className="flex items-center gap-1">
+                                  <Wifi size={10} className="text-gray-400 flex-shrink-0" />
+                                  <div className="font-mono text-xs text-gray-700 truncate" title={safeString(log.ip)}>
+                                    {safeString(log.ip)}
+                                  </div>
+                                </div>
+                              </div> */}
+
+                              {/* Timestamp Column */}
+                              <div className="col-span-1">
+                                <div className="flex flex-col">
+                                  <div className="text-xs font-medium text-gray-900 whitespace-nowrap">
+                                    {new Date(safeString(log.createdAt)).toLocaleDateString([], {month: 'short', day: 'numeric'})}
+                                  </div>
+                                  <div className="text-xs text-gray-500 whitespace-nowrap">
+                                    {new Date(safeString(log.createdAt)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Actions Column */}
+                              <div className="col-span-1">
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => viewLogDetails(log)}
+                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors duration-200"
+                                    title="View Details"
+                                  >
+                                    <Eye size={16} />
+                                  </button>
+                                  {isAdmin && (
+                                    <button
+                                      onClick={() => deleteLog(log._id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                                      title="Delete Log"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => copyToClipboard(JSON.stringify(log, null, 2))}
+                                    className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                                    title="Copy Log Data"
+                                  >
+                                    <Copy size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Pagination Footer */}
+            {logs.length > 0 && (
+              <div className="p-4 md:p-6 border-t border-gray-100">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="text-sm text-gray-500 whitespace-nowrap">
+                    Showing {((currentPage - 1) * 20) + 1} to {Math.min(currentPage * 20, totalLogs)} of {totalLogs} logs
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 md:px-4 md:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 text-sm"
+                    >
+                      <ChevronRight className="rotate-180" size={14} />
+                      Previous
+                    </button>
+                    <div className="flex gap-1">
+                      {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 2) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 1) {
+                          pageNum = totalPages - 2 + i;
+                        } else {
+                          pageNum = currentPage - 1 + i;
+                        }
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-8 h-8 md:w-10 md:h-10 rounded-lg transition-all duration-300 text-sm ${
+                              currentPage === pageNum
+                                ? 'bg-indigo-600 text-white shadow-md'
+                                : 'border border-gray-300 hover:bg-gray-50 text-gray-700'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1.5 md:px-4 md:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 text-sm"
+                    >
+                      Next
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
-
-            {/* Details */}
-            <div className="mb-3">
-              <div className="text-xs font-medium text-gray-700 mb-1">Details:</div>
-              <div className="text-sm text-gray-900 line-clamp-2">
-                {typeof log.details === 'object' 
-                  ? JSON.stringify(log.details).substring(0, 100) + '...'
-                  : safeString(log.details, 'No details available').substring(0, 100)}
-              </div>
-            </div>
-
-            {/* Device and IP */}
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="flex items-center gap-2">
-                {getDeviceIcon(safeString(log.device))}
-                <div>
-                  <div className="text-xs font-medium text-gray-700">Device</div>
-                  <div className="text-xs text-gray-600 truncate">
-                    {safeString(log.device, 'Unknown')}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Wifi size={14} className="text-gray-400" />
-                <div>
-                  <div className="text-xs font-medium text-gray-700">IP Address</div>
-                  <div className="text-xs text-gray-600 font-mono truncate">
-                    {safeString(log.ip, 'N/A')}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Timestamp */}
-            <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-              <div>
-                <div className="text-xs font-medium text-gray-900">
-                  {new Date(safeString(log.createdAt)).toLocaleDateString()}
-                </div>
-                <div className="text-xs text-gray-500 flex items-center gap-1">
-                  <Clock size={10} />
-                  {new Date(safeString(log.createdAt)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                </div>
-              </div>
-              <div className="text-xs text-gray-500">
-                {timeAgo(safeString(log.createdAt))}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Desktop Table View */}
-      <div className="hidden md:block">
-        <div className="w-full">
-          <div className="min-w-full divide-y divide-gray-200">
-            {/* Table Header */}
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100">
-              <div className="grid grid-cols-12 gap-2 px-4 py-3">
-                <div className="col-span-3">
-                  <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Action</div>
-                </div>
-                {isAdmin && viewMode === 'all' && (
-                  <div className="col-span-2">
-                    <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">User</div>
-                  </div>
-                )}
-                <div className={isAdmin && viewMode === 'all' ? 'col-span-3' : 'col-span-4'}>
-                  <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Details</div>
-                </div>
-                <div className="col-span-1">
-                  <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Device</div>
-                </div>
-                <div className="col-span-1">
-                  <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">IP</div>
-                </div>
-                <div className="col-span-1">
-                  <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Timestamp</div>
-                </div>
-                <div className="col-span-1">
-                  <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Table Body */}
-            <div className="divide-y divide-gray-100">
-              {logs.map((log) => (
-                <div key={log._id || Math.random()} className="hover:bg-gray-50 transition-colors duration-200">
-                  <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center">
-                    {/* Action Column */}
-                    <div className="col-span-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-shrink-0">
-                          {getActionIcon(safeString(log.action))}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-medium text-gray-900 text-sm truncate" title={safeString(log.action)}>
-                            {safeString(log.action, 'Unknown Action')}
-                          </div>
-                          <div className="flex items-center gap-1 mt-1">
-                            <div className={`text-xs px-2 py-0.5 rounded-full ${getActionColor(safeString(log.action))}`}>
-                              {safeString(log.actionType, 'System')}
-                            </div>
-                            {getSeverityBadge(safeString(log.action))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* User Column (Admin only) */}
-                    {isAdmin && viewMode === 'all' && (
-                      <div className="col-span-2">
-                        {log.userId && typeof log.userId === 'object' ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                              <User className="text-indigo-600" size={14} />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-medium text-gray-900 text-sm truncate">
-                                {safeString(log.userId.firstName)} {safeString(log.userId.lastName)}
-                              </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {safeString(log.userId.email)}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-400 italic">System Action</div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Details Column */}
-                    <div className={isAdmin && viewMode === 'all' ? 'col-span-3' : 'col-span-4'}>
-                      <div className="text-sm text-gray-900 truncate" title={safeString(log.details)}>
-                        {typeof log.details === 'object' 
-                          ? JSON.stringify(log.details).substring(0, 60) + '...'
-                          : safeString(log.details, 'No details').substring(0, 80)}
-                      </div>
-                      {log.additionalInfo && (
-                        <div className="text-xs text-gray-500 mt-0.5">
-                          + Additional info
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Device Column */}
-                    <div className="col-span-1">
-                      <div className="flex items-center gap-1">
-                        {getDeviceIcon(safeString(log.device))}
-                        <span className="text-sm text-gray-700 truncate" title={safeString(log.device)}>
-                          {safeString(log.device, 'Unknown').substring(0, 10)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* IP Column */}
-                    <div className="col-span-1">
-                      <div className="flex items-center gap-1">
-                        <Wifi size={12} className="text-gray-400 flex-shrink-0" />
-                        <div className="font-mono text-xs text-gray-700 truncate" title={safeString(log.ip)}>
-                          {safeString(log.ip, 'N/A')}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Timestamp Column */}
-                    <div className="col-span-1">
-                      <div className="flex flex-col">
-                        <div className="text-xs font-medium text-gray-900 whitespace-nowrap">
-                          {new Date(safeString(log.createdAt)).toLocaleDateString([], {month: 'short', day: 'numeric'})}
-                        </div>
-                        <div className="text-xs text-gray-500 whitespace-nowrap">
-                          {new Date(safeString(log.createdAt)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions Column */}
-                    <div className="col-span-1">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => viewLogDetails(log)}
-                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors duration-200"
-                          title="View Details"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => deleteLog(log._id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                            title="Delete Log"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => copyToClipboard(JSON.stringify(log, null, 2))}
-                          className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-                          title="Copy Log Data"
-                        >
-                          <Copy size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
-    </>
-  )}
 
-  {/* Pagination Footer */}
-  {logs.length > 0 && (
-    <div className="p-4 md:p-6 border-t border-gray-100">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="text-sm text-gray-500 whitespace-nowrap">
-          Showing {((currentPage - 1) * 20) + 1} to {Math.min(currentPage * 20, totalLogs)} of {totalLogs} logs
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1.5 md:px-4 md:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 text-sm"
-          >
-            <ChevronRight className="rotate-180" size={14} />
-            Previous
-          </button>
-          <div className="flex gap-1">
-            {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage <= 2) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 1) {
-                pageNum = totalPages - 2 + i;
-              } else {
-                pageNum = currentPage - 1 + i;
-              }
-              
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-8 h-8 md:w-10 md:h-10 rounded-lg transition-all duration-300 text-sm ${
-                    currentPage === pageNum
-                      ? 'bg-indigo-600 text-white shadow-md'
-                      : 'border border-gray-300 hover:bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-          </div>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1.5 md:px-4 md:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 text-sm"
-          >
-            Next
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
-  )}
-</div>
-        </div>
-      </div>
-
-      {/* Log Details Modal */}
+      {/* Log Details Modal - Updated */}
       {selectedLog && showDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -1560,34 +1714,44 @@ export default function page() {
                         )}
                       </div>
                       <div className="text-sm text-gray-600">
-                        Location: {safeString(selectedLog.location, 'Unknown')}
+                        Location: {selectedLog.location ? `${safeString(selectedLog.location.city)}, ${safeString(selectedLog.location.country)}` : 'Unknown'}
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
               
-              {/* Device Information */}
-              <div>
+              {/* Device Information - Updated */}
+              {/* <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <Laptop size={20} />
                   Device & Browser Information
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                     <div className="flex items-center gap-2 mb-2">
-                      {getDeviceIcon(safeString(selectedLog.device))}
-                      <span className="font-medium text-gray-700">Device Type</span>
+                      {getDeviceIcon(safeString(selectedLog.device), safeString(selectedLog.deviceType))}
+                      <span className="font-medium text-gray-700">Device</span>
                     </div>
-                    <div className="text-gray-900 font-semibold">{safeString(selectedLog.device, 'Unknown')}</div>
+                    <div className="text-gray-900 font-semibold">{getDeviceDisplay(selectedLog)}</div>
+                    {selectedLog.deviceType && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Type: {safeString(selectedLog.deviceType)}
+                      </div>
+                    )}
                   </div>
                   
                   <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                     <div className="flex items-center gap-2 mb-2">
-                      <Globe className="text-blue-500" size={16} />
+                      {getBrowserIcon(safeString(selectedLog.browser))}
                       <span className="font-medium text-gray-700">Browser</span>
                     </div>
-                    <div className="text-gray-900 font-semibold">{safeString(selectedLog.browser, 'Unknown')}</div>
+                    <div className="text-gray-900 font-semibold">{getBrowserDisplay(selectedLog)}</div>
+                    {selectedLog.userAgent && (
+                      <div className="text-xs text-gray-500 mt-1 truncate" title={selectedLog.userAgent}>
+                        User Agent: {selectedLog.userAgent.substring(0, 30)}...
+                      </div>
+                    )}
                   </div>
                   
                   <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
@@ -1595,10 +1759,33 @@ export default function page() {
                       <HardDrive className="text-green-500" size={16} />
                       <span className="font-medium text-gray-700">Operating System</span>
                     </div>
-                    <div className="text-gray-900 font-semibold">{safeString(selectedLog.os, 'Unknown')}</div>
+                    <div className="text-gray-900 font-semibold">{getOSDisplay(selectedLog)}</div>
+                    {selectedLog.osVersion && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Version: {safeString(selectedLog.osVersion)}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MapPin className="text-red-500" size={16} />
+                      <span className="font-medium text-gray-700">Location</span>
+                    </div>
+                    <div className="text-gray-900 font-semibold">
+                      {selectedLog.location ? (
+                        <>
+                          {safeString(selectedLog.location.city)}
+                          {selectedLog.location.region && `, ${selectedLog.location.region}`}
+                          <div className="text-xs text-gray-500">
+                            {safeString(selectedLog.location.country)}
+                          </div>
+                        </>
+                      ) : 'Unknown'}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </div> */}
               
               {/* Additional Information */}
               {selectedLog.additionalInfo && (
@@ -1627,12 +1814,21 @@ export default function page() {
                     {getSeverityBadge(safeString(selectedLog.action))}
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-gray-700 mb-1">Risk Assessment</div>
+                    <div className="text-sm font-medium text-gray-700 mb-1">Status</div>
                     <div className="text-sm text-gray-600">
-                      {selectedLog.action && (selectedLog.action.toLowerCase().includes('delete') || 
-                       selectedLog.action.toLowerCase().includes('security')) 
-                        ? 'High risk action detected'
-                        : 'Standard security level'}
+                      {selectedLog.status === 'success' ? (
+                        <span className="flex items-center gap-1 text-green-600">
+                          <CheckCircle size={14} />
+                          Success
+                        </span>
+                      ) : selectedLog.status === 'failed' ? (
+                        <span className="flex items-center gap-1 text-red-600">
+                          <AlertCircle size={14} />
+                          Failed
+                        </span>
+                      ) : (
+                        <span className="text-yellow-600">Pending</span>
+                      )}
                     </div>
                   </div>
                 </div>

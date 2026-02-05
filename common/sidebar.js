@@ -156,6 +156,14 @@ export default function Sidebar() {
     const fetchUserData = () => {
       try {
         if (typeof window !== 'undefined') {
+          // Check cache expiry first
+          const expiry = localStorage.getItem('cacheExpiry');
+          if (expiry && Date.now() > parseInt(expiry)) {
+            console.log("Cache expired, clearing authentication...");
+            handleAutoLogout();
+            return;
+          }
+
           const adminData = localStorage.getItem('adminData');
           const employeeData = localStorage.getItem('employeeData');
           const moderatorData = localStorage.getItem('moderatorData');
@@ -256,11 +264,62 @@ export default function Sidebar() {
   const isEmployee = userData.role === 'employee';
   const isSuperAdmin = userData.isSuperAdmin;
 
+  // Auto logout when cache expires
+  const handleAutoLogout = () => {
+    console.log("Auto logout triggered");
+    
+    // Clear only authentication data, keep other cache
+    const keysToRemove = [
+      'adminToken',
+      'employeeToken', 
+      'moderatorToken',
+      'authToken',
+      'adminData',
+      'employeeData',
+      'moderatorData',
+      'userData',
+      'currentUserRole',
+      'token',
+      'auth_token',
+      'refresh_token',
+      'session_token',
+      'cacheExpiry'
+    ];
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Keep these cache items: sidebarCollapsed, theme, language, etc.
+    
+    // Reset user data
+    setUserData({
+      name: "User",
+      role: "employee",
+      email: "",
+      phone: "",
+      employeeId: "",
+      picture: null,
+      permissions: [],
+      isSuperAdmin: false,
+      moderatorLevel: "junior",
+      canModerateUsers: false,
+      canModerateContent: true,
+      canViewReports: true,
+      canManageReports: false
+    });
+    
+    // Redirect to login
+    router.push("/");
+    
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 100);
+  };
+
   // Common menus for all roles (ONLY Profile)
   const commonMenus = [
     { 
       name: "Profile", 
-      icon: <User size={20} />, // Changed from UserCog to User
+      icon: <User size={20} />,
       path: "/profile", 
       roles: ['admin', 'moderator', 'employee'],
       showForAll: true
@@ -269,12 +328,6 @@ export default function Sidebar() {
 
   // Employee specific menus
   const employeeMenus = [
-    { 
-      name: "Dashboard", 
-      icon: <Home size={20} />, 
-      path: "/employeeDashboard", 
-      roles: ['employee'],
-    },
     { 
       name: "Attendance", 
       icon: <Clock size={20} />, 
@@ -307,26 +360,20 @@ export default function Sidebar() {
     },
     { 
       name: "Audit Logs", 
-      icon: <FileClock size={20} />, // Changed from Shield to FileClock
+      icon: <FileClock size={20} />,
       path: "/audit", 
       roles: ['employee'],
     },
-        { 
+    { 
       name: "Shift Schedule", 
-      icon: <CalendarClock size={20} />, // Changed from UserCog to CalendarClock
+      icon: <CalendarClock size={20} />,
       path: "/shift-schedule", 
       roles: ['employee'],
       showForAll: true
     },
-    // { 
-    //   name: "Session Logs", 
-    //   icon: <History size={20} />, // Changed from Activity to History
-    //   path: "/session", 
-    //   roles: ['employee'],
-    // },
     { 
       name: "Meal Management", 
-      icon: <Utensils size={20} />, // Changed from Key to Utensils
+      icon: <Utensils size={20} />,
       path: "/meal", 
       roles: ['employee'],
     },
@@ -340,30 +387,6 @@ export default function Sidebar() {
       path: "/moderatorDashboard", 
       roles: ['moderator'],
     },
-    // { 
-    //   name: "Reports", 
-    //   icon: <BarChart3 size={20} />, 
-    //   path: "/reports", 
-    //   roles: ['moderator'],
-    // },
-    // { 
-    //   name: "Audit Logs", 
-    //   icon: <FileClock size={20} />, // Changed from Shield to FileClock
-    //   path: "/audit", 
-    //   roles: ['moderator'],
-    // },
-    // { 
-    //   name: "Session Logs", 
-    //   icon: <History size={20} />, // Changed from Activity to History
-    //   path: "/session", 
-    //   roles: ['moderator'],
-    // },
-    // { 
-    //   name: "Content Review", 
-    //   icon: <Eye size={20} />, 
-    //   path: "/content-review", 
-    //   roles: ['moderator'],
-    // },
   ];
 
   // Admin specific menus
@@ -404,65 +427,35 @@ export default function Sidebar() {
       path: "/holiday", 
       roles: ['admin'],
     },
-    // { 
-    //   name: "Reports", 
-    //   icon: <BarChart3 size={20} />, 
-    //   path: "/reports", 
-    //   roles: ['admin'],
-    // },
-        { 
+    { 
       name: "Shift Schedule", 
-      icon: <CalendarClock size={20} />, // Changed from UserCog to CalendarClock
+      icon: <CalendarClock size={20} />,
       path: "/shift-schedule", 
       roles: ['admin'],
       showForAll: true
     },
     { 
       name: "Audit Logs", 
-      icon: <FileClock size={20} />, // Changed from Shield to FileClock
+      icon: <FileClock size={20} />,
       path: "/audit", 
       roles: ['admin'],
     },
-    // { 
-    //   name: "Session Logs", 
-    //   icon: <History size={20} />, // Changed from Activity to History
-    //   path: "/session", 
-    //   roles: ['admin'],
-    // },
     { 
       name: "User Roles", 
-      icon: <Shield size={20} />, // Changed from Key to Shield
+      icon: <Shield size={20} />,
       path: "/user-roles", 
       roles: ['admin'],
     },
     { 
       name: "Meal Management", 
-      icon: <Utensils size={20} />, // Changed from Key to Utensils
+      icon: <Utensils size={20} />,
       path: "/meal", 
       roles: ['admin'],
     },
-    // { 
-    //   name: "System Settings", 
-    //   icon: <Settings size={20} />, 
-    //   path: "/settings", 
-    //   roles: ['admin'],
-    // },
   ];
 
   // Cost Details Submenus (Only for Admin and Moderator)
   const costDetailsSubmenus = [
-    // { 
-    //   name: "Cost Dashboard", 
-    //   icon: <PieChart size={18} />, 
-    //   href: "/cost-dashboard",
-    //   roles: ['admin', 'moderator'], 
-    // },
-    // { 
-    //   name: "Employee Costs", 
-    //   icon: <Users size={18} />, // Changed from User to Users
-    //   href: "/cost/employees",
-    //   roles: ['admin', 'moderator'], 
-    // },
     { 
       name: "Office Rent", 
       icon: <Building2 size={18} />, 
@@ -471,7 +464,7 @@ export default function Sidebar() {
     },
     { 
       name: "Utility Bills", 
-      icon: <FileText size={18} />, // Changed from DollarSign to FileText
+      icon: <FileText size={18} />,
       href: "/utilityBills",
       roles: ['admin', 'moderator'],
     },
@@ -485,7 +478,7 @@ export default function Sidebar() {
       name: "Software Subscriptions", 
       icon: <Cloud size={18} />, 
       href: "/subscriptions",
-      roles: ['admin', 'moderator'], 
+      roles: ['admin'], 
     },
     { 
       name: "Food Cost", 
@@ -576,23 +569,53 @@ export default function Sidebar() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('employeeToken');
-    localStorage.removeItem('moderatorToken');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('adminData');
-    localStorage.removeItem('employeeData');
-    localStorage.removeItem('moderatorData');
-    localStorage.removeItem('userData');
-    localStorage.removeItem('currentUserRole');
-    localStorage.removeItem('token');
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('session_token');
-    localStorage.removeItem('cacheExpiry');
+    console.log("Manual logout triggered - Clearing authentication only");
     
-    sessionStorage.clear();
+    // Define authentication keys to remove
+    const authKeysToRemove = [
+      'adminToken',
+      'employeeToken', 
+      'moderatorToken',
+      'authToken',
+      'adminData',
+      'employeeData',
+      'moderatorData',
+      'userData',
+      'currentUserRole',
+      'token',
+      'auth_token',
+      'refresh_token',
+      'session_token',
+      'cacheExpiry'
+    ];
     
+    // Remove only authentication keys
+    authKeysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+      console.log(`Removed auth key: ${key}`);
+    });
+    
+    // Define cache keys to KEEP (these will NOT be removed)
+    const cacheKeysToKeep = [
+      'sidebarCollapsed',    // Sidebar state
+      'theme',               // Theme preference
+      'language',            // Language preference
+      'recentSearches',      // Search history
+      'tableFilters',        // Table filter preferences
+      'formDataCache',       // Form data cache
+      'notifications',       // Notification preferences
+      'userPreferences',     // Other user preferences
+      'dashboardLayout',     // Dashboard layout
+      'lastVisitedPages',    // Navigation history
+      'settings'             // App settings
+    ];
+    
+    console.log("Keeping cache keys:", cacheKeysToKeep);
+    
+    // Clear sessionStorage (optional - depends on your needs)
+    // sessionStorage.clear(); // Uncomment if you want to clear sessionStorage
+    
+    // Reset user data state
     setUserData({
       name: "User",
       role: "employee",
@@ -609,11 +632,33 @@ export default function Sidebar() {
       canManageReports: false
     });
     
+    // Show logout confirmation
+    console.log("Logout successful. Authentication cleared, cache preserved.");
+    
+    // Dispatch event for other components
+    window.dispatchEvent(new Event('userLoggedOut'));
+    
+    // Redirect to login page
     router.push("/");
     
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 100);
+    // Optional: Show toast notification
+    if (typeof window !== 'undefined') {
+      // You can add a toast notification here
+      setTimeout(() => {
+        // Reload to ensure clean state
+        window.location.href = "/";
+      }, 100);
+    }
+  };
+
+  // Function to clear ALL cache (for development/testing)
+  const clearAllCache = () => {
+    if (confirm("Are you sure you want to clear ALL cache including preferences?")) {
+      localStorage.clear();
+      sessionStorage.clear();
+      console.log("All cache cleared");
+      window.location.reload();
+    }
   };
 
   const handleLinkClick = () => {
@@ -1108,6 +1153,17 @@ export default function Sidebar() {
                       )}
                     </div>
                   )}
+                  
+                  {/* Cache info (for debugging) */}
+                  {/* <div className="mt-4 pt-3 border-t border-purple-700/30">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-purple-300">Cache Status:</span>
+                      <span className="text-green-400 font-medium">Preserved ✓</span>
+                    </div>
+                    <div className="mt-1 text-xs text-purple-400">
+                      Sidebar state, theme, preferences will be kept
+                    </div>
+                  </div> */}
                 </div>
               </div>
             )}
@@ -1170,10 +1226,13 @@ export default function Sidebar() {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="p-2.5 bg-gradient-to-r from-red-600/20 to-red-700/20 text-red-300 hover:text-white hover:from-red-600/30 hover:to-red-700/30 rounded-xl border border-red-800/30 transition-all duration-200 hover:scale-110 active:scale-95"
-                  title="Logout"
+                  className="p-2.5 bg-gradient-to-r from-red-600/20 to-red-700/20 text-red-300 hover:text-white hover:from-red-600/30 hover:to-red-700/30 rounded-xl border border-red-800/30 transition-all duration-200 hover:scale-110 active:scale-95 group relative"
+                  title="Logout (Preserves Cache)"
                 >
                   <LogOut size={18} />
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                    Logout (Cache preserved)
+                  </div>
                 </button>
               </div>
             ) : (
@@ -1223,11 +1282,25 @@ export default function Sidebar() {
 
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600/20 to-red-700/20 text-red-300 hover:text-white hover:from-red-600/30 hover:to-red-700/30 rounded-xl border border-red-800/30 transition-all duration-200 group hover:scale-[1.02] active:scale-[0.98]"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600/20 to-red-700/20 text-red-300 hover:text-white hover:from-red-600/30 hover:to-red-700/30 rounded-xl border border-red-800/30 transition-all duration-200 group hover:scale-[1.02] active:scale-[0.98] relative"
+                  title="Logout (Cache will be preserved)"
                 >
                   <LogOut size={18} className="group-hover:rotate-180 transition-transform duration-300" />
                   <span className="font-medium">Logout</span>
+                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                    Cache will be preserved
+                  </div>
                 </button>
+                
+                {/* Cache info for debugging */}
+                <div className="text-center">
+                  <div className="text-xs text-purple-400">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      Cache preserved on logout
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>

@@ -3665,11 +3665,11 @@ const getInitials = (name) => {
                 
                 <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs text-gray-500">
                   <span>Requested: {formatDateTime(leave.createdAt || leave.appliedDate)}</span>
-                  {!isAdmin && leave.status === 'Pending' && (
+                  {/* {!isAdmin && leave.status === 'Pending' && (
                     <span className="text-yellow-600">
                       (Editable until approved)
                     </span>
-                  )}
+                  )} */}
                 </div>
               </div>
             </div>

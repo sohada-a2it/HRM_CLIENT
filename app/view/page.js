@@ -225,7 +225,7 @@ function UserViewContent() {
           <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
           <h3 className="mt-4 text-lg font-semibold">User not found</h3>
           <button
-            onClick={() => router.push('/admin/users')}
+            onClick={() => router.push('/user-roles')}
             className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg"
           >
             Back to Users
@@ -240,13 +240,13 @@ function UserViewContent() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <button
+          {/* <button
             onClick={handleBack}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft size={20} />
             Back to {redirect === 'dashboard' ? 'Dashboard' : 'Users'}
-          </button>
+          </button> */}
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -594,7 +594,7 @@ function UserViewContent() {
                   <p className="text-gray-900 font-semibold capitalize">{user.salaryType || "monthly"}</p>
                 </div>
                 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">
                     Rate
                   </label>
@@ -602,7 +602,7 @@ function UserViewContent() {
                     <DollarSign className="text-gray-400" size={16} />
                     <p className="text-gray-900 font-semibold">৳{formatCurrency(user.rate || 0)}</p>
                   </div>
-                </div>
+                </div> */}
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">
@@ -611,7 +611,7 @@ function UserViewContent() {
                   <p className="text-gray-900 font-semibold">৳{formatCurrency(user.basicSalary || 0)}</p>
                 </div>
                 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">
                     Total Salary
                   </label>
@@ -621,7 +621,7 @@ function UserViewContent() {
                       ৳{formatCurrency(user.salary || 0)}
                     </p>
                   </div>
-                </div>
+                </div> */}
               </div>
             </div>
 
@@ -640,91 +640,7 @@ function UserViewContent() {
                   <p className="text-gray-900 font-semibold">
                     ৳{formatCurrency(user.salaryStructure?.basicSalary || user.basicSalary || 0)}
                   </p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    House Rent
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Home className="text-gray-400" size={16} />
-                    <p className="text-gray-900 font-semibold">
-                      ৳{formatCurrency(user.salaryStructure?.houseRent || 0)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    Medical Allowance
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Stethoscope className="text-gray-400" size={16} />
-                    <p className="text-gray-900 font-semibold">
-                      ৳{formatCurrency(user.salaryStructure?.medicalAllowance || 0)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    Conveyance
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Car className="text-gray-400" size={16} />
-                    <p className="text-gray-900 font-semibold">
-                      ৳{formatCurrency(user.salaryStructure?.conveyance || 0)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    Other Allowances
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Package className="text-gray-400" size={16} />
-                    <p className="text-gray-900 font-semibold">
-                      ৳{formatCurrency(user.salaryStructure?.otherAllowances || 0)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    Gross Salary
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="text-gray-400" size={16} />
-                    <p className="text-gray-900 font-semibold text-green-600">
-                      ৳{formatCurrency(user.salaryStructure?.grossSalary || user.salary || 0)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    Provident Fund
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Scale className="text-gray-400" size={16} />
-                    <p className="text-gray-900 font-semibold">
-                      ৳{formatCurrency(user.salaryStructure?.providentFund || 0)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    Tax
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Percent className="text-gray-400" size={16} />
-                    <p className="text-gray-900 font-semibold">
-                      ৳{formatCurrency(user.salaryStructure?.tax || 0)}
-                    </p>
-                  </div>
-                </div>
+                </div> 
               </div>
             </div>
 

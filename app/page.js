@@ -5,7 +5,7 @@ import api from "./lib/api";
 import { useRouter } from "next/navigation";
 import { Toaster, toast } from "react-hot-toast";
 
-const UnifiedLogin = () => {
+const page = () => {
   const router = useRouter();
   
   // State for form fields
@@ -620,4 +620,4 @@ const UnifiedLogin = () => {
   );
 };
 
-export default UnifiedLogin;
+export default page;

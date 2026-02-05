@@ -19,7 +19,7 @@ Font.register({
   ],
 });
 
-// ✅ Late/Early Calculation Function (Frontend এর মতোই)
+// ✅ Late/Early Calculation Function
 const calculateLateEarlyMinutes = (clockInTime, shiftStart, recordStatus, lateThreshold = 5, earlyThreshold = 1) => {
   const nonWorkingStatuses = ['Absent', 'Leave', 'Govt Holiday', 'Weekly Off', 'Off Day', 'Holiday'];
   
@@ -107,7 +107,7 @@ const calculateLateEarlyMinutes = (clockInTime, shiftStart, recordStatus, lateTh
       
       return { 
         isLate: false, 
-        isEarly: false, 
+ isEarly: false, 
         minutes: Math.abs(diffMinutes), 
         details,
         status: `Present (On Time)`
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   
-  // Summary Section - Made Smaller
+  // Summary Section
   summarySection: {
     marginBottom: 15,
   },
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E2E8F0",
   },
   
-  // Summary Cards made smaller and more compact
+  // Summary Cards
   summaryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   
   summaryCard: {
     flex: 1,
-    minWidth: "23%", // 4 cards per row instead of 2
+    minWidth: "23%",
     padding: 8,
     borderRadius: 6,
     marginBottom: 6,
@@ -306,6 +306,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   
+  // টেবিল হেডারে Name কলাম
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#4C51BF",
@@ -318,6 +319,15 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "bold",
     flex: 1,
+    textAlign: "center",
+  },
+  
+  // Name কলামের হেডার একটু বড়
+  nameHeader: {
+    fontSize: 8,
+    color: "#FFFFFF",
+    fontWeight: "bold",
+    flex: 1.4, // আরও বেশি জায়গা
     textAlign: "center",
   },
   
@@ -341,7 +351,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   
-  // FIXED: Status Badge colors - using HEX colors directly
+  // Name কলামের জন্য আলাদা স্টাইল
+  nameCell: {
+    fontSize: 7,
+    color: "#2D3748",
+    flex: 1.4, // আরও বেশি জায়গা
+    textAlign: "left",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  
+  employeeName: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#2D3748",
+    marginBottom: 2,
+  },
+  
+  employeeId: {
+    fontSize: 6.5,
+    color: "#718096",
+    fontStyle: "italic",
+  },
+  
+  employeeDept: {
+    fontSize: 6,
+    color: "#4A5568",
+  },
+  
   statusBadge: {
     fontSize: 6.5,
     paddingHorizontal: 6,
@@ -351,7 +388,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   
-  // Late/Early Badges with fixed colors
+  // Late/Early Badges
   lateEarlyBadge: {
     fontSize: 6.5,
     paddingHorizontal: 5,
@@ -418,7 +455,8 @@ const AttendanceReportPDF = ({
   summary = {}, 
   userData = {}, 
   isAdmin = false,
-  selectedEmployeeName = '' 
+  selectedEmployeeName = '',
+  employeeDetails = {} // ✅ নতুন প্রপস যোগ করুন
 }) => {
   // ✅ ফাংশনগুলো ডিফাইন করুন
   const formatDate = (dateString) => {
@@ -439,7 +477,7 @@ const AttendanceReportPDF = ({
     }
   };
   
-  // ✅ Status colors function - FIXED
+  // ✅ Status colors function
   const getStatusColor = (status) => {
     const colorMap = {
       'Present': '#38A169',
@@ -505,7 +543,115 @@ const AttendanceReportPDF = ({
   const totalHours = attendance.reduce((sum, a) => sum + (a.totalHours || 0), 0);
   const attendanceRate = attendance.length > 0 ? (presentCount / attendance.length) * 100 : 0;
   
-  // ✅ SMALLER Summary cards - with 8 cards total
+  // ✅ Employee name extraction function - IMPROVED
+  const getEmployeeName = (record) => {
+    // যদি রেকর্ডে employee ডেটা থাকে এবং তা অবজেক্ট হয়
+    if (record.employee && typeof record.employee === 'object') {
+      // প্রথমে fullName চেক করুন
+      if (record.employee.fullName) {
+        return record.employee.fullName;
+      }
+      // তারপর name চেক করুন
+      if (record.employee.name) {
+        return record.employee.name;
+      }
+      // firstName + lastName
+      if (record.employee.firstName && record.employee.lastName) {
+        return `${record.employee.firstName} ${record.employee.lastName}`;
+      }
+      // firstName only
+      if (record.employee.firstName) {
+        return record.employee.firstName;
+      }
+    }
+    
+    // যদি রেকর্ডে userId বা employeeId থাকে এবং employeeDetails থেকে নাম পাওয়া যায়
+    if (record.userId && employeeDetails[record.userId]) {
+      const emp = employeeDetails[record.userId];
+      if (emp.fullName) return emp.fullName;
+      if (emp.name) return emp.name;
+      if (emp.firstName && emp.lastName) return `${emp.firstName} ${emp.lastName}`;
+      if (emp.firstName) return emp.firstName;
+    }
+    
+    // যদি রেকর্ডে employeeId থাকে এবং employeeDetails থেকে নাম পাওয়া যায়
+    if (record.employeeId && employeeDetails[record.employeeId]) {
+      const emp = employeeDetails[record.employeeId];
+      if (emp.fullName) return emp.fullName;
+      if (emp.name) return emp.name;
+      if (emp.firstName && emp.lastName) return `${emp.firstName} ${emp.lastName}`;
+      if (emp.firstName) return emp.firstName;
+    }
+    
+    // যদি userData থেকে নাম পাওয়া যায়
+    if (userData.fullName) {
+      return userData.fullName;
+    }
+    if (userData.name) {
+      return userData.name;
+    }
+    if (userData.firstName && userData.lastName) {
+      return `${userData.firstName} ${userData.lastName}`;
+    }
+    if (userData.firstName) {
+      return userData.firstName;
+    }
+    
+    // যদি filters এ selectedEmployeeName থাকে
+    if (selectedEmployeeName && selectedEmployeeName !== "Employee") {
+      return selectedEmployeeName;
+    }
+    
+    // ডিফল্ট
+    return "Employee";
+  };
+  
+  // ✅ Employee ID extraction function
+  const getEmployeeId = (record) => {
+    if (record.employee && typeof record.employee === 'object') {
+      if (record.employee.employeeId) {
+        return `ID: ${record.employee.employeeId}`;
+      }
+      if (record.employee._id) {
+        return `ID: ${record.employee._id.substring(0, 8)}`;
+      }
+    }
+    
+    if (record.employeeId) {
+      return `ID: ${record.employeeId}`;
+    }
+    
+    if (record.userId && employeeDetails[record.userId]?.employeeId) {
+      return `ID: ${employeeDetails[record.userId].employeeId}`;
+    }
+    
+    if (userData.employeeId) {
+      return `ID: ${userData.employeeId}`;
+    }
+    
+    return "";
+  };
+  
+  // ✅ Department extraction function
+  const getEmployeeDepartment = (record) => {
+    if (record.employee && typeof record.employee === 'object') {
+      if (record.employee.department) {
+        return record.employee.department;
+      }
+    }
+    
+    if (record.userId && employeeDetails[record.userId]?.department) {
+      return employeeDetails[record.userId].department;
+    }
+    
+    if (userData.department) {
+      return userData.department;
+    }
+    
+    return "";
+  };
+  
+  // ✅ SMALLER Summary cards
   const summaryCards = [
     { 
       label: "Total Days", 
@@ -565,7 +711,7 @@ const AttendanceReportPDF = ({
   if (filters?.status && filters.status !== 'all') {
     filterBadges.push(`Status: ${filters.status}`);
   }
-  if (filters?.employeeId && selectedEmployeeName) {
+  if (filters?.employeeId && selectedEmployeeName && selectedEmployeeName !== "Employee") {
     filterBadges.push(`Employee: ${selectedEmployeeName}`);
   }
   if (filters?.search) {
@@ -604,24 +750,34 @@ const AttendanceReportPDF = ({
           </View>
         </View>
         
-        {/* Employee Information */}
-        {isAdmin && selectedEmployeeName && (
+        {/* Employee Information - যদি শুধু একজন এমপ্লয়ির রিপোর্ট হয় */}
+        {!isAdmin && userData.name && (
           <View style={[styles.filtersSection, { backgroundColor: '#EBF4FF', borderLeftWidth: 4, borderLeftColor: '#4299E1' }]}>
             <Text style={[styles.filtersTitle, { color: '#2B6CB0' }]}>
               Employee Information
             </Text>
             <View style={styles.filtersGrid}>
               <Text style={[styles.filterBadge, { backgroundColor: '#BEE3F8', color: '#2C5282' }]}>
-                Name: {selectedEmployeeName}
+                Name: {userData.fullName || userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim()}
               </Text>
-              <Text style={[styles.filterBadge, { backgroundColor: '#C6F6D5', color: '#22543D' }]}>
+              {userData.employeeId && (
+                <Text style={[styles.filterBadge, { backgroundColor: '#C6F6D5', color: '#22543D' }]}>
+                  ID: {userData.employeeId}
+                </Text>
+              )}
+              {userData.department && (
+                <Text style={[styles.filterBadge, { backgroundColor: '#E9D8FD', color: '#553C9A' }]}>
+                  Department: {userData.department}
+                </Text>
+              )}
+              <Text style={[styles.filterBadge, { backgroundColor: '#FED7D7', color: '#9B2C2C' }]}>
                 Report Period: {formatDate(dateRange.startDate)} to {formatDate(dateRange.endDate)}
               </Text>
             </View>
           </View>
         )}
         
-        {/* Summary Section - Made Compact */}
+        {/* Summary Section */}
         <View style={styles.summarySection}>
           <Text style={styles.summaryTitle}>Attendance Summary</Text>
           <View style={styles.summaryGrid}>
@@ -657,9 +813,10 @@ const AttendanceReportPDF = ({
         <View style={styles.tableSection}>
           <Text style={styles.tableTitle}>Attendance Details</Text>
           <View style={styles.table}>
-            {/* Table Header */}
+            {/* Table Header - Name কলাম সহ */}
             <View style={styles.tableHeader}>
               <Text style={styles.tableHeaderText}>Date</Text>
+              <Text style={styles.nameHeader}>Name</Text>
               <Text style={styles.tableHeaderText}>Shift</Text>
               <Text style={styles.tableHeaderText}>Clock In</Text>
               <Text style={styles.tableHeaderText}>Clock Out</Text>
@@ -703,6 +860,11 @@ const AttendanceReportPDF = ({
                 punctualityText = "ON TIME";
               }
               
+              // ✅ Get employee details
+              const employeeName = getEmployeeName(record);
+              const employeeId = getEmployeeId(record);
+              const employeeDept = getEmployeeDepartment(record);
+              
               return (
                 <View 
                   key={record._id || index} 
@@ -719,6 +881,23 @@ const AttendanceReportPDF = ({
                       <Text style={{ fontSize: 6, color: '#718096', fontStyle: 'italic', marginTop: 1 }}>
                         {record.autoGenerated ? 'Auto' : ''}
                         {record.markedAbsent ? 'Auto-absent' : ''}
+                      </Text>
+                    )}
+                  </View>
+                  
+                  {/* ✅ Name Column - সবসময় দেখাবে */}
+                  <View style={styles.nameCell}>
+                    <Text style={styles.employeeName}>
+                      {employeeName}
+                    </Text>
+                    {employeeId && (
+                      <Text style={styles.employeeId}>
+                        {employeeId}
+                      </Text>
+                    )}
+                    {employeeDept && (
+                      <Text style={styles.employeeDept}>
+                        {employeeDept}
                       </Text>
                     )}
                   </View>
@@ -753,7 +932,7 @@ const AttendanceReportPDF = ({
                     )}
                   </View>
                   
-                  {/* Status - FIXED: Using direct styles instead of variables */}
+                  {/* Status */}
                   <View style={styles.tableCell}>
                     <Text 
                       style={[

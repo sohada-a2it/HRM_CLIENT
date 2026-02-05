@@ -508,7 +508,7 @@ function UserEditContent() {
           <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
           <h3 className="mt-4 text-lg font-semibold">User not found</h3>
           <button
-            onClick={() => router.push('/admin/users')}
+            onClick={() => router.push('/user-roles')}
             className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg"
           >
             Back to Users
@@ -523,13 +523,13 @@ function UserEditContent() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <button
+          {/* <button
             onClick={handleBack}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft size={20} />
             Back to Profile
-          </button>
+          </button> */}
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -846,23 +846,7 @@ function UserEditContent() {
                     </option>
                   ))}
                 </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Attendance ID
-                </label>
-                <div className="flex items-center gap-2">
-                  <Hash className="text-gray-400" size={16} />
-                  <input
-                    type="text"
-                    name="attendanceId"
-                    value={formData.attendanceId}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
+              </div> 
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -981,119 +965,7 @@ function UserEditContent() {
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  House Rent
-                </label>
-                <div className="flex items-center gap-2">
-                  <Home className="text-gray-400" size={16} />
-                  <input
-                    type="number"
-                    name="salaryStructure.houseRent"
-                    value={formData.salaryStructure.houseRent}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Medical Allowance
-                </label>
-                <div className="flex items-center gap-2">
-                  <Stethoscope className="text-gray-400" size={16} />
-                  <input
-                    type="number"
-                    name="salaryStructure.medicalAllowance"
-                    value={formData.salaryStructure.medicalAllowance}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Conveyance
-                </label>
-                <div className="flex items-center gap-2">
-                  <Car className="text-gray-400" size={16} />
-                  <input
-                    type="number"
-                    name="salaryStructure.conveyance"
-                    value={formData.salaryStructure.conveyance}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Other Allowances
-                </label>
-                <div className="flex items-center gap-2">
-                  <Package className="text-gray-400" size={16} />
-                  <input
-                    type="number"
-                    name="salaryStructure.otherAllowances"
-                    value={formData.salaryStructure.otherAllowances}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gross Salary (Auto)
-                </label>
-                <div className="flex items-center gap-2">
-                  <CreditCard className="text-gray-400" size={16} />
-                  <input
-                    type="number"
-                    name="salaryStructure.grossSalary"
-                    value={formData.salaryStructure.grossSalary}
-                    readOnly
-                    className="w-full px-4 py-2 border border-gray-300 bg-gray-50 rounded-lg"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Provident Fund
-                </label>
-                <div className="flex items-center gap-2">
-                  <Scale className="text-gray-400" size={16} />
-                  <input
-                    type="number"
-                    name="salaryStructure.providentFund"
-                    value={formData.salaryStructure.providentFund}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tax
-                </label>
-                <div className="flex items-center gap-2">
-                  <Percent className="text-gray-400" size={16} />
-                  <input
-                    type="number"
-                    name="salaryStructure.tax"
-                    value={formData.salaryStructure.tax}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
+              </div> 
             </div>
           </div>
 
