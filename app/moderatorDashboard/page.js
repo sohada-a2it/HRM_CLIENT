@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 // API base URL
-const API_BASE_URL = 'https://a2it-hrm-server.onrender.com/api/v1';
+const API_BASE_URL = 'https://a2itserver.onrender.com/api/v1';
 
 // Months for dropdown
 const MONTHS = [

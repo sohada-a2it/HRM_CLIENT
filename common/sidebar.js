@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-export default function Sidebar() {
+export default function sidebar() {
   const [open, setOpen] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);

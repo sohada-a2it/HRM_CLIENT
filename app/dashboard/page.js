@@ -29,7 +29,7 @@ import {
 import { useRouter } from 'next/navigation';
 
 // API base URL
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const API_BASE_URL = 'https://a2itserver.onrender.com/api/v1';
 
 // Months for dropdown
 const MONTHS = [

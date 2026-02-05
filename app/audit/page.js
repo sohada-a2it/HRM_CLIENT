@@ -1004,7 +1004,7 @@ export default function page() {
             <form onSubmit={handleSearch} className={`p-6 ${showFilters ? 'block' : 'hidden md:block'}`}>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {/* Search Input */}
-                {/* <div>
+                <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
                     <Search size={14} />
                     Quick Search
@@ -1019,7 +1019,7 @@ export default function page() {
                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-300"
                     />
                   </div>
-                </div> */}
+                </div>
 
                 {/* Action Filter */}
                 <div>
@@ -1077,7 +1077,7 @@ export default function page() {
                 <div className="mb-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* User ID Filter */}
-                    {/* <div>
+                    <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         User ID
                       </label>
@@ -1088,10 +1088,10 @@ export default function page() {
                         placeholder="Enter user ID..."
                         className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-300"
                       />
-                    </div> */}
+                    </div>
 
                     {/* IP Address Filter */}
-                    {/* <div>
+                    <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         IP Address
                       </label>
@@ -1102,10 +1102,10 @@ export default function page() {
                         placeholder="e.g., 192.168.1.1"
                         className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-300"
                       />
-                    </div> */}
+                    </div>
 
                     {/* Device Type Filter */}
-                    {/* <div>
+                    <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Device Type
                       </label>
@@ -1120,7 +1120,7 @@ export default function page() {
                         <option value="desktop">Desktop</option>
                         <option value="unknown">Unknown</option>
                       </select>
-                    </div> */}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1141,7 +1141,24 @@ export default function page() {
                 >
                   <XCircle size={18} />
                   Clear Filters
-                </button> 
+                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date().toISOString().split('T')[0];
+                      setFilters({
+                        ...filters,
+                        startDate: today,
+                        endDate: today
+                      });
+                    }}
+                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl font-semibold"
+                  >
+                    <Calendar size={18} />
+                    Today's Logs
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -1280,7 +1297,7 @@ export default function page() {
                       )}
 
                       {/* Device, Browser, OS Info */}
-                      {/* <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="grid grid-cols-2 gap-3 mb-3">
                         <div className="flex items-center gap-2">
                           {getDeviceIcon(safeString(log.device), safeString(log.deviceType))}
                           <div>
@@ -1299,10 +1316,10 @@ export default function page() {
                             </div>
                           </div>
                         </div>
-                      </div> */}
+                      </div>
 
                       {/* OS and IP Info */}
-                      {/* <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="grid grid-cols-2 gap-3 mb-3">
                         <div className="flex items-center gap-2">
                           <HardDrive size={14} className="text-gray-400" />
                           <div>
@@ -1321,7 +1338,7 @@ export default function page() {
                             </div>
                           </div>
                         </div>
-                      </div> */}
+                      </div>
 
                       {/* Details */}
                       <div className="mb-3">
@@ -1367,7 +1384,7 @@ export default function page() {
                               <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">User</div>
                             </div>
                           )}
-                          {/* <div className="col-span-2">
+                          <div className="col-span-2">
                             <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Device</div>
                           </div>
                           <div className="col-span-1">
@@ -1378,7 +1395,7 @@ export default function page() {
                           </div>
                           <div className="col-span-1">
                             <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">IP</div>
-                          </div> */}
+                          </div>
                           <div className="col-span-1">
                             <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Time</div>
                           </div>
@@ -1437,7 +1454,7 @@ export default function page() {
                               )}
 
                               {/* Device Column */}
-                              {/* <div className="col-span-2">
+                              <div className="col-span-2">
                                 <div className="flex items-center gap-2">
                                   <div className="flex-shrink-0">
                                     {getDeviceIcon(safeString(log.device), safeString(log.deviceType))}
@@ -1451,34 +1468,34 @@ export default function page() {
                                     </div>
                                   </div>
                                 </div>
-                              </div> */}
+                              </div>
 
                               {/* Browser Column */}
-                              {/* <div className="col-span-1">
+                              <div className="col-span-1">
                                 <div className="flex items-center gap-1">
                                   {getBrowserIcon(safeString(log.browser))}
                                   <div className="text-xs text-gray-700 truncate" title={getBrowserDisplay(log)}>
                                     {safeString(log.browser).substring(0, 10)}
                                   </div>
                                 </div>
-                              </div> */}
+                              </div>
 
                               {/* OS Column */}
-                              {/* <div className="col-span-1">
+                              <div className="col-span-1">
                                 <div className="text-xs text-gray-700 truncate" title={getOSDisplay(log)}>
                                   {safeString(log.os).substring(0, 8)}
                                 </div>
-                              </div> */}
+                              </div>
 
                               {/* IP Column */}
-                              {/* <div className="col-span-1">
+                              <div className="col-span-1">
                                 <div className="flex items-center gap-1">
                                   <Wifi size={10} className="text-gray-400 flex-shrink-0" />
                                   <div className="font-mono text-xs text-gray-700 truncate" title={safeString(log.ip)}>
                                     {safeString(log.ip)}
                                   </div>
                                 </div>
-                              </div> */}
+                              </div>
 
                               {/* Timestamp Column */}
                               <div className="col-span-1">
@@ -1722,7 +1739,7 @@ export default function page() {
               </div>
               
               {/* Device Information - Updated */}
-              {/* <div>
+              <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <Laptop size={20} />
                   Device & Browser Information
@@ -1785,7 +1802,7 @@ export default function page() {
                     </div>
                   </div>
                 </div>
-              </div> */}
+              </div>
               
               {/* Additional Information */}
               {selectedLog.additionalInfo && (
