@@ -325,26 +325,26 @@ export default function page() {
   };
 
   // Fetch user sessions
-  const fetchUserSessions = async () => {
-    try {
-      const token = getCurrentToken();
+  // const fetchUserSessions = async () => {
+  //   try {
+  //     const token = getCurrentToken();
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/my-sessions`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+  //     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/my-sessions`, {
+  //       headers: { Authorization: `Bearer ${token}` }
+  //     });
 
-      if (response.ok) {
-        const data = await response.json();
-        setSessions(data.data || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch sessions:", error);
-    }
-  };
+  //     if (response.ok) {
+  //       const data = await response.json();
+  //       setSessions(data.data || []);
+  //     }
+  //   } catch (error) {
+  //     console.error("Failed to fetch sessions:", error);
+  //   }
+  // };
 
   useEffect(() => {
     fetchUserProfile();
-    fetchUserSessions();
+    // fetchUserSessions();
   }, []);
 
   // Handle file selection with improved preview

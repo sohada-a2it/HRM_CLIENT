@@ -1286,21 +1286,8 @@ export default function sidebar() {
                   title="Logout (Cache will be preserved)"
                 >
                   <LogOut size={18} className="group-hover:rotate-180 transition-transform duration-300" />
-                  <span className="font-medium">Logout</span>
-                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                    Cache will be preserved
-                  </div>
-                </button>
-                
-                {/* Cache info for debugging */}
-                <div className="text-center">
-                  <div className="text-xs text-purple-400">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      Cache preserved on logout
-                    </span>
-                  </div>
-                </div>
+                  <span className="font-medium">Logout</span> 
+                </button> 
               </div>
             )}
           </div>
